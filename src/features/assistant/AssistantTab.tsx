@@ -4,11 +4,11 @@ import { Header, IconButton } from '@/components/Header';
 import { useChatStore } from '@/store/useChatStore';
 import { haptic } from '@/lib/telegram';
 import { ChatBubble } from './ChatBubble';
-import { handleUtterance } from './interpreter';
+import { handleUtterance } from './brain';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { VoiceOrb } from './VoiceOrb';
 
-const SUGGESTIONS = ['Встреча завтра в 15:00', 'Купить продукты в субботу', 'Что у меня сегодня?', 'Созвон во вторник с 10 до 11'];
+const SUGGESTIONS = ['Встреча завтра с 15 до 16', 'Смены с 9 до 21 по графику 2/2', 'Английский по вторникам и четвергам в 19:00', 'Что у меня на неделе?'];
 
 export function AssistantTab() {
   const messages = useChatStore((s) => s.messages);
@@ -26,9 +26,10 @@ export function AssistantTab() {
     setThinking(true);
     try {
       // A short pause so the reply reads as a response rather than a flash.
-      const [reply] = await Promise.all([handleUtterance(text), new Promise((r) => setTimeout(r, 450))]);
-      push({ role: 'assistant', ...reply });
-      haptic.notify(reply.attachment && reply.attachment.type !== 'agenda' ? 'success' : 'warning');
+      const [replies] = await Promise.all([handleUtterance(text), new Promise((r) => setTimeout(r, 450))]);
+      for (const reply of replies) push({ role: 'assistant', ...reply });
+      const last = replies.at(-1)?.attachment?.type;
+      haptic.notify(last === 'event' || last === 'task' ? 'success' : 'warning');
     } finally {
       setThinking(false);
     }
@@ -39,7 +40,7 @@ export function AssistantTab() {
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
-  }, [messages.length, thinking, speech.interim]);
+  }, [messages.length, messages.at(-1)?.text, thinking, speech.interim]);
 
   const toggleMic = () => {
     haptic.impact(listening ? 'light' : 'medium');

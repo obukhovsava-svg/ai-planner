@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { ArrowUp, CalendarDays, Flag, Plus, X } from 'lucide-react';
 import type { Priority } from '@/types';
 import { usePlannerStore } from '@/store/usePlannerStore';
-import { parseCommand } from '@/lib/parser';
+import { parseQuick } from '@/lib/parser';
 import { addDays, todayKey } from '@/lib/date';
 import { PRIORITY_META } from '@/lib/meta';
 import { haptic } from '@/lib/telegram';
@@ -26,8 +26,7 @@ export function QuickAdd() {
   const submit = () => {
     const raw = title.trim();
     if (!raw) return;
-    const parsed = parseCommand(raw);
-    const p = parsed && parsed.kind !== 'agenda' ? parsed : undefined;
+    const p = parseQuick(raw);
     addTask({
       title: p?.title || raw,
       date: when.date ?? p?.date,

@@ -32,6 +32,10 @@ export interface Repeat {
   until?: DateKey;
   /** Individual occurrences deleted with "only this event". */
   exceptions?: DateKey[];
+  /** freq 'week': specific weekdays (Mon=0 … Sun=6), e.g. weekdays [0..4]. */
+  byWeekday?: number[];
+  /** freq 'day': shift rota — `on` working days, then `off` days off (2/2, 1/3…). */
+  cycle?: { on: number; off: number };
 }
 
 export interface CalendarEvent {

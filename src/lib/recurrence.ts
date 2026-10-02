@@ -1,5 +1,5 @@
 import type { CalendarEvent, DateKey, Repeat } from '@/types';
-import { addDays, diffDays, fromKey, toKey } from './date';
+import { addDays, diffDays, fromKey, startOfWeek, toKey, weekdayMon } from './date';
 
 /** All dates in [from, to] (inclusive) on which the event takes place. */
 export function occurrencesBetween(e: CalendarEvent, from: DateKey, to: DateKey): DateKey[] {
@@ -10,6 +10,27 @@ export function occurrencesBetween(e: CalendarEvent, from: DateKey, to: DateKey)
   if (end < e.date || end < from) return [];
   const skip = new Set(r.exceptions ?? []);
   const out: DateKey[] = [];
+  const first = from > e.date ? from : e.date;
+
+  // Shift rota: `on` days working, `off` days free, repeating from the start date.
+  if (r.freq === 'day' && r.cycle) {
+    const len = r.cycle.on + r.cycle.off;
+    for (let d = first; d <= end; d = addDays(d, 1)) {
+      if (diffDays(d, e.date) % len < r.cycle.on && !skip.has(d)) out.push(d);
+    }
+    return out;
+  }
+
+  // Specific weekdays every N weeks (по будням, пн и ср…).
+  if (r.freq === 'week' && r.byWeekday?.length) {
+    const days = new Set(r.byWeekday);
+    const week0 = startOfWeek(e.date);
+    for (let d = first; d <= end; d = addDays(d, 1)) {
+      const weekIdx = diffDays(startOfWeek(d), week0) / 7;
+      if (weekIdx % r.interval === 0 && days.has(weekdayMon(fromKey(d))) && !skip.has(d)) out.push(d);
+    }
+    return out;
+  }
 
   if (r.freq === 'day' || r.freq === 'week') {
     const step = r.interval * (r.freq === 'week' ? 7 : 1);
@@ -38,9 +59,15 @@ export function occursOn(e: CalendarEvent, date: DateKey): boolean {
   return occurrencesBetween(e, date, date).length > 0;
 }
 
+/** First occurrence on or after `from` (within a year), if any. */
+export function nextOccurrence(e: CalendarEvent, from: DateKey): DateKey | undefined {
+  return occurrencesBetween(e, from, addDays(from, 366))[0];
+}
+
 export const REPEAT_OPTIONS: { label: string; value: Repeat | null }[] = [
   { label: 'Никогда', value: null },
   { label: 'Каждый день', value: { freq: 'day', interval: 1 } },
+  { label: 'По будням', value: { freq: 'week', interval: 1, byWeekday: [0, 1, 2, 3, 4] } },
   { label: 'Каждую неделю', value: { freq: 'week', interval: 1 } },
   { label: 'Каждые 2 недели', value: { freq: 'week', interval: 2 } },
   { label: 'Каждые 3 недели', value: { freq: 'week', interval: 3 } },
@@ -48,15 +75,26 @@ export const REPEAT_OPTIONS: { label: string; value: Repeat | null }[] = [
   { label: 'Каждый год', value: { freq: 'year', interval: 1 } },
 ];
 
+const key = (r: Repeat) => JSON.stringify([r.freq, r.interval, r.byWeekday ?? [], r.cycle ?? null]);
+
 export function sameRule(a: Repeat | null | undefined, b: Repeat | null | undefined): boolean {
   if (!a || !b) return !a && !b;
-  return a.freq === b.freq && a.interval === b.interval;
+  return key(a) === key(b);
 }
+
+const WD_SHORT = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 
 export function repeatLabel(r: Repeat | null | undefined): string {
   if (!r) return 'Никогда';
   const known = REPEAT_OPTIONS.find((o) => sameRule(o.value, r));
   if (known) return known.label;
+  if (r.cycle) return `График ${r.cycle.on}/${r.cycle.off}`;
+  if (r.byWeekday?.length) {
+    const days = [...r.byWeekday].sort();
+    if (days.join() === '5,6') return 'По выходным';
+    const list = `По ${days.map((d) => WD_SHORT[d]).join(', ')}`;
+    return r.interval > 1 ? `${list} (раз в ${r.interval} нед.)` : list;
+  }
   const unit = { day: 'дн.', week: 'нед.', month: 'мес.', year: 'г.' }[r.freq];
   return `Каждые ${r.interval} ${unit}`;
 }

@@ -215,6 +215,12 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
 
       <Sheet open={repeatOpen} title="Повтор" onClose={() => setRepeatOpen(false)}>
         <div className="overflow-hidden rounded-[16px] bg-surface">
+          {form.repeat && !REPEAT_OPTIONS.some((o) => sameRule(o.value, form.repeat)) && (
+            <div className="flex w-full items-center justify-between border-b-[0.5px] border-line px-4 py-[11px] text-[17px]">
+              {repeatLabel(form.repeat)}
+              <Check className="size-5 text-blue" strokeWidth={2.6} />
+            </div>
+          )}
           {REPEAT_OPTIONS.map((o, i) => (
             <button
               key={o.label}
