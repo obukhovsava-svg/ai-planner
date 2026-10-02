@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { haptic } from '@/lib/telegram';
 
 interface SheetProps {
   open: boolean;
@@ -49,7 +50,10 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
             setOffset(drag.current.dy);
           }}
           onPointerUp={() => {
-            if (drag.current && drag.current.dy > 90) onClose();
+            if (drag.current && drag.current.dy > 90) {
+              haptic.impact('light');
+              onClose();
+            }
             else setOffset(0, true);
             drag.current = null;
           }}

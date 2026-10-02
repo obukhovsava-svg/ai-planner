@@ -60,18 +60,44 @@ function supports(version: string): boolean {
   return Boolean(wa && isInTelegram() && wa.isVersionAtLeast(version));
 }
 
+/** Time of the last haptic, so the global tap feedback never doubles a specific one. */
+let lastHapticAt = 0;
+const mark = () => {
+  lastHapticAt = performance.now();
+};
+
 export const haptic = {
   impact(style: ImpactStyle = 'light') {
+    mark();
     if (supports('6.1')) getWebApp()!.HapticFeedback.impactOccurred(style);
-    else if (!isInTelegram()) navigator.vibrate?.(style === 'heavy' ? 20 : 8);
+    else if (!isInTelegram()) navigator.vibrate?.(style === 'heavy' ? 20 : style === 'medium' ? 12 : 6);
   },
   notify(type: NotificationType) {
+    mark();
     if (supports('6.1')) getWebApp()!.HapticFeedback.notificationOccurred(type);
+    else if (!isInTelegram()) navigator.vibrate?.(type === 'success' ? [8, 40, 8] : 15);
   },
   selection() {
+    mark();
     if (supports('6.1')) getWebApp()!.HapticFeedback.selectionChanged();
+    else if (!isInTelegram()) navigator.vibrate?.(4);
   },
 };
+
+/**
+ * Gives every button a subtle tap. Runs after React's handlers (document, bubble phase),
+ * so if a handler already played a richer haptic (success, warning, medium…) we stay silent.
+ * Opt out with [data-no-haptic].
+ */
+function installTapHaptics() {
+  document.addEventListener('click', (e) => {
+    const target = e.target instanceof Element ? e.target.closest('button, [role="button"], [role="switch"], [role="checkbox"], a') : null;
+    if (!target || target.closest('[data-no-haptic]')) return;
+    if ((target as HTMLButtonElement).disabled) return;
+    if (performance.now() - lastHapticAt < 80) return;
+    haptic.impact('light');
+  });
+}
 
 export function getTelegramColorScheme(): 'light' | 'dark' | null {
   return isInTelegram() ? getWebApp()!.colorScheme : null;
@@ -119,6 +145,7 @@ function applySafeArea() {
 export function initTelegram() {
   const wa = getWebApp();
   applySafeArea();
+  installTapHaptics();
   if (!wa || !isInTelegram()) return;
 
   wa.ready();

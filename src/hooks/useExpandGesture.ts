@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
+import { haptic } from '@/lib/telegram';
 
 interface Options {
   /** Element whose --p variable is driven (0 = collapsed, 1 = expanded). */
@@ -52,6 +53,7 @@ export function useExpandGesture({ root, panel, scroller, range, expanded, onSna
     let velocity = 0;
     let fromHandle = false;
     let suppressClick = false;
+    let pastHalf = false;
 
     const setP = (v: number) => {
       p.current = v;
@@ -64,6 +66,7 @@ export function useExpandGesture({ root, panel, scroller, range, expanded, onSna
       lastT = performance.now();
       velocity = 0;
       p0 = p.current;
+      pastHalf = p0 > 0.5;
       fromHandle = target instanceof Element && Boolean(target.closest('[data-drag-handle]'));
     };
 
@@ -92,6 +95,11 @@ export function useExpandGesture({ root, panel, scroller, range, expanded, onSna
       if (next > 1) next = 1 + (next - 1) * RUBBER;
       if (next < 0) next = next * RUBBER;
       setP(next);
+      // A soft tick when the drag crosses the point where it would snap the other way.
+      if (next > 0.5 !== pastHalf) {
+        pastHalf = next > 0.5;
+        haptic.selection();
+      }
       return true;
     };
 
@@ -101,6 +109,7 @@ export function useExpandGesture({ root, panel, scroller, range, expanded, onSna
         const target = Math.abs(velocity) > 0.35 ? velocity > 0 : current > 0.5;
         rootEl.classList.add('cal-anim');
         setP(target ? 1 : 0);
+        haptic.impact(target !== p0 > 0.5 ? 'medium' : 'light');
         suppressClick = true;
         window.setTimeout(() => (suppressClick = false), 50);
         onSnapRef.current(target);
