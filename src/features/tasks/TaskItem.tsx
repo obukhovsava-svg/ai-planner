@@ -1,4 +1,3 @@
-import { Check, Clock } from 'lucide-react';
 import type { Task } from '@/types';
 import { SwipeableRow } from '@/components/SwipeableRow';
 import { usePlannerStore } from '@/store/usePlannerStore';
@@ -13,12 +12,19 @@ interface TaskItemProps {
   onOpen(task: Task): void;
 }
 
+/** A row in an inset-grouped list, styled after iOS Reminders. */
 export function TaskItem({ task, showDate = true, onOpen }: TaskItemProps) {
   const toggle = usePlannerStore((s) => s.toggleTask);
   const remove = usePlannerStore((s) => s.deleteTask);
   const restore = usePlannerStore((s) => s.restoreTask);
   const showToast = useUIStore((s) => s.showToast);
   const overdue = !task.done && task.date !== undefined && task.date < todayKey();
+
+  const meta = [
+    showDate && task.date ? humanDate(task.date) : null,
+    task.time,
+    `${CATEGORY_META[task.category].emoji} ${CATEGORY_META[task.category].label}`,
+  ].filter(Boolean);
 
   return (
     <SwipeableRow
@@ -27,7 +33,7 @@ export function TaskItem({ task, showDate = true, onOpen }: TaskItemProps) {
         if (removed) showToast('Задача удалена', { label: 'Отменить', run: () => restore(removed) });
       }}
     >
-      <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3 shadow-card">
+      <div className="relative flex items-start gap-3 bg-surface py-[11px] pl-4 pr-4">
         <button
           type="button"
           role="checkbox"
@@ -41,42 +47,29 @@ export function TaskItem({ task, showDate = true, onOpen }: TaskItemProps) {
           className="-m-2 grid shrink-0 place-items-center p-2"
         >
           <span
-            className={`grid size-[22px] place-items-center rounded-full border-2 transition-all duration-200 ${
-              task.done
-                ? 'animate-check-pop border-transparent bg-gemini text-white'
-                : task.priority === 'high'
-                  ? 'border-red/70'
-                  : 'border-faint/70'
+            className={`grid size-[22px] place-items-center rounded-full border-[1.5px] transition-colors duration-300 ${
+              task.done ? 'border-blue' : 'border-faint'
             }`}
           >
-            {task.done && <Check className="size-3.5" strokeWidth={3.5} />}
+            <span
+              className={`size-[14px] rounded-full bg-blue transition-transform duration-500 ease-spring ${task.done ? 'scale-100' : 'scale-0'}`}
+            />
           </span>
         </button>
 
-        <button type="button" onClick={() => onOpen(task)} className="min-w-0 flex-1 text-left">
-          <p className={`text-[15px] leading-snug transition-colors ${task.done ? 'text-faint line-through' : ''}`}>{task.title}</p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {showDate && task.date && (
-              <span className={`inline-flex items-center gap-1 text-xs ${overdue ? 'font-semibold text-red' : 'text-muted'}`}>
-                {humanDate(task.date)}
-              </span>
-            )}
-            {task.time && (
-              <span className="inline-flex items-center gap-1 text-xs text-muted">
-                <Clock className="size-3" />
-                {task.time}
-              </span>
-            )}
+        <button type="button" onClick={() => onOpen(task)} className="min-w-0 flex-1 text-left active:opacity-60">
+          <p className={`text-[17px] leading-[22px] transition-colors duration-300 ${task.done ? 'text-muted' : ''}`}>
             {!task.done && task.priority !== 'medium' && (
-              <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${PRIORITY_META[task.priority].className}`}>
-                {PRIORITY_META[task.priority].label}
+              <span className={`mr-1 font-semibold ${task.priority === 'high' ? 'text-red' : 'text-muted'}`}>
+                {PRIORITY_META[task.priority].marks}
               </span>
             )}
-            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-muted">
-              {CATEGORY_META[task.category].emoji} {CATEGORY_META[task.category].label}
-            </span>
-          </div>
+            {task.title}
+          </p>
+          <p className={`mt-0.5 truncate text-[15px] ${overdue ? 'text-red' : 'text-muted'}`}>{meta.join(' · ')}</p>
         </button>
+
+        <span className="sep absolute bottom-0 left-[52px] right-0 h-[0.5px] bg-line" />
       </div>
     </SwipeableRow>
   );

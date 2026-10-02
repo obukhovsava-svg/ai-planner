@@ -32,7 +32,7 @@ export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
   return (
     <div
       ref={row}
-      className={`relative overflow-hidden rounded-2xl transition-[max-height,opacity,margin] duration-200 ${
+      className={`relative overflow-hidden transition-[max-height,opacity] duration-300 ease-spring ${
         removing ? 'max-h-0 opacity-0' : 'max-h-40'
       }`}
     >
@@ -41,7 +41,7 @@ export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
         onClick={remove}
         aria-label="Удалить"
         tabIndex={offset < 0 ? 0 : -1}
-        className="absolute inset-y-0 right-0 flex items-center justify-end gap-1.5 bg-red pr-5 text-sm font-semibold text-white"
+        className="absolute inset-y-0 right-0 flex items-center justify-end gap-1.5 bg-red pr-5 text-[15px] font-medium text-white"
         style={{ width: Math.max(REVEAL, -offset) }}
       >
         <Trash2 className="size-4" />
@@ -51,7 +51,7 @@ export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
         className="relative touch-pan-y"
         style={{
           transform: `translateX(${offset}px)`,
-          transition: dragging ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
+          transition: dragging ? 'none' : 'transform 0.5s var(--spring)',
         }}
         onPointerDown={(e) => {
           if (e.pointerType === 'mouse' && e.button !== 0) return;

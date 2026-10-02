@@ -41,7 +41,7 @@ export function TasksTab() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title="Задачи" subtitle={activeCount ? `${activeCount} активн${activeCount === 1 ? 'ая' : 'ых'}` : 'Всё сделано 🎉'} />
+      <Header title="Задачи" subtitle={activeCount ? `${activeCount} активн${activeCount === 1 ? 'ая' : 'ых'}` : 'Всё сделано'} />
 
       <div className="pb-tabbar min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-3 px-4">
@@ -65,8 +65,8 @@ export function TasksTab() {
                 haptic.selection();
                 setCategory(c);
               }}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                category === c ? 'border-transparent bg-fg text-bg' : 'border-line bg-surface text-muted'
+              className={`shrink-0 rounded-full px-3.5 py-[7px] text-[14px] font-medium transition-all duration-300 ease-spring active:scale-95 ${
+                category === c ? 'bg-blue text-white' : 'bg-surface text-fg'
               }`}
             >
               {c === 'all' ? 'Все' : `${CATEGORY_META[c].emoji} ${CATEGORY_META[c].label}`}
@@ -88,25 +88,28 @@ export function TasksTab() {
   );
 }
 
+/** Inset-grouped section, like iOS Reminders. */
 function Section({ title, count, children, tone }: { title: string; count: number; children: ReactNode; tone?: 'red' }) {
   return (
-    <section className="mt-4 first:mt-2">
-      <h3 className={`mb-2 flex items-center gap-2 px-1 text-[13px] font-semibold uppercase tracking-wide ${tone === 'red' ? 'text-red' : 'text-muted'}`}>
+    <section className="mt-6 first:mt-3">
+      <h3 className={`mb-2 flex items-baseline gap-2 px-1 text-[20px] font-bold ${tone === 'red' ? 'text-red' : ''}`}>
         {title}
-        <span className="rounded-full bg-surface-2 px-1.5 text-[11px] text-faint">{count}</span>
+        <span className="text-[15px] font-normal text-muted">{count}</span>
       </h3>
-      <div className="flex flex-col gap-2">{children}</div>
+      <Group>{children}</Group>
     </section>
   );
 }
 
+function Group({ children }: { children: ReactNode }) {
+  return <div className="overflow-hidden rounded-[10px] bg-surface [&>*:last-child_.sep]:hidden">{children}</div>;
+}
+
 function Empty({ text }: { text: string }) {
   return (
-    <div className="flex flex-col items-center gap-2 py-12 text-center text-muted">
-      <span className="grid size-14 place-items-center rounded-2xl bg-gemini-soft">
-        <Inbox className="size-6 text-blue dark:text-sky" />
-      </span>
-      <p className="text-sm">{text}</p>
+    <div className="animate-fade-up flex flex-col items-center gap-3 py-14 text-center text-muted">
+      <Inbox className="size-10 text-faint" strokeWidth={1.4} />
+      <p className="max-w-60 text-[15px]">{text}</p>
     </div>
   );
 }
@@ -130,7 +133,7 @@ function AllView({
   return (
     <>
       <Section title="Активные" count={active.length}>
-        {active.length ? active.map((t) => <TaskItem key={t.id} task={t} onOpen={onOpen} />) : <p className="px-1 text-sm text-muted">Все задачи выполнены ✨</p>}
+        {active.length ? active.map((t) => <TaskItem key={t.id} task={t} onOpen={onOpen} />) : <p className="px-4 py-3 text-[15px] text-muted">Все задачи выполнены</p>}
       </Section>
       {done.length > 0 && (
         <section className="mt-5">
@@ -140,17 +143,19 @@ function AllView({
               haptic.selection();
               setShowDone(!showDone);
             }}
-            className="mb-2 flex w-full items-center gap-2 px-1 text-[13px] font-semibold uppercase tracking-wide text-muted"
+            className="mb-2 flex w-full items-baseline gap-2 px-1 text-[20px] font-bold active:opacity-60"
           >
             Выполненные
-            <span className="rounded-full bg-surface-2 px-1.5 text-[11px] text-faint">{done.length}</span>
-            <ChevronDown className={`ml-auto size-4 transition-transform ${showDone ? 'rotate-180' : ''}`} />
+            <span className="text-[15px] font-normal text-muted">{done.length}</span>
+            <ChevronDown className={`ml-auto size-5 self-center text-blue transition-transform duration-500 ease-spring ${showDone ? 'rotate-180' : ''}`} />
           </button>
           {showDone && (
-            <div className="animate-fade-up flex flex-col gap-2">
-              {done.map((t) => (
-                <TaskItem key={t.id} task={t} onOpen={onOpen} />
-              ))}
+            <div className="animate-fade-up">
+              <Group>
+                {done.map((t) => (
+                  <TaskItem key={t.id} task={t} onOpen={onOpen} />
+                ))}
+              </Group>
             </div>
           )}
         </section>
@@ -184,8 +189,8 @@ function DatedView({
         <button
           type="button"
           onClick={() => setDay(null)}
-          className={`flex h-[60px] shrink-0 flex-col items-center justify-center rounded-2xl px-3 text-[13px] font-semibold transition-colors ${
-            day === null ? 'bg-gemini text-white' : 'border border-line bg-surface text-muted'
+          className={`flex h-[62px] shrink-0 flex-col items-center justify-center rounded-[12px] px-3.5 text-[15px] font-semibold transition-all duration-300 ease-spring active:scale-95 ${
+            day === null ? 'bg-blue text-white' : 'bg-surface text-fg'
           }`}
         >
           Все
@@ -201,15 +206,15 @@ function DatedView({
                 haptic.selection();
                 setDay(active ? null : d);
               }}
-              className={`relative flex h-[60px] w-11 shrink-0 flex-col items-center justify-center rounded-2xl transition-colors ${
-                active ? 'bg-fg text-bg' : 'border border-line bg-surface'
+              className={`relative flex h-[62px] w-[46px] shrink-0 flex-col items-center justify-center rounded-[12px] transition-all duration-300 ease-spring active:scale-95 ${
+                active ? 'bg-blue text-white' : 'bg-surface'
               }`}
             >
-              <span className={`text-[10px] font-semibold uppercase ${active ? 'opacity-70' : 'text-muted'}`}>
+              <span className={`text-[11px] font-medium ${active ? 'opacity-80' : 'text-muted'}`}>
                 {WEEKDAYS_SHORT[weekdayMon(fromKey(d))]}
               </span>
-              <span className={`text-[17px] font-semibold ${d === today && !active ? 'text-red' : ''}`}>{fromKey(d).getDate()}</span>
-              {n > 0 && <span className={`absolute bottom-1.5 size-1 rounded-full ${active ? 'bg-bg' : 'bg-blue dark:bg-sky'}`} />}
+              <span className={`text-[19px] font-semibold tabular-nums ${d === today && !active ? 'text-red' : ''}`}>{fromKey(d).getDate()}</span>
+              {n > 0 && <span className={`absolute bottom-[7px] size-[5px] rounded-full ${active ? 'bg-white' : 'bg-faint'}`} />}
             </button>
           );
         })}

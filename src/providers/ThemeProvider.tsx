@@ -16,7 +16,7 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-const BG: Record<ThemeMode, string> = { light: '#F8FAFC', dark: '#0A0D14' };
+const BG: Record<ThemeMode, string> = { light: '#F2F2F7', dark: '#000000' };
 
 function detectAutoTheme(): ThemeMode {
   return getTelegramColorScheme() ?? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');

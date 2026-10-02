@@ -6,13 +6,13 @@ interface SegmentedProps<T extends string> {
   onChange(value: T): void;
 }
 
-/** iOS UISegmentedControl look-alike with a sliding thumb. */
+/** iOS UISegmentedControl with a sliding thumb. */
 export function Segmented<T extends string>({ value, options, onChange }: SegmentedProps<T>) {
   const index = options.findIndex((o) => o.value === value);
   return (
-    <div className="relative grid rounded-xl bg-surface-2 p-0.5" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    <div className="relative grid rounded-[9px] bg-surface-2 p-[2px]" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
       <span
-        className="absolute inset-y-0.5 left-0.5 rounded-[10px] bg-surface shadow-card transition-transform duration-300 ease-out dark:bg-line"
+        className="absolute inset-y-[2px] left-[2px] rounded-[7px] bg-white shadow-[0_3px_8px_rgb(0_0_0/0.12),0_3px_1px_rgb(0_0_0/0.04)] transition-transform duration-500 ease-spring dark:bg-[#636366]"
         style={{ width: `calc((100% - 4px) / ${options.length})`, transform: `translateX(${index * 100}%)` }}
       />
       {options.map((o) => (
@@ -25,7 +25,7 @@ export function Segmented<T extends string>({ value, options, onChange }: Segmen
               onChange(o.value);
             }
           }}
-          className={`relative z-10 py-1.5 text-[13px] font-semibold transition-colors ${o.value === value ? 'text-fg' : 'text-muted'}`}
+          className={`relative z-10 py-[5px] text-[13px] transition-[font-weight] ${o.value === value ? 'font-semibold' : 'font-medium'}`}
         >
           {o.label}
         </button>

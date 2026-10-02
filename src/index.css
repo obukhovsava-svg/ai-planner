@@ -2,38 +2,51 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ---------- Design tokens ---------- */
+/* ---------- Design tokens (iOS system colours) ---------- */
 :root {
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --line: #e2e8f0;
-  --fg: #0f172a;
-  --muted: #64748b;
-  --faint: #94a3b8;
-  --blue: #2563eb;
-  --sky: #38bdf8;
-  --red: #ef4444;
-  --coral: #f87171;
-  --tabbar: rgb(255 255 255 / 0.78);
-  --shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.12);
-  --gemini: linear-gradient(135deg, #2563eb 0%, #38bdf8 42%, #f87171 72%, #ef4444 100%);
-  --gemini-soft: linear-gradient(135deg, rgb(37 99 235 / 0.12), rgb(239 68 68 / 0.12));
-  --tabbar-h: 64px;
+  --bg: #f2f2f7; /* systemGroupedBackground */
+  --surface: #ffffff; /* secondarySystemGroupedBackground */
+  --surface-2: rgb(118 118 128 / 0.12); /* tertiarySystemFill */
+  --line: rgb(60 60 67 / 0.14); /* separator */
+  --fg: #000000;
+  --muted: rgb(60 60 67 / 0.6); /* secondaryLabel */
+  --faint: rgb(60 60 67 / 0.3); /* tertiaryLabel */
+  --blue: #007aff;
+  --sky: #007aff;
+  --red: #ff3b30;
+  --coral: #ff3b30;
+  --green: #34c759;
+  --tabbar: rgb(249 249 249 / 0.8);
+  --navbar: rgb(242 242 247 / 0.8);
+  --shadow: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.04);
+  /* Apple-Intelligence-like accent: used sparingly, as glow, never as a big fill */
+  --ai-1: #5b8cff;
+  --ai-2: #a78bfa;
+  --ai-3: #ff8fa3;
+  --gemini: linear-gradient(120deg, var(--ai-1), var(--ai-2) 50%, var(--ai-3));
+  --gemini-soft: linear-gradient(120deg, rgb(91 140 255 / 0.12), rgb(255 143 163 / 0.12));
+  --tabbar-h: 56px;
+  --spring: cubic-bezier(0.32, 0.72, 0, 1);
   color-scheme: light;
 }
 
 .dark {
-  --bg: #0a0d14;
-  --surface: #121624;
-  --surface-2: #181d2e;
-  --line: #1f2937;
-  --fg: #f1f5f9;
-  --muted: #94a3b8;
-  --faint: #64748b;
-  --tabbar: rgb(18 22 36 / 0.72);
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -16px rgb(0 0 0 / 0.6);
-  --gemini-soft: linear-gradient(135deg, rgb(37 99 235 / 0.2), rgb(239 68 68 / 0.18));
+  --bg: #000000;
+  --surface: #1c1c1e;
+  --surface-2: rgb(118 118 128 / 0.24);
+  --line: rgb(84 84 88 / 0.55);
+  --fg: #ffffff;
+  --muted: rgb(235 235 245 / 0.6);
+  --faint: rgb(235 235 245 / 0.3);
+  --blue: #0a84ff;
+  --sky: #0a84ff;
+  --red: #ff453a;
+  --coral: #ff453a;
+  --green: #30d158;
+  --tabbar: rgb(22 22 24 / 0.78);
+  --navbar: rgb(0 0 0 / 0.75);
+  --shadow: none;
+  --gemini-soft: linear-gradient(120deg, rgb(91 140 255 / 0.2), rgb(255 143 163 / 0.18));
   color-scheme: dark;
 }
 
@@ -49,7 +62,9 @@
   --color-sky: var(--sky);
   --color-red: var(--red);
   --color-coral: var(--coral);
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
+  --color-green: var(--green);
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
+  --ease-spring: var(--spring);
   --shadow-card: var(--shadow);
 }
 
@@ -143,7 +158,7 @@ select {
 @keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px) scale(0.99);
   }
   to {
     opacity: 1;
@@ -152,8 +167,8 @@ select {
 }
 @keyframes slide-in-right {
   from {
-    opacity: 0;
-    transform: translateX(24px);
+    opacity: 0.4;
+    transform: translateX(40px);
   }
   to {
     opacity: 1;
@@ -162,8 +177,8 @@ select {
 }
 @keyframes slide-in-left {
   from {
-    opacity: 0;
-    transform: translateX(-24px);
+    opacity: 0.4;
+    transform: translateX(-40px);
   }
   to {
     opacity: 1;
@@ -225,19 +240,19 @@ select {
 }
 
 @utility animate-fade-up {
-  animation: fade-up 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: fade-up 0.5s var(--spring) both;
 }
 @utility animate-fade-in {
-  animation: fade-in 0.2s ease both;
+  animation: fade-in 0.3s ease both;
 }
 @utility animate-slide-right {
-  animation: slide-in-right 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: slide-in-right 0.45s var(--spring) both;
 }
 @utility animate-slide-left {
-  animation: slide-in-left 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: slide-in-left 0.45s var(--spring) both;
 }
 @utility animate-sheet-up {
-  animation: sheet-up 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: sheet-up 0.5s var(--spring) both;
 }
 @utility animate-aura {
   animation: aura 3.2s linear infinite;
@@ -252,6 +267,42 @@ select {
   animation: check-pop 0.3s ease both;
 }
 
+/* Siri-like orb: soft blobs drifting inside a glass sphere */
+@keyframes blob-a {
+  0%, 100% { transform: translate(-18%, -12%) scale(1); }
+  50% { transform: translate(14%, 10%) scale(1.15); }
+}
+@keyframes blob-b {
+  0%, 100% { transform: translate(16%, 14%) scale(1.1); }
+  50% { transform: translate(-12%, -16%) scale(0.9); }
+}
+@keyframes blob-c {
+  0%, 100% { transform: translate(10%, -18%) scale(0.95); }
+  50% { transform: translate(-16%, 12%) scale(1.2); }
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@utility animate-breathe {
+  animation: breathe 4s ease-in-out infinite;
+}
+@utility text-shimmer {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 35%, var(--fg) 50%, var(--muted) 65%, var(--muted) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+@utility ease-spring {
+  transition-timing-function: var(--spring);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -259,4 +310,15 @@ select {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* ---------- Collapsible calendar (driven by --p: 0 = week, 1 = month) ---------- */
+.cal-anim .cal-h {
+  transition: height 0.55s var(--spring);
+}
+.cal-anim .cal-t {
+  transition: transform 0.55s var(--spring);
+}
+.cal-anim .cal-o {
+  transition: opacity 0.55s var(--spring);
 }

@@ -16,7 +16,7 @@ interface EventSheetProps {
 }
 
 const fieldClass =
-  'w-full rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-fg outline-none transition-colors placeholder:text-faint focus:border-blue';
+  'w-full rounded-[10px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
 
 export function EventSheet({ draft, onClose }: EventSheetProps) {
   const addEvent = usePlannerStore((s) => s.addEvent);
@@ -61,20 +61,20 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
       >
         <input
           autoFocus={!form.id}
-          className={`${fieldClass} text-lg font-medium`}
+          className={`${fieldClass} font-medium`}
           placeholder="Название"
           value={form.title}
           onChange={(e) => set('title', e.target.value)}
         />
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-muted">Дата</span>
+          <span className="px-4 text-[13px] uppercase text-muted">Дата</span>
           <input type="date" className={fieldClass} value={form.date} onChange={(e) => e.target.value && set('date', e.target.value)} />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted">Начало</span>
+            <span className="px-4 text-[13px] uppercase text-muted">Начало</span>
             <input
               type="time"
               className={fieldClass}
@@ -89,7 +89,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted">Конец</span>
+            <span className="px-4 text-[13px] uppercase text-muted">Конец</span>
             <input type="time" className={fieldClass} value={form.end} onChange={(e) => e.target.value && set('end', e.target.value)} />
           </label>
         </div>
@@ -98,8 +98,8 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
         )}
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-muted">Цвет</span>
-          <div className="flex gap-3">
+          <span className="px-4 text-[13px] uppercase text-muted">Цвет</span>
+          <div className="flex justify-between rounded-[10px] bg-surface px-4 py-3">
             {(Object.keys(EVENT_COLORS) as EventColor[]).map((c) => (
               <button
                 key={c}
@@ -109,8 +109,8 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
                   haptic.selection();
                   set('color', c);
                 }}
-                className={`size-8 rounded-full ${EVENT_COLORS[c].dot} transition-transform ${
-                  form.color === c ? 'scale-110 ring-2 ring-fg ring-offset-2 ring-offset-surface' : 'opacity-70'
+                className={`size-8 rounded-full ${EVENT_COLORS[c].dot} transition-transform duration-300 ease-spring ${
+                  form.color === c ? 'scale-110 ring-[2.5px] ring-fg/80 ring-offset-2 ring-offset-surface' : 'scale-90'
                 }`}
               />
             ))}
@@ -131,7 +131,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
               type="button"
               onClick={remove}
               aria-label="Удалить событие"
-              className="grid size-12 shrink-0 place-items-center rounded-2xl bg-red/10 text-red active:scale-95"
+              className="grid size-[50px] shrink-0 place-items-center rounded-[14px] bg-surface text-red transition-transform duration-300 ease-spring active:scale-95"
             >
               <Trash2 className="size-5" />
             </button>
@@ -139,7 +139,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
           <button
             type="submit"
             disabled={invalid}
-            className="h-12 flex-1 rounded-2xl bg-gemini font-semibold text-white shadow-lg transition active:scale-[0.98] disabled:opacity-40"
+            className="h-[50px] flex-1 rounded-[14px] bg-blue text-[17px] font-semibold text-white transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] active:opacity-80 disabled:opacity-30"
           >
             {form.id ? 'Сохранить' : 'Добавить'}
           </button>

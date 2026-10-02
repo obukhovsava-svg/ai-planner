@@ -1,9 +1,9 @@
 import type { Category, EventColor, Priority } from '@/types';
 
-export const PRIORITY_META: Record<Priority, { label: string; className: string }> = {
-  high: { label: 'Высокий', className: 'bg-red/12 text-red dark:bg-red/20 dark:text-coral' },
-  medium: { label: 'Средний', className: 'bg-amber-500/12 text-amber-600 dark:bg-amber-400/15 dark:text-amber-300' },
-  low: { label: 'Низкий', className: 'bg-slate-500/10 text-muted' },
+export const PRIORITY_META: Record<Priority, { label: string; className: string; marks: string }> = {
+  high: { label: 'Высокий', className: 'bg-red/12 text-red', marks: '!!!' },
+  medium: { label: 'Средний', className: 'bg-[#ff9500]/12 text-[#ff9500]', marks: '!!' },
+  low: { label: 'Низкий', className: 'bg-surface-2 text-muted', marks: '!' },
 };
 
 export const CATEGORY_META: Record<Category, { label: string; emoji: string }> = {
@@ -14,12 +14,13 @@ export const CATEGORY_META: Record<Category, { label: string; emoji: string }> =
   other: { label: 'Другое', emoji: '📌' },
 };
 
+/** iOS system colours for calendar events. */
 export const EVENT_COLORS: Record<EventColor, { bar: string; bg: string; text: string; dot: string }> = {
-  blue: { bar: 'bg-blue', bg: 'bg-blue/10 dark:bg-blue/20', text: 'text-blue dark:text-sky', dot: 'bg-blue' },
-  red: { bar: 'bg-red', bg: 'bg-red/10 dark:bg-red/20', text: 'text-red dark:text-coral', dot: 'bg-red' },
-  violet: { bar: 'bg-violet-500', bg: 'bg-violet-500/10 dark:bg-violet-500/20', text: 'text-violet-600 dark:text-violet-300', dot: 'bg-violet-500' },
-  green: { bar: 'bg-emerald-500', bg: 'bg-emerald-500/10 dark:bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-300', dot: 'bg-emerald-500' },
-  amber: { bar: 'bg-amber-500', bg: 'bg-amber-500/10 dark:bg-amber-500/20', text: 'text-amber-600 dark:text-amber-300', dot: 'bg-amber-500' },
+  blue: { bar: 'bg-blue', bg: 'bg-blue/15', text: 'text-blue', dot: 'bg-blue' },
+  red: { bar: 'bg-red', bg: 'bg-red/15', text: 'text-red', dot: 'bg-red' },
+  violet: { bar: 'bg-[#af52de]', bg: 'bg-[#af52de]/15', text: 'text-[#af52de] dark:text-[#bf5af2]', dot: 'bg-[#af52de]' },
+  green: { bar: 'bg-green', bg: 'bg-green/15', text: 'text-[#248a3d] dark:text-green', dot: 'bg-green' },
+  amber: { bar: 'bg-[#ff9500]', bg: 'bg-[#ff9500]/15', text: 'text-[#c93400] dark:text-[#ff9f0a]', dot: 'bg-[#ff9500]' },
 };
 
 export const CATEGORY_TO_COLOR: Record<Category, EventColor> = {

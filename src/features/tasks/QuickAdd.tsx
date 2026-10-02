@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { ArrowUp, CalendarPlus, Flag, X } from 'lucide-react';
+import { ArrowUp, CalendarDays, Flag, Plus, X } from 'lucide-react';
 import type { DateKey, Priority } from '@/types';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { parseCommand } from '@/lib/parser';
@@ -55,7 +55,7 @@ export function QuickAdd({ defaultDate }: { defaultDate?: DateKey }) {
   const expanded = focused || Boolean(title);
 
   return (
-    <div className="rounded-2xl border border-line bg-surface p-1.5 shadow-card transition-colors focus-within:border-blue">
+    <div className="rounded-[10px] bg-surface py-1 pl-3 pr-1.5">
       <form
         className="flex items-center gap-1"
         onSubmit={(e) => {
@@ -63,6 +63,9 @@ export function QuickAdd({ defaultDate }: { defaultDate?: DateKey }) {
           submit();
         }}
       >
+        <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-blue text-white">
+          <Plus className="size-4" strokeWidth={3} />
+        </span>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -70,17 +73,17 @@ export function QuickAdd({ defaultDate }: { defaultDate?: DateKey }) {
           onBlur={() => setTimeout(() => setFocused(false), 150)}
           placeholder="Новая задача…"
           enterKeyHint="done"
-          className="min-w-0 flex-1 bg-transparent px-2.5 py-1.5 text-fg outline-none placeholder:text-faint"
+          className="min-w-0 flex-1 bg-transparent px-1.5 py-1.5 text-[17px] text-fg outline-none placeholder:text-muted"
         />
         <button
           type="button"
           onClick={openPicker}
           aria-label="Выбрать дату"
-          className={`relative grid size-9 shrink-0 place-items-center rounded-xl transition-colors ${
-            date ? 'bg-blue/10 text-blue dark:text-sky' : 'text-muted'
+          className={`relative grid size-9 shrink-0 place-items-center rounded-full transition-colors duration-300 ${
+            date ? 'bg-blue/12 text-blue' : 'text-blue'
           }`}
         >
-          <CalendarPlus className="size-5" />
+          <CalendarDays className="size-[20px]" />
           <input
             ref={dateInput}
             type="date"
@@ -95,14 +98,16 @@ export function QuickAdd({ defaultDate }: { defaultDate?: DateKey }) {
           type="submit"
           disabled={!title.trim()}
           aria-label="Добавить задачу"
-          className="grid size-9 shrink-0 place-items-center rounded-xl bg-gemini text-white transition active:scale-90 disabled:opacity-30"
+          className={`grid shrink-0 place-items-center rounded-full bg-blue text-white transition-all duration-500 ease-spring active:scale-90 ${
+            title.trim() ? 'size-8 opacity-100' : 'size-0 opacity-0'
+          }`}
         >
           <ArrowUp className="size-5" strokeWidth={2.5} />
         </button>
       </form>
 
       {(expanded || date) && (
-        <div className="no-scrollbar animate-fade-in flex gap-1.5 overflow-x-auto px-1 pb-0.5 pt-2">
+        <div className="no-scrollbar animate-fade-in -ml-3 flex gap-1.5 overflow-x-auto border-t-[0.5px] border-line pb-1.5 pl-3 pt-2.5">
           {date && (
             <Chip active onClick={() => setDate(undefined)}>
               {humanDate(date)} <X className="size-3" />
@@ -121,7 +126,7 @@ export function QuickAdd({ defaultDate }: { defaultDate?: DateKey }) {
           <span className="mx-0.5 w-px shrink-0 bg-line" />
           {PRIORITIES.map((p) => (
             <Chip key={p} active={priority === p} onClick={() => setPriority(priority === p ? undefined : p)}>
-              <Flag className={`size-3 ${p === 'high' ? 'text-red' : p === 'medium' ? 'text-amber-500' : 'text-faint'}`} />
+              <Flag className={`size-3 ${priority === p ? '' : p === 'high' ? 'text-red' : p === 'medium' ? 'text-[#ff9500]' : 'text-muted'}`} />
               {PRIORITY_META[p].label}
             </Chip>
           ))}
@@ -140,8 +145,8 @@ function Chip({ children, active, onClick }: { children: ReactNode; active?: boo
         haptic.selection();
         onClick();
       }}
-      className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-        active ? 'bg-fg text-bg' : 'bg-surface-2 text-muted'
+      className={`flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-medium transition-all duration-300 ease-spring active:scale-95 ${
+        active ? 'bg-blue text-white' : 'bg-surface-2 text-fg'
       }`}
     >
       {children}

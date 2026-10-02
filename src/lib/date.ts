@@ -110,3 +110,11 @@ export function nowMinutes(): number {
   const d = new Date();
   return d.getHours() * 60 + d.getMinutes();
 }
+
+/** Number of week rows the month of `key` actually occupies (4–6). */
+export function monthRows(key: DateKey): number {
+  const d = fromKey(key);
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  return Math.ceil((weekdayMon(first) + days) / 7);
+}

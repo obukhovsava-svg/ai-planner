@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState, type RefObject } from 'react';
 import { Check } from 'lucide-react';
 import type { CalendarEvent, DateKey } from '@/types';
 import { usePlannerStore } from '@/store/usePlannerStore';
@@ -10,6 +10,8 @@ import { haptic } from '@/lib/telegram';
 const HOUR_PX = 56;
 
 interface DayTimelineProps {
+  panelRef: RefObject<HTMLElement | null>;
+  scrollerRef: RefObject<HTMLDivElement | null>;
   date: DateKey;
   onDateChange(date: DateKey): void;
   onCreate(start: string, end: string): void;
@@ -47,11 +49,10 @@ function layoutEvents(events: CalendarEvent[]) {
   return placed;
 }
 
-export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelineProps) {
+export function DayTimeline({ panelRef, scrollerRef: scroller, date, onDateChange, onCreate, onOpen }: DayTimelineProps) {
   const allEvents = usePlannerStore((s) => s.events);
   const allTasks = usePlannerStore((s) => s.tasks);
   const toggleTask = usePlannerStore((s) => s.toggleTask);
-  const scroller = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(nowMinutes);
   const isToday = date === todayKey();
 
@@ -77,12 +78,18 @@ export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelin
   }, 70);
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col rounded-t-[28px] border-t border-line bg-surface shadow-card">
-      <div className="flex items-center justify-between px-5 pb-2 pt-4">
-        <h2 className="text-[17px] font-semibold">{longDate(date)}</h2>
-        <span className="text-xs text-muted">
+    <section
+      ref={panelRef}
+      className="flex min-h-0 flex-1 flex-col rounded-t-[22px] bg-surface shadow-[0_-0.5px_0_var(--line),0_-8px_24px_rgb(0_0_0/0.04)]"
+    >
+      <div data-drag-handle className="cursor-grab touch-none select-none active:cursor-grabbing">
+        <div className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-faint/60" />
+        <div className="flex items-baseline justify-between px-5 pb-2 pt-2">
+          <h2 className="text-[20px] font-semibold tracking-[0.01em]">{longDate(date)}</h2>
+          <span className="text-[13px] text-muted">
           {events.length ? `${events.length} событ${events.length === 1 ? 'ие' : events.length < 5 ? 'ия' : 'ий'}` : 'Свободный день'}
-        </span>
+          </span>
+        </div>
       </div>
 
       {dayTasks.length > 0 && (
@@ -95,9 +102,9 @@ export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelin
                 haptic.impact('light');
                 toggleTask(t.id);
               }}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface-2 py-1 pl-1.5 pr-3 text-[13px] ${t.done ? 'text-faint line-through' : ''}`}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2 py-1.5 pl-2 pr-3 text-[14px] transition-colors active:opacity-60 ${t.done ? 'text-muted line-through' : ''}`}
             >
-              <span className={`grid size-4 place-items-center rounded-full border ${t.done ? 'border-transparent bg-gemini text-white' : 'border-faint'}`}>
+              <span className={`grid size-[18px] place-items-center rounded-full border-[1.5px] transition-colors duration-300 ${t.done ? 'border-blue bg-blue text-white' : 'border-faint'}`}>
                 {t.done && <Check className="size-3" strokeWidth={3} />}
               </span>
               {t.title}
@@ -120,10 +127,10 @@ export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelin
               className="group absolute inset-x-0 flex text-left"
               style={{ top: h * HOUR_PX, height: HOUR_PX }}
             >
-              <span className="w-14 shrink-0 -translate-y-2 pr-2 text-right text-[11px] tabular-nums text-faint">
+              <span className="w-14 shrink-0 -translate-y-2 pr-2 text-right text-[11px] tabular-nums text-muted">
                 {h === 0 ? '' : minutesToTime(h * 60)}
               </span>
-              <span className="relative flex-1 border-t border-line transition-colors group-active:bg-blue/5">
+              <span className="relative flex-1 border-t-[0.5px] border-line transition-colors duration-300 group-active:bg-blue/5">
                 <span className="absolute right-3 top-1.5 hidden text-[11px] font-medium text-blue opacity-0 transition-opacity group-hover:opacity-100 sm:block">
                   + Добавить
                 </span>
@@ -144,7 +151,7 @@ export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelin
                   haptic.impact('light');
                   onOpen(event);
                 }}
-                className={`animate-fade-up absolute overflow-hidden rounded-lg py-1 pl-2.5 pr-1.5 text-left ${c.bg}`}
+                className={`animate-fade-up absolute overflow-hidden rounded-[6px] py-1 pl-2.5 pr-1.5 text-left transition-transform duration-300 ease-spring active:scale-[0.98] ${c.bg}`}
                 style={{
                   top: (s / 60) * HOUR_PX + 1,
                   height: ((e - s) / 60) * HOUR_PX - 2,

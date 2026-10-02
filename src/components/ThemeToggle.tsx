@@ -2,7 +2,7 @@ import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
 
 export function ThemeToggle() {
-  const { theme, toggle, isManual } = useTheme();
+  const { theme, toggle } = useTheme();
   const dark = theme === 'dark';
 
   return (
@@ -13,17 +13,16 @@ export function ThemeToggle() {
         const r = e.currentTarget.getBoundingClientRect();
         toggle({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
       }}
-      className="relative grid size-9 place-items-center rounded-full border border-line bg-surface text-fg shadow-card transition-transform active:scale-90"
+      className="relative grid size-9 place-items-center rounded-full bg-surface-2 text-blue transition-transform duration-300 ease-spring active:scale-90"
     >
       <Sun
-        className={`absolute size-[18px] transition-all duration-500 ${dark ? 'rotate-90 scale-0 opacity-0' : 'rotate-0 scale-100 opacity-100'}`}
+        className={`absolute size-[18px] transition-all duration-500 ease-spring ${dark ? 'rotate-90 scale-50 opacity-0' : 'rotate-0 scale-100 opacity-100'}`}
+        strokeWidth={2.2}
       />
       <Moon
-        className={`absolute size-[18px] transition-all duration-500 ${dark ? 'rotate-0 scale-100 opacity-100' : '-rotate-90 scale-0 opacity-0'}`}
+        className={`absolute size-[17px] transition-all duration-500 ease-spring ${dark ? 'rotate-0 scale-100 opacity-100' : '-rotate-90 scale-50 opacity-0'}`}
+        strokeWidth={2.2}
       />
-      {isManual && (
-        <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-gemini ring-2 ring-bg" title="Ручной режим темы" />
-      )}
     </button>
   );
 }

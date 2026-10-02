@@ -26,19 +26,19 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
   const setOffset = (dy: number, animate = false) => {
     const el = panel.current;
     if (!el) return;
-    el.style.transition = animate ? 'transform 0.25s ease' : 'none';
+    el.style.transition = animate ? 'transform 0.5s var(--spring)' : 'none';
     el.style.transform = dy ? `translateY(${dy}px)` : '';
   };
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal aria-label={title}>
-      <div className="animate-fade-in absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="animate-fade-in absolute inset-0 bg-black/35" onClick={onClose} />
       <div
         ref={panel}
-        className="animate-sheet-up pb-safe relative max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] border-t border-line bg-surface shadow-2xl"
+        className="animate-sheet-up pb-safe relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-[22px] bg-bg shadow-[0_-10px_40px_rgb(0_0_0/0.18)]"
       >
         <div
-          className="sticky top-0 z-10 cursor-grab touch-none bg-surface px-5 pb-2 pt-2"
+          className="sticky top-0 z-10 cursor-grab touch-none bg-bg/90 px-4 pb-2 pt-2 backdrop-blur-xl"
           onPointerDown={(e) => {
             drag.current = { y: e.clientY, dy: 0 };
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -54,21 +54,21 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
             drag.current = null;
           }}
         >
-          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-line" />
+          <div className="mx-auto mb-2 h-[5px] w-9 rounded-full bg-faint/60" />
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">{title}</h2>
+            <h2 className="text-[17px] font-semibold">{title}</h2>
             <button
               type="button"
               aria-label="Закрыть"
               onClick={onClose}
               onPointerDown={(e) => e.stopPropagation()}
-              className="grid size-8 place-items-center rounded-full bg-surface-2 text-muted"
+              className="grid size-[30px] place-items-center rounded-full bg-surface-2 text-muted transition-transform active:scale-90"
             >
-              <X className="size-4" />
+              <X className="size-4" strokeWidth={2.6} />
             </button>
           </div>
         </div>
-        <div className="px-5 pb-6 pt-2">{children}</div>
+        <div className="px-4 pb-6 pt-2">{children}</div>
       </div>
     </div>,
     document.body,

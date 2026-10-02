@@ -8,7 +8,7 @@ import { CATEGORY_META, PRIORITY_META } from '@/lib/meta';
 import { haptic } from '@/lib/telegram';
 
 const fieldClass =
-  'w-full rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-fg outline-none transition-colors placeholder:text-faint focus:border-blue';
+  'w-full rounded-[10px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
 
 export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): void }) {
   const updateTask = usePlannerStore((s) => s.updateTask);
@@ -34,11 +34,11 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
           onClose();
         }}
       >
-        <input className={`${fieldClass} text-lg font-medium`} value={form.title} onChange={(e) => set('title', e.target.value)} />
+        <input className={`${fieldClass} font-medium`} value={form.title} onChange={(e) => set('title', e.target.value)} />
 
         <div className="grid grid-cols-[1fr_auto] gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted">Дата</span>
+            <span className="px-4 text-[13px] uppercase text-muted">Дата</span>
             <div className="relative">
               <input type="date" className={fieldClass} value={form.date ?? ''} onChange={(e) => set('date', e.target.value || undefined)} />
               {form.date && (
@@ -54,7 +54,7 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
             </div>
           </label>
           <label className="flex w-28 flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted">Время</span>
+            <span className="px-4 text-[13px] uppercase text-muted">Время</span>
             <input
               type="time"
               disabled={!form.date}
@@ -66,7 +66,7 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-muted">Приоритет</span>
+          <span className="px-4 text-[13px] uppercase text-muted">Приоритет</span>
           <div className="grid grid-cols-3 gap-2">
             {(Object.keys(PRIORITY_META) as Priority[]).reverse().map((p) => (
               <button
@@ -76,8 +76,8 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
                   haptic.selection();
                   set('priority', p);
                 }}
-                className={`rounded-xl py-2 text-sm font-semibold transition ${
-                  form.priority === p ? `${PRIORITY_META[p].className} ring-2 ring-current` : 'bg-surface-2 text-muted'
+                className={`rounded-[10px] py-2.5 text-[15px] font-medium transition-all duration-300 ease-spring active:scale-95 ${
+                  form.priority === p ? 'bg-blue text-white' : 'bg-surface text-fg'
                 }`}
               >
                 {PRIORITY_META[p].label}
@@ -87,7 +87,7 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-muted">Категория</span>
+          <span className="px-4 text-[13px] uppercase text-muted">Категория</span>
           <div className="flex flex-wrap gap-2">
             {(Object.keys(CATEGORY_META) as Category[]).map((c) => (
               <button
@@ -97,7 +97,7 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
                   haptic.selection();
                   set('category', c);
                 }}
-                className={`rounded-full px-3 py-1.5 text-sm transition ${form.category === c ? 'bg-fg text-bg' : 'bg-surface-2 text-muted'}`}
+                className={`rounded-full px-3.5 py-2 text-[15px] transition-all duration-300 ease-spring active:scale-95 ${form.category === c ? 'bg-blue text-white' : 'bg-surface text-fg'}`}
               >
                 {CATEGORY_META[c].emoji} {CATEGORY_META[c].label}
               </button>
@@ -115,14 +115,14 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
               onClose();
               if (removed) showToast('Задача удалена', { label: 'Отменить', run: () => restoreTask(removed) });
             }}
-            className="grid size-12 shrink-0 place-items-center rounded-2xl bg-red/10 text-red active:scale-95"
+            className="grid size-[50px] shrink-0 place-items-center rounded-[14px] bg-surface text-red transition-transform duration-300 ease-spring active:scale-95"
           >
             <Trash2 className="size-5" />
           </button>
           <button
             type="submit"
             disabled={!form.title.trim()}
-            className="h-12 flex-1 rounded-2xl bg-gemini font-semibold text-white shadow-lg transition active:scale-[0.98] disabled:opacity-40"
+            className="h-[50px] flex-1 rounded-[14px] bg-blue text-[17px] font-semibold text-white transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] active:opacity-80 disabled:opacity-30"
           >
             Сохранить
           </button>
