@@ -50,6 +50,7 @@ const TABS: { id: TabId; label: string }[] = [
 export function TabBar() {
   const tab = useUIStore((s) => s.tab);
   const setTab = useUIStore((s) => s.setTab);
+  const goCalendarHome = useUIStore((s) => s.goCalendarHome);
 
   return (
     <nav
@@ -65,7 +66,10 @@ export function TabBar() {
                 type="button"
                 aria-current={active ? 'page' : undefined}
                 onClick={() => {
-                  if (id === tab) return;
+                  // The calendar icon always brings the calendar back to today's month,
+                  // like re-tapping a tab in iOS.
+                  if (id === 'calendar') goCalendarHome();
+                  if (id === tab && id !== 'calendar') return;
                   haptic.impact('light');
                   setTab(id);
                 }}

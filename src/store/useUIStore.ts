@@ -23,6 +23,9 @@ interface UIState {
   /** Calendar day screen (pushed over the month view). */
   dayOpen: boolean;
   setDayOpen(open: boolean): void;
+  /** Bumped when the calendar should return to its home state (today, current month). */
+  calendarHome: number;
+  goCalendarHome(): void;
 
   toast: Toast | null;
   showToast(message: string, action?: Toast['action']): void;
@@ -42,6 +45,8 @@ export const useUIStore = create<UIState>()(
       setSelectedDate: (selectedDate) => set({ selectedDate }),
       dayOpen: false,
       setDayOpen: (dayOpen) => set({ dayOpen }),
+      calendarHome: 0,
+      goCalendarHome: () => set((s) => ({ dayOpen: false, selectedDate: todayKey(), calendarHome: s.calendarHome + 1 })),
 
       toast: null,
       showToast: (message, action) => set({ toast: { id: Date.now(), message, action } }),

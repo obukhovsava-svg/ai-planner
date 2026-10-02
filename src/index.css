@@ -256,7 +256,8 @@ select {
   animation: slide-in-left 0.45s var(--spring) both;
 }
 @utility animate-sheet-up {
-  animation: sheet-up 0.5s var(--spring) both;
+  /* "backwards" so the drag gesture's inline transform wins after the entrance */
+  animation: sheet-up 0.5s var(--spring) backwards;
 }
 @utility animate-aura {
   animation: aura 3.2s linear infinite;

@@ -15,6 +15,7 @@ export function CalendarTab() {
   const setSelected = useUIStore((s) => s.setSelectedDate);
   const dayOpen = useUIStore((s) => s.dayOpen);
   const setDayOpen = useUIStore((s) => s.setDayOpen);
+  const calendarHome = useUIStore((s) => s.calendarHome);
   const [dayMounted, setDayMounted] = useState(dayOpen);
   const [visibleMonth, setVisibleMonth] = useState<DateKey>(selected);
   const [todaySignal, setTodaySignal] = useState(0);
@@ -69,7 +70,7 @@ export function CalendarTab() {
             </IconButton>
           }
         />
-        <MonthView initial={selected} todaySignal={todaySignal} onVisibleMonth={setVisibleMonth} onOpenDay={openDay} />
+        <MonthView initial={selected} todaySignal={todaySignal + calendarHome} onVisibleMonth={setVisibleMonth} onOpenDay={openDay} />
       </div>
 
       {dayMounted && <DayView open={dayOpen} onBack={closeDay} onCreate={create} onOpenEvent={(e) => setDraft(e)} />}

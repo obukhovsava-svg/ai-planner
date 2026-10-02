@@ -19,13 +19,16 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
   const [form, setForm] = useState<Task | null>(task);
   const [picker, setPicker] = useState(false);
 
-  useEffect(() => setForm(task), [task]);
+  // Keep the last task while the sheet animates out.
+  useEffect(() => {
+    if (task) setForm(task);
+  }, [task]);
   if (!form) return null;
 
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setForm({ ...form, [k]: v });
 
   return (
-    <Sheet open title="Задача" onClose={onClose}>
+    <Sheet open={Boolean(task)} title="Задача" onClose={onClose}>
       <form
         className="flex flex-col gap-4"
         onSubmit={(e) => {

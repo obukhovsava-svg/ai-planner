@@ -26,7 +26,10 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
   const showToast = useUIStore((s) => s.showToast);
   const [form, setForm] = useState<EventDraft | null>(draft);
 
-  useEffect(() => setForm(draft), [draft]);
+  // Keep the last draft while the sheet animates out.
+  useEffect(() => {
+    if (draft) setForm(draft);
+  }, [draft]);
 
   if (!form) return null;
   const set = <K extends keyof EventDraft>(k: K, v: EventDraft[K]) => setForm({ ...form, [k]: v });
@@ -51,7 +54,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
   };
 
   return (
-    <Sheet open title={form.id ? 'Событие' : 'Новое событие'} onClose={onClose}>
+    <Sheet open={Boolean(draft)} title={form.id ? 'Событие' : 'Новое событие'} onClose={onClose}>
       <form
         className="flex flex-col gap-4"
         onSubmit={(e) => {

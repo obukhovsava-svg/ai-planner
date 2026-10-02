@@ -63,8 +63,10 @@ export function MonthView({ initial, todaySignal, onVisibleMonth, onOpenDay }: M
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Only react to changes after mount — the initial position is handled above.
+  const firstSignal = useRef(todaySignal);
   useEffect(() => {
-    if (!todaySignal) return;
+    if (todaySignal === firstSignal.current) return;
     scroller.current
       ?.querySelector<HTMLElement>(`[data-month="${today.slice(0, 7)}"]`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
