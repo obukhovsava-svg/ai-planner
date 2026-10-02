@@ -16,6 +16,22 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const INTENTS: Intent[] = ['create', 'agenda', 'delete', 'move', 'complete', 'undo', 'help', 'smalltalk'];
 
+/** Last AI round-trip outcome, shown under the assistant title. */
+export type AiStatus = { state: 'idle' | 'ok' | 'error' | 'off'; detail?: string };
+let status: AiStatus = { state: 'idle' };
+const listeners = new Set<() => void>();
+const setStatus = (s: AiStatus) => {
+  status = s;
+  listeners.forEach((l) => l());
+};
+export const aiStatus = {
+  get: () => status,
+  subscribe(l: () => void) {
+    listeners.add(l);
+    return () => listeners.delete(l);
+  },
+};
+
 export interface AiResult {
   actions: Analysis[];
   reply?: string;
@@ -80,7 +96,10 @@ function toAnalysis(x: any): Analysis | null {
 }
 
 export async function aiAnalyze(text: string): Promise<AiResult | null> {
-  if (!aiAvailable()) return null;
+  if (!aiAvailable()) {
+    setStatus({ state: 'off', detail: AI_URL ? 'Откройте приложение внутри Telegram' : 'AI-сервер не настроен' });
+    return null;
+  }
   const now = new Date();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -97,13 +116,28 @@ export async function aiAnalyze(text: string): Promise<AiResult | null> {
         items: contextItems(),
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const reason =
+        res.status === 401
+          ? 'сервер не принял подпись Telegram — проверьте BOT_TOKEN'
+          : res.status === 429
+            ? 'слишком много запросов, подождите минуту'
+            : `ошибка провайдера ${err.status ?? res.status}: ${String(err.detail ?? err.error ?? '').slice(0, 160)}`;
+      setStatus({ state: 'error', detail: reason });
+      return null;
+    }
     const data = await res.json();
     const actions = Array.isArray(data.actions) ? data.actions.map(toAnalysis).filter(Boolean) : [];
     const reply = typeof data.reply === 'string' && data.reply.trim() ? data.reply.trim() : undefined;
-    if (!actions.length && !reply) return null;
+    if (!actions.length && !reply) {
+      setStatus({ state: 'error', detail: 'модель вернула пустой ответ' });
+      return null;
+    }
+    setStatus({ state: 'ok' });
     return { actions: actions as Analysis[], reply };
-  } catch {
+  } catch (e) {
+    setStatus({ state: 'error', detail: (e as Error)?.name === 'AbortError' ? 'модель не ответила за 12 секунд' : 'нет связи с AI-сервером' });
     return null;
   } finally {
     clearTimeout(timer);

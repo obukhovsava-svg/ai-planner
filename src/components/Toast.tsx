@@ -23,7 +23,7 @@ export function Toast() {
         role="status"
         className="animate-fade-up pointer-events-auto flex w-full max-w-sm items-center justify-between gap-3 rounded-full bg-[rgb(30_30_32/0.88)] py-2.5 pl-5 pr-2.5 text-[15px] text-white shadow-[0_8px_32px_rgb(0_0_0/0.25)] backdrop-blur-xl"
       >
-        <span className="truncate">{toast.message}</span>
+        <span className="line-clamp-3">{toast.message}</span>
         {toast.action && (
           <button
             type="button"

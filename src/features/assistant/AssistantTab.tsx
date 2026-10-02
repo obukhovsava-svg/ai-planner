@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowUp, Mic, SquarePen } from 'lucide-react';
 import { Header, IconButton } from '@/components/Header';
 import { useChatStore } from '@/store/useChatStore';
@@ -7,6 +7,8 @@ import { ChatBubble } from './ChatBubble';
 import { handleUtterance } from './brain';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { VoiceOrb } from './VoiceOrb';
+import { aiStatus } from '@/lib/ai';
+import { useUIStore } from '@/store/useUIStore';
 
 const SUGGESTIONS = ['Встреча завтра с 15 до 16', 'Смены с 9 до 21 по графику 2/2', 'Английский по вторникам и четвергам в 19:00', 'Что у меня на неделе?'];
 
@@ -17,6 +19,8 @@ export function AssistantTab() {
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const ai = useSyncExternalStore(aiStatus.subscribe, aiStatus.get);
+  const showToast = useUIStore((s) => s.showToast);
 
   const submit = async (raw: string) => {
     const text = raw.trim();
@@ -54,6 +58,20 @@ export function AssistantTab() {
     <div className="flex h-full flex-col">
       <Header
         title="Ассистент"
+        subtitle={
+          <button
+            type="button"
+            onClick={() => ai.detail && showToast(ai.detail)}
+            className="flex items-center gap-1.5 transition-opacity active:opacity-50"
+          >
+            <span
+              className={`size-[7px] rounded-full ${
+                ai.state === 'ok' ? 'bg-green' : ai.state === 'error' ? 'bg-red' : ai.state === 'off' ? 'bg-faint' : 'bg-faint/50'
+              }`}
+            />
+            {ai.state === 'ok' ? 'GPT · онлайн' : ai.state === 'error' ? 'Офлайн-режим · ошибка AI' : ai.state === 'off' ? 'Офлайн-режим' : 'GPT'}
+          </button>
+        }
         actions={
           !empty && (
             <IconButton
