@@ -9,7 +9,7 @@ import { CATEGORY_META, PRIORITY_META } from '@/lib/meta';
 import { haptic } from '@/lib/telegram';
 
 const fieldClass =
-  'w-full rounded-[10px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
+  'w-full rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
 
 export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): void }) {
   const updateTask = usePlannerStore((s) => s.updateTask);
@@ -47,7 +47,7 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
             haptic.selection();
             setPicker(true);
           }}
-          className="flex items-center gap-3 rounded-[10px] bg-surface px-4 py-[11px] text-left transition-colors active:bg-surface-2"
+          className="flex items-center gap-3 rounded-[16px] bg-surface px-4 py-[11px] text-left transition-colors active:bg-surface-2"
         >
           <span className="grid size-[30px] place-items-center rounded-[7px] bg-red text-white">
             <CalendarDays className="size-[18px]" />
@@ -68,7 +68,7 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
                   haptic.selection();
                   set('priority', p);
                 }}
-                className={`rounded-[10px] py-2.5 text-[15px] font-medium transition-all duration-300 ease-spring active:scale-95 ${
+                className={`rounded-full py-2.5 text-[15px] font-medium transition-all duration-300 ease-spring active:scale-95 ${
                   form.priority === p ? 'bg-blue text-white' : 'bg-surface text-fg'
                 }`}
               >
@@ -107,14 +107,14 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
               onClose();
               if (removed) showToast('Задача удалена', { label: 'Отменить', run: () => restoreTask(removed) });
             }}
-            className="grid size-[50px] shrink-0 place-items-center rounded-[14px] bg-surface text-red transition-transform duration-300 ease-spring active:scale-95"
+            className="grid size-[50px] shrink-0 place-items-center rounded-full bg-surface text-red transition-transform duration-300 ease-spring active:scale-95"
           >
             <Trash2 className="size-5" />
           </button>
           <button
             type="submit"
             disabled={!form.title.trim()}
-            className="h-[50px] flex-1 rounded-[14px] bg-blue text-[17px] font-semibold text-white transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] active:opacity-80 disabled:opacity-30"
+            className="h-[50px] flex-1 rounded-full bg-blue text-[17px] font-semibold text-white transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] active:opacity-80 disabled:opacity-30"
           >
             Сохранить
           </button>

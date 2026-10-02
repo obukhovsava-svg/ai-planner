@@ -86,7 +86,7 @@ export function TasksTab() {
 
         <div className="px-4 pt-4">
           {visible.length ? (
-            <div ref={list} className="overflow-hidden rounded-[10px] bg-surface [&>*:last-child_.sep]:hidden">
+            <div ref={list} className="overflow-hidden rounded-[16px] bg-surface [&>*:last-child_.sep]:hidden">
               {visible.map((t) => (
                 <div key={t.id} data-flip-id={t.id} className="relative bg-surface">
                   <TaskItem task={t} onOpen={setEditing} />

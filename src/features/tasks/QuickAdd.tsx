@@ -49,7 +49,7 @@ export function QuickAdd() {
   const expanded = focused || Boolean(title) || Boolean(when.date) || Boolean(priority);
 
   return (
-    <div className="rounded-[10px] bg-surface py-1 pl-3 pr-1.5">
+    <div className="rounded-[16px] bg-surface py-1 pl-3 pr-1.5">
       <form
         className="flex items-center gap-1"
         onSubmit={(e) => {

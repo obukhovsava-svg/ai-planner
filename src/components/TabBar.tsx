@@ -55,9 +55,9 @@ export function TabBar() {
   return (
     <nav
       aria-label="Основная навигация"
-      className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t-[0.5px] border-line bg-[var(--tabbar)] backdrop-blur-xl backdrop-saturate-200"
+      className="tabbar pb-safe fixed inset-x-0 bottom-0 z-30 border-t-[0.5px] border-line bg-[var(--tabbar)] backdrop-blur-xl backdrop-saturate-200"
     >
-      <ul className="mx-auto grid h-[var(--tabbar-h)] max-w-md grid-cols-3 items-center">
+      <ul className="mx-auto grid h-14 max-w-md grid-cols-3 items-center">
         {TABS.map(({ id, label }) => {
           const active = tab === id;
           return (

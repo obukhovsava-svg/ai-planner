@@ -35,7 +35,7 @@ function Attachment({ message }: { message: ChatMessage }) {
 
   if (a.type === 'agenda') {
     return (
-      <div className="overflow-hidden rounded-[14px] bg-surface">
+      <div className="overflow-hidden rounded-[18px] bg-surface">
         {a.events.map((e) => (
           <div key={e.id} className="flex items-center gap-3 border-t-[0.5px] border-line py-2.5 pl-4 pr-4 first:border-t-0">
             <span className={`h-9 w-[3px] rounded-full ${EVENT_COLORS[e.color].bar}`} />
@@ -81,10 +81,10 @@ function Attachment({ message }: { message: ChatMessage }) {
   };
 
   return (
-    <div className={`overflow-hidden rounded-[14px] bg-surface transition-opacity duration-500 ${a.undone ? 'opacity-50' : ''}`}>
+    <div className={`overflow-hidden rounded-[18px] bg-surface transition-opacity duration-500 ${a.undone ? 'opacity-50' : ''}`}>
       <div className="flex items-center gap-3 p-3.5">
         <span
-          className={`grid size-10 shrink-0 place-items-center rounded-[10px] ${isEvent ? EVENT_COLORS[a.event.color].bg : 'bg-blue/15'}`}
+          className={`grid size-10 shrink-0 place-items-center rounded-[12px] ${isEvent ? EVENT_COLORS[a.event.color].bg : 'bg-blue/15'}`}
         >
           {isEvent ? (
             <CalendarClock className={`size-5 ${EVENT_COLORS[a.event.color].text}`} />

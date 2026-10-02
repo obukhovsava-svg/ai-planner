@@ -24,7 +24,7 @@ interface EventSheetProps {
 }
 
 const fieldClass =
-  'w-full rounded-[10px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
+  'w-full rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
 
 export function EventSheet({ draft, onClose }: EventSheetProps) {
   const addEvent = usePlannerStore((s) => s.addEvent);
@@ -130,7 +130,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
           <p className="-mt-2 text-xs text-red">Конец должен быть позже начала</p>
         )}
 
-        <div className="overflow-hidden rounded-[10px] bg-surface">
+        <div className="overflow-hidden rounded-[16px] bg-surface">
           <Row icon={<RepeatIcon className="size-[17px]" />} label="Повтор" value={repeatLabel(form.repeat)} onClick={() => setRepeatOpen(true)} />
           {form.repeat && (
             <div className="animate-fade-in border-t-[0.5px] border-line">
@@ -145,7 +145,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
 
         <div className="flex flex-col gap-1.5">
           <span className="px-4 text-[13px] uppercase text-muted">Цвет</span>
-          <div className="flex justify-between rounded-[10px] bg-surface px-4 py-3">
+          <div className="flex justify-between rounded-[16px] bg-surface px-4 py-3">
             {(Object.keys(EVENT_COLORS) as EventColor[]).map((c) => (
               <button
                 key={c}
@@ -173,7 +173,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
 
         {confirmDelete ? (
           <div className="animate-fade-up flex flex-col gap-2 pt-1">
-            <div className="overflow-hidden rounded-[14px] bg-surface">
+            <div className="overflow-hidden rounded-[18px] bg-surface">
               <p className="px-4 pb-2 pt-3 text-center text-[13px] text-muted">Это повторяющееся событие</p>
               <button type="button" onClick={removeOne} className="w-full border-t-[0.5px] border-line py-3.5 text-[17px] text-red active:bg-surface-2">
                 Удалить только это событие
@@ -185,7 +185,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
             <button
               type="button"
               onClick={() => setConfirmDelete(false)}
-              className="h-[50px] rounded-[14px] bg-surface text-[17px] font-semibold text-blue active:bg-surface-2"
+              className="h-[50px] rounded-full bg-surface text-[17px] font-semibold text-blue active:bg-surface-2"
             >
               Отмена
             </button>
@@ -197,7 +197,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
                 type="button"
                 onClick={() => (isRecurringInstance ? setConfirmDelete(true) : removeAll())}
                 aria-label="Удалить событие"
-                className="grid size-[50px] shrink-0 place-items-center rounded-[14px] bg-surface text-red transition-transform duration-300 ease-spring active:scale-95"
+                className="grid size-[50px] shrink-0 place-items-center rounded-full bg-surface text-red transition-transform duration-300 ease-spring active:scale-95"
               >
                 <Trash2 className="size-5" />
               </button>
@@ -205,7 +205,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
             <button
               type="submit"
               disabled={invalid}
-              className="h-[50px] flex-1 rounded-[14px] bg-blue text-[17px] font-semibold text-white transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] active:opacity-80 disabled:opacity-30"
+              className="h-[50px] flex-1 rounded-full bg-blue text-[17px] font-semibold text-white transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] active:opacity-80 disabled:opacity-30"
             >
               {form.id ? 'Сохранить' : 'Добавить'}
             </button>
@@ -214,7 +214,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
       </form>
 
       <Sheet open={repeatOpen} title="Повтор" onClose={() => setRepeatOpen(false)}>
-        <div className="overflow-hidden rounded-[10px] bg-surface">
+        <div className="overflow-hidden rounded-[16px] bg-surface">
           {REPEAT_OPTIONS.map((o, i) => (
             <button
               key={o.label}

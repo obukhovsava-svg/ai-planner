@@ -327,3 +327,19 @@ select {
   /* "backwards" so inline transforms (swipe-back) take over once it finishes */
   animation: push-in 0.5s var(--spring) backwards;
 }
+
+/* ---------- On-screen keyboard (html.kb-open, see lib/keyboard.ts) ---------- */
+.tabbar {
+  transition:
+    transform 0.4s var(--spring),
+    opacity 0.25s ease;
+}
+.kb-open {
+  /* Content that pads for the tab bar (e.g. the assistant composer) drops down to the keyboard. */
+  --tabbar-h: 0px;
+}
+.kb-open .tabbar {
+  transform: translateY(110%);
+  opacity: 0;
+  pointer-events: none;
+}

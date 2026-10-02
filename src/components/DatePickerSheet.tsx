@@ -91,7 +91,7 @@ export function DatePickerSheet({ open, title = 'Дата и время', withTi
           ))}
         </div>
 
-        <div className="rounded-[12px] bg-surface px-3 pb-2 pt-3">
+        <div className="rounded-[16px] bg-surface px-3 pb-2 pt-3">
           <div className="mb-2 flex items-center justify-between pl-2">
             <span className="text-[17px] font-semibold">{monthTitle(cursor)}</span>
             <div className="flex gap-1">
@@ -144,7 +144,7 @@ export function DatePickerSheet({ open, title = 'Дата и время', withTi
         </div>
 
         {withTime && (
-          <div className="overflow-hidden rounded-[12px] bg-surface">
+          <div className="overflow-hidden rounded-[16px] bg-surface">
             <div className="flex items-center justify-between px-4 py-2.5">
               <span className="text-[17px]">Время</span>
               <Switch
@@ -179,14 +179,14 @@ export function DatePickerSheet({ open, title = 'Дата и время', withTi
               haptic.selection();
             }}
             disabled={!date}
-            className="h-[50px] flex-1 rounded-[14px] bg-surface text-[17px] text-red transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] disabled:opacity-40"
+            className="h-[50px] flex-1 rounded-full bg-surface text-[17px] text-red transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] disabled:opacity-40"
           >
             {clearLabel}
           </button>
           <button
             type="button"
             onClick={done}
-            className="h-[50px] flex-[2] rounded-[14px] bg-blue text-[17px] font-semibold text-white transition-transform duration-300 ease-spring active:scale-[0.97]"
+            className="h-[50px] flex-[2] rounded-full bg-blue text-[17px] font-semibold text-white transition-transform duration-300 ease-spring active:scale-[0.97]"
           >
             Готово
           </button>

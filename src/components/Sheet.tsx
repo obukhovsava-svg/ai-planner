@@ -177,7 +177,7 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
       />
       <div
         ref={panel}
-        className="animate-sheet-up pb-safe relative max-h-[92dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[22px] bg-bg shadow-[0_-10px_40px_rgb(0_0_0/0.18)]"
+        className="animate-sheet-up pb-safe relative max-h-[92dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[28px] bg-bg shadow-[0_-10px_40px_rgb(0_0_0/0.18)]"
       >
         <div data-drag-handle className="sticky top-0 z-10 cursor-grab touch-none bg-bg/90 px-4 pb-2 pt-2 backdrop-blur-xl">
           <div className="mx-auto mb-2 h-[5px] w-9 rounded-full bg-faint/60" />
