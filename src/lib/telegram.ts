@@ -33,6 +33,12 @@ interface TelegramWebApp {
   disableVerticalSwipes?(): void;
   onEvent(event: string, cb: () => void): void;
   offEvent(event: string, cb: () => void): void;
+  BackButton: {
+    show(): void;
+    hide(): void;
+    onClick(cb: () => void): void;
+    offClick(cb: () => void): void;
+  };
   HapticFeedback: {
     impactOccurred(style: ImpactStyle): void;
     notificationOccurred(type: NotificationType): void;
@@ -97,6 +103,18 @@ function installTapHaptics() {
     if (performance.now() - lastHapticAt < 80) return;
     haptic.impact('light');
   });
+}
+
+/** Shows Telegram's native "Back" button in the header; returns a cleanup that hides it. */
+export function showTelegramBackButton(onBack: () => void): () => void {
+  if (!supports('6.1')) return () => {};
+  const bb = getWebApp()!.BackButton;
+  bb.onClick(onBack);
+  bb.show();
+  return () => {
+    bb.offClick(onBack);
+    bb.hide();
+  };
 }
 
 export function getTelegramColorScheme(): 'light' | 'dark' | null {

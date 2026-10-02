@@ -1,74 +1,79 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
+import type { DateKey } from '@/types';
 import { Header, IconButton } from '@/components/Header';
 import { useUIStore } from '@/store/useUIStore';
-import { monthRows, monthTitle, todayKey } from '@/lib/date';
-import { haptic } from '@/lib/telegram';
-import { useExpandGesture } from '@/hooks/useExpandGesture';
-import { CalendarGrid, ROW_H } from './CalendarGrid';
-import { DayTimeline } from './DayTimeline';
+import { monthTitle, todayKey } from '@/lib/date';
+import { MonthView } from './MonthView';
+import { DayView } from './DayView';
 import { EventSheet, type EventDraft } from './EventSheet';
+
+const POP_MS = 450;
 
 export function CalendarTab() {
   const selected = useUIStore((s) => s.selectedDate);
   const setSelected = useUIStore((s) => s.setSelectedDate);
-  const view = useUIStore((s) => s.calendarView);
-  const setView = useUIStore((s) => s.setCalendarView);
+  const dayOpen = useUIStore((s) => s.dayOpen);
+  const setDayOpen = useUIStore((s) => s.setDayOpen);
+  const [dayMounted, setDayMounted] = useState(dayOpen);
+  const [visibleMonth, setVisibleMonth] = useState<DateKey>(selected);
+  const [todaySignal, setTodaySignal] = useState(0);
   const [draft, setDraft] = useState<EventDraft | null>(null);
-  const isToday = selected === todayKey();
 
-  const root = useRef<HTMLDivElement>(null);
-  const panel = useRef<HTMLElement>(null);
-  const scroller = useRef<HTMLDivElement>(null);
-  const expanded = view === 'month';
+  // Keep the day screen mounted until its pop animation has finished.
+  useEffect(() => {
+    if (dayOpen) {
+      setDayMounted(true);
+      return;
+    }
+    const t = window.setTimeout(() => setDayMounted(false), POP_MS);
+    return () => window.clearTimeout(t);
+  }, [dayOpen]);
 
-  useExpandGesture({
-    root,
-    panel,
-    scroller,
-    range: (monthRows(selected) - 1) * ROW_H,
-    expanded,
-    onSnap: (next) => {
-      if (next !== expanded) setView(next ? 'month' : 'week');
+  const openDay = useCallback(
+    (d: DateKey) => {
+      setSelected(d);
+      setDayOpen(true);
     },
-  });
+    [setSelected, setDayOpen],
+  );
+  const closeDay = useCallback(() => setDayOpen(false), [setDayOpen]);
 
-  const newDraft = (start = '09:00', end = '10:00'): EventDraft => ({ title: '', date: selected, start, end, color: 'blue' });
+  const create = (date: DateKey, start = '09:00', end = '10:00') => setDraft({ title: '', date, start, end, color: 'blue' });
+
+  const showingCurrent = visibleMonth.slice(0, 7) === todayKey().slice(0, 7);
 
   return (
-    <div ref={root} className="flex h-full flex-col">
-      <Header
-        title={monthTitle(selected)}
-        subtitle={
-          <button
-            type="button"
-            disabled={isToday}
-            onClick={() => {
-              haptic.selection();
-              setSelected(todayKey());
-            }}
-            className={`transition-colors ${isToday ? 'text-muted' : 'text-blue active:opacity-50'}`}
-          >
-            {isToday ? 'Календарь' : 'Сегодня'}
-          </button>
-        }
-        actions={
-          <IconButton label="Новое событие" onClick={() => setDraft(newDraft())}>
-            <Plus className="size-5" strokeWidth={2.4} />
-          </IconButton>
-        }
-      />
-      <div className="shrink-0 pb-2">
-        <CalendarGrid selected={selected} expanded={expanded} onSelect={setSelected} />
+    <div className="relative flex h-full flex-col overflow-hidden bg-[var(--cal-bg)]">
+      {/* Month screen; slides slightly left (parallax) while the day screen is pushed */}
+      <div
+        className={`flex h-full flex-col transition-[transform,opacity] duration-500 ease-spring ${
+          dayOpen ? 'pointer-events-none -translate-x-[28%] opacity-70' : ''
+        }`}
+      >
+        <Header
+          plain
+          title={<span key={visibleMonth.slice(0, 4)} className="animate-fade-in">{visibleMonth.slice(0, 4)}</span>}
+          subtitle={
+            <button
+              type="button"
+              onClick={() => setTodaySignal((n) => n + 1)}
+              className={`transition-opacity active:opacity-50 ${showingCurrent ? 'text-muted' : 'text-red'}`}
+            >
+              {showingCurrent ? monthTitle(todayKey()) : 'Сегодня'}
+            </button>
+          }
+          actions={
+            <IconButton label="Новое событие" onClick={() => create(todayKey())}>
+              <Plus className="size-5" strokeWidth={2.4} />
+            </IconButton>
+          }
+        />
+        <MonthView initial={selected} todaySignal={todaySignal} onVisibleMonth={setVisibleMonth} onOpenDay={openDay} />
       </div>
-      <DayTimeline
-        panelRef={panel}
-        scrollerRef={scroller}
-        date={selected}
-        onDateChange={setSelected}
-        onCreate={(start, end) => setDraft(newDraft(start, end))}
-        onOpen={(event) => setDraft(event)}
-      />
+
+      {dayMounted && <DayView open={dayOpen} onBack={closeDay} onCreate={create} onOpenEvent={(e) => setDraft(e)} />}
+
       <EventSheet draft={draft} onClose={() => setDraft(null)} />
     </div>
   );

@@ -20,8 +20,9 @@ interface UIState {
 
   selectedDate: DateKey;
   setSelectedDate(date: DateKey): void;
-  calendarView: 'month' | 'week';
-  setCalendarView(view: 'month' | 'week'): void;
+  /** Calendar day screen (pushed over the month view). */
+  dayOpen: boolean;
+  setDayOpen(open: boolean): void;
 
   toast: Toast | null;
   showToast(message: string, action?: Toast['action']): void;
@@ -39,8 +40,8 @@ export const useUIStore = create<UIState>()(
 
       selectedDate: todayKey(),
       setSelectedDate: (selectedDate) => set({ selectedDate }),
-      calendarView: 'month',
-      setCalendarView: (calendarView) => set({ calendarView }),
+      dayOpen: false,
+      setDayOpen: (dayOpen) => set({ dayOpen }),
 
       toast: null,
       showToast: (message, action) => set({ toast: { id: Date.now(), message, action } }),
@@ -52,7 +53,6 @@ export const useUIStore = create<UIState>()(
       // Only durable preferences — the app always opens on today's date.
       partialize: (s) => ({
         themeOverride: s.themeOverride,
-        calendarView: s.calendarView,
       }),
     },
   ),

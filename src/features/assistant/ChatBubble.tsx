@@ -28,6 +28,7 @@ function Attachment({ message }: { message: ChatMessage }) {
   const a = message.attachment!;
   const setTab = useUIStore((s) => s.setTab);
   const setSelectedDate = useUIStore((s) => s.setSelectedDate);
+  const setDayOpen = useUIStore((s) => s.setDayOpen);
   const deleteEvent = usePlannerStore((s) => s.deleteEvent);
   const deleteTask = usePlannerStore((s) => s.deleteTask);
   const markUndone = useChatStore((s) => s.markUndone);
@@ -65,6 +66,7 @@ function Attachment({ message }: { message: ChatMessage }) {
     haptic.impact('light');
     if (isEvent) {
       setSelectedDate(a.event.date);
+      setDayOpen(true);
       setTab('calendar');
     } else {
       setTab('tasks');

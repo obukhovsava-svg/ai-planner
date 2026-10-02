@@ -18,6 +18,8 @@
   --green: #34c759;
   --tabbar: rgb(249 249 249 / 0.8);
   --navbar: rgb(242 242 247 / 0.8);
+  --cal-bg: #ffffff; /* systemBackground — calendar screens are plain, not grouped */
+  --navbar-plain: rgb(255 255 255 / 0.82);
   --shadow: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.04);
   /* Apple-Intelligence-like accent: used sparingly, as glow, never as a big fill */
   --ai-1: #5b8cff;
@@ -45,6 +47,8 @@
   --green: #30d158;
   --tabbar: rgb(22 22 24 / 0.78);
   --navbar: rgb(0 0 0 / 0.75);
+  --cal-bg: #000000;
+  --navbar-plain: rgb(0 0 0 / 0.8);
   --shadow: none;
   --gemini-soft: linear-gradient(120deg, rgb(91 140 255 / 0.2), rgb(255 143 163 / 0.18));
   color-scheme: dark;
@@ -312,13 +316,13 @@ select {
   }
 }
 
-/* ---------- Collapsible calendar (driven by --p: 0 = week, 1 = month) ---------- */
-.cal-anim .cal-h {
-  transition: height 0.55s var(--spring);
+/* ---------- iOS navigation push ---------- */
+@keyframes push-in {
+  from {
+    transform: translateX(100%);
+  }
 }
-.cal-anim .cal-t {
-  transition: transform 0.55s var(--spring);
-}
-.cal-anim .cal-o {
-  transition: opacity 0.55s var(--spring);
+@utility animate-push-in {
+  /* "backwards" so inline transforms (swipe-back) take over once it finishes */
+  animation: push-in 0.5s var(--spring) backwards;
 }

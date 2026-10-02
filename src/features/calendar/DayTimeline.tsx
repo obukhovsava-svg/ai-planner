@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import type { CalendarEvent, DateKey } from '@/types';
 import { usePlannerStore } from '@/store/usePlannerStore';
@@ -10,8 +10,6 @@ import { haptic } from '@/lib/telegram';
 const HOUR_PX = 56;
 
 interface DayTimelineProps {
-  panelRef: RefObject<HTMLElement | null>;
-  scrollerRef: RefObject<HTMLDivElement | null>;
   date: DateKey;
   onDateChange(date: DateKey): void;
   onCreate(start: string, end: string): void;
@@ -49,7 +47,8 @@ function layoutEvents(events: CalendarEvent[]) {
   return placed;
 }
 
-export function DayTimeline({ panelRef, scrollerRef: scroller, date, onDateChange, onCreate, onOpen }: DayTimelineProps) {
+export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelineProps) {
+  const scroller = useRef<HTMLDivElement>(null);
   const allEvents = usePlannerStore((s) => s.events);
   const allTasks = usePlannerStore((s) => s.tasks);
   const toggleTask = usePlannerStore((s) => s.toggleTask);
@@ -78,14 +77,10 @@ export function DayTimeline({ panelRef, scrollerRef: scroller, date, onDateChang
   }, 70);
 
   return (
-    <section
-      ref={panelRef}
-      className="flex min-h-0 flex-1 flex-col rounded-t-[22px] bg-surface shadow-[0_-0.5px_0_var(--line),0_-8px_24px_rgb(0_0_0/0.04)]"
-    >
-      <div data-drag-handle className="cursor-grab touch-none select-none active:cursor-grabbing">
-        <div className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-faint/60" />
-        <div className="flex items-baseline justify-between px-5 pb-2 pt-2">
-          <h2 className="text-[20px] font-semibold tracking-[0.01em]">{longDate(date)}</h2>
+    <section className="flex min-h-0 flex-1 flex-col border-t-[0.5px] border-line">
+      <div>
+        <div className="flex items-baseline justify-between px-4 pb-2 pt-3">
+          <h2 key={date} className="animate-fade-in text-[17px] font-semibold">{longDate(date)}</h2>
           <span className="text-[13px] text-muted">
           {events.length ? `${events.length} событ${events.length === 1 ? 'ие' : events.length < 5 ? 'ия' : 'ий'}` : 'Свободный день'}
           </span>
@@ -93,7 +88,7 @@ export function DayTimeline({ panelRef, scrollerRef: scroller, date, onDateChang
       </div>
 
       {dayTasks.length > 0 && (
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-5 pb-3">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3">
           {dayTasks.map((t) => (
             <button
               key={t.id}

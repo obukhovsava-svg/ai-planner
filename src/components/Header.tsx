@@ -6,12 +6,16 @@ interface HeaderProps {
   subtitle?: ReactNode;
   /** Extra controls rendered left of the theme toggle. */
   actions?: ReactNode;
+  /** Plain (white/black) bar for non-grouped screens such as the calendar. */
+  plain?: boolean;
 }
 
 /** iOS-style large-title navigation bar. */
-export function Header({ title, subtitle, actions }: HeaderProps) {
+export function Header({ title, subtitle, actions, plain }: HeaderProps) {
   return (
-    <header className="pt-safe sticky top-0 z-20 bg-[var(--navbar)] backdrop-blur-xl backdrop-saturate-200">
+    <header
+      className={`pt-safe sticky top-0 z-20 backdrop-blur-xl backdrop-saturate-200 ${plain ? 'bg-[var(--navbar-plain)]' : 'bg-[var(--navbar)]'}`}
+    >
       <div className="flex items-end justify-between gap-3 px-4 pb-2 pt-2">
         <div className="min-w-0">
           {subtitle && <div className="truncate text-[15px] text-muted">{subtitle}</div>}
