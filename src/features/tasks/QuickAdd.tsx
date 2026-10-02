@@ -1,26 +1,27 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ArrowUp, CalendarDays, Flag, Plus, X } from 'lucide-react';
-import type { DateKey, Priority } from '@/types';
+import type { Priority } from '@/types';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { parseCommand } from '@/lib/parser';
-import { addDays, humanDate, todayKey } from '@/lib/date';
+import { addDays, todayKey } from '@/lib/date';
 import { PRIORITY_META } from '@/lib/meta';
 import { haptic } from '@/lib/telegram';
+import { DatePickerSheet, formatDateTime, type DateTimeValue } from '@/components/DatePickerSheet';
 
-const PRIORITIES: Priority[] = ['low', 'medium', 'high'];
+const PRIORITIES: Priority[] = ['high', 'medium', 'low'];
 
 /**
  * Fast entry bar. Understands natural language too:
  * "купить хлеб завтра срочно" → date = tomorrow, priority = high.
  * An explicitly picked date / priority always wins over the parsed one.
  */
-export function QuickAdd({ defaultDate }: { defaultDate?: DateKey }) {
+export function QuickAdd() {
   const addTask = usePlannerStore((s) => s.addTask);
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState<DateKey | undefined>(defaultDate);
+  const [when, setWhen] = useState<DateTimeValue>({});
   const [priority, setPriority] = useState<Priority | undefined>();
   const [focused, setFocused] = useState(false);
-  const dateInput = useRef<HTMLInputElement>(null);
+  const [picker, setPicker] = useState(false);
 
   const submit = () => {
     const raw = title.trim();
@@ -29,30 +30,23 @@ export function QuickAdd({ defaultDate }: { defaultDate?: DateKey }) {
     const p = parsed && parsed.kind !== 'agenda' ? parsed : undefined;
     addTask({
       title: p?.title || raw,
-      date: date ?? p?.date,
-      time: p?.start,
+      date: when.date ?? p?.date,
+      time: when.date ? when.time : p?.start,
       priority: priority ?? p?.priority ?? 'medium',
       category: p?.category ?? 'other',
     });
     haptic.notify('success');
     setTitle('');
     setPriority(undefined);
-    setDate(defaultDate);
+    setWhen({});
   };
 
   const openPicker = () => {
     haptic.selection();
-    const el = dateInput.current;
-    if (!el) return;
-    try {
-      el.showPicker();
-    } catch {
-      el.focus();
-      el.click();
-    }
+    setPicker(true);
   };
 
-  const expanded = focused || Boolean(title);
+  const expanded = focused || Boolean(title) || Boolean(when.date) || Boolean(priority);
 
   return (
     <div className="rounded-[10px] bg-surface py-1 pl-3 pr-1.5">
@@ -79,20 +73,9 @@ export function QuickAdd({ defaultDate }: { defaultDate?: DateKey }) {
           type="button"
           onClick={openPicker}
           aria-label="Выбрать дату"
-          className={`relative grid size-9 shrink-0 place-items-center rounded-full transition-colors duration-300 ${
-            date ? 'bg-blue/12 text-blue' : 'text-blue'
-          }`}
+          className={`grid size-9 shrink-0 place-items-center rounded-full text-blue transition-colors duration-300 ${when.date ? 'bg-blue/12' : ''}`}
         >
           <CalendarDays className="size-[20px]" />
-          <input
-            ref={dateInput}
-            type="date"
-            tabIndex={-1}
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-0"
-            value={date ?? ''}
-            onChange={(e) => setDate(e.target.value || undefined)}
-          />
         </button>
         <button
           type="submit"
@@ -106,23 +89,35 @@ export function QuickAdd({ defaultDate }: { defaultDate?: DateKey }) {
         </button>
       </form>
 
-      {(expanded || date) && (
+      {expanded && (
         <div className="no-scrollbar animate-fade-in -ml-3 flex gap-1.5 overflow-x-auto border-t-[0.5px] border-line pb-1.5 pl-3 pt-2.5">
-          {date && (
-            <Chip active onClick={() => setDate(undefined)}>
-              {humanDate(date)} <X className="size-3" />
+          {when.date ? (
+            <Chip active onClick={openPicker}>
+              <CalendarDays className="size-3.5" />
+              {formatDateTime(when)}
+              <span
+                role="button"
+                aria-label="Убрать дату"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  haptic.selection();
+                  setWhen({});
+                }}
+                className="-mr-1 ml-0.5 grid size-4 place-items-center rounded-full bg-white/25"
+              >
+                <X className="size-3" strokeWidth={3} />
+              </span>
             </Chip>
-          )}
-          {!date &&
-            [
-              ['Сегодня', todayKey()],
-              ['Завтра', addDays(todayKey(), 1)],
-              ['Через неделю', addDays(todayKey(), 7)],
-            ].map(([label, key]) => (
-              <Chip key={key} onClick={() => setDate(key)}>
-                {label}
+          ) : (
+            <>
+              <Chip onClick={() => setWhen({ date: todayKey() })}>Сегодня</Chip>
+              <Chip onClick={() => setWhen({ date: addDays(todayKey(), 1) })}>Завтра</Chip>
+              <Chip onClick={openPicker}>
+                <CalendarDays className="size-3.5 text-blue" />
+                Выбрать дату
               </Chip>
-            ))}
+            </>
+          )}
           <span className="mx-0.5 w-px shrink-0 bg-line" />
           {PRIORITIES.map((p) => (
             <Chip key={p} active={priority === p} onClick={() => setPriority(priority === p ? undefined : p)}>
@@ -132,6 +127,8 @@ export function QuickAdd({ defaultDate }: { defaultDate?: DateKey }) {
           ))}
         </div>
       )}
+
+      <DatePickerSheet open={picker} value={when} onChange={setWhen} onClose={() => setPicker(false)} />
     </div>
   );
 }

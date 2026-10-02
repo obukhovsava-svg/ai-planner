@@ -23,9 +23,6 @@ interface UIState {
   calendarView: 'month' | 'week';
   setCalendarView(view: 'month' | 'week'): void;
 
-  tasksMode: 'all' | 'dated';
-  setTasksMode(mode: 'all' | 'dated'): void;
-
   toast: Toast | null;
   showToast(message: string, action?: Toast['action']): void;
   hideToast(): void;
@@ -45,9 +42,6 @@ export const useUIStore = create<UIState>()(
       calendarView: 'month',
       setCalendarView: (calendarView) => set({ calendarView }),
 
-      tasksMode: 'all',
-      setTasksMode: (tasksMode) => set({ tasksMode }),
-
       toast: null,
       showToast: (message, action) => set({ toast: { id: Date.now(), message, action } }),
       hideToast: () => set({ toast: null }),
@@ -59,7 +53,6 @@ export const useUIStore = create<UIState>()(
       partialize: (s) => ({
         themeOverride: s.themeOverride,
         calendarView: s.calendarView,
-        tasksMode: s.tasksMode,
       }),
     },
   ),

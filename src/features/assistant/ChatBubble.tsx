@@ -28,7 +28,6 @@ function Attachment({ message }: { message: ChatMessage }) {
   const a = message.attachment!;
   const setTab = useUIStore((s) => s.setTab);
   const setSelectedDate = useUIStore((s) => s.setSelectedDate);
-  const setTasksMode = useUIStore((s) => s.setTasksMode);
   const deleteEvent = usePlannerStore((s) => s.deleteEvent);
   const deleteTask = usePlannerStore((s) => s.deleteTask);
   const markUndone = useChatStore((s) => s.markUndone);
@@ -68,7 +67,6 @@ function Attachment({ message }: { message: ChatMessage }) {
       setSelectedDate(a.event.date);
       setTab('calendar');
     } else {
-      setTasksMode(a.task.date ? 'dated' : 'all');
       setTab('tasks');
     }
   };

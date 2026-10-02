@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Trash2, X } from 'lucide-react';
+import { CalendarDays, ChevronRight, Trash2 } from 'lucide-react';
 import type { Category, Priority, Task } from '@/types';
 import { Sheet } from '@/components/Sheet';
+import { DatePickerSheet, formatDateTime } from '@/components/DatePickerSheet';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { useUIStore } from '@/store/useUIStore';
 import { CATEGORY_META, PRIORITY_META } from '@/lib/meta';
@@ -16,6 +17,7 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
   const restoreTask = usePlannerStore((s) => s.restoreTask);
   const showToast = useUIStore((s) => s.showToast);
   const [form, setForm] = useState<Task | null>(task);
+  const [picker, setPicker] = useState(false);
 
   useEffect(() => setForm(task), [task]);
   if (!form) return null;
@@ -36,34 +38,21 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
       >
         <input className={`${fieldClass} font-medium`} value={form.title} onChange={(e) => set('title', e.target.value)} />
 
-        <div className="grid grid-cols-[1fr_auto] gap-3">
-          <label className="flex flex-col gap-1.5">
-            <span className="px-4 text-[13px] uppercase text-muted">Дата</span>
-            <div className="relative">
-              <input type="date" className={fieldClass} value={form.date ?? ''} onChange={(e) => set('date', e.target.value || undefined)} />
-              {form.date && (
-                <button
-                  type="button"
-                  aria-label="Убрать дату"
-                  onClick={() => setForm({ ...form, date: undefined, time: undefined })}
-                  className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full bg-line text-muted"
-                >
-                  <X className="size-3.5" />
-                </button>
-              )}
-            </div>
-          </label>
-          <label className="flex w-28 flex-col gap-1.5">
-            <span className="px-4 text-[13px] uppercase text-muted">Время</span>
-            <input
-              type="time"
-              disabled={!form.date}
-              className={`${fieldClass} disabled:opacity-40`}
-              value={form.time ?? ''}
-              onChange={(e) => set('time', e.target.value || undefined)}
-            />
-          </label>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            haptic.selection();
+            setPicker(true);
+          }}
+          className="flex items-center gap-3 rounded-[10px] bg-surface px-4 py-[11px] text-left transition-colors active:bg-surface-2"
+        >
+          <span className="grid size-[30px] place-items-center rounded-[7px] bg-red text-white">
+            <CalendarDays className="size-[18px]" />
+          </span>
+          <span className="flex-1 text-[17px]">Дата</span>
+          <span className={`text-[17px] ${form.date ? 'text-blue' : 'text-muted'}`}>{formatDateTime(form)}</span>
+          <ChevronRight className="size-5 text-faint" />
+        </button>
 
         <div className="flex flex-col gap-1.5">
           <span className="px-4 text-[13px] uppercase text-muted">Приоритет</span>
@@ -128,6 +117,12 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
           </button>
         </div>
       </form>
+      <DatePickerSheet
+        open={picker}
+        value={{ date: form.date, time: form.time }}
+        onChange={({ date, time }) => setForm({ ...form, date, time })}
+        onClose={() => setPicker(false)}
+      />
     </Sheet>
   );
 }
