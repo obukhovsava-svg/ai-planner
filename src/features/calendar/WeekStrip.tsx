@@ -10,8 +10,8 @@ const LETTERS = ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'];
 /** Week row of the iOS Calendar day screen; swipe to page weeks. */
 export function WeekStrip({ selected, onSelect }: { selected: DateKey; onSelect(d: DateKey): void }) {
   const today = todayKey();
-  const busy = useBusyDates();
   const days = weekDays(selected);
+  const busy = useBusyDates(days[0], days[6]);
   const [direction, setDirection] = useState<'left' | 'right' | null>(null);
 
   const swipe = useSwipe((dir) => {

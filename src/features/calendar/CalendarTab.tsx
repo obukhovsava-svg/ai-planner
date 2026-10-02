@@ -73,7 +73,7 @@ export function CalendarTab() {
         <MonthView initial={selected} todaySignal={todaySignal + calendarHome} onVisibleMonth={setVisibleMonth} onOpenDay={openDay} />
       </div>
 
-      {dayMounted && <DayView open={dayOpen} onBack={closeDay} onCreate={create} onOpenEvent={(e) => setDraft(e)} />}
+      {dayMounted && <DayView open={dayOpen} onBack={closeDay} onCreate={create} onOpenEvent={(e, day) => setDraft(e.repeat ? { ...e, date: day, occurrence: day, seriesDate: e.date } : e)} />}
 
       <EventSheet draft={draft} onClose={() => setDraft(null)} />
     </div>

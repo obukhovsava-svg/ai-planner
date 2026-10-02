@@ -10,6 +10,7 @@ import { usePlannerStore } from '@/store/usePlannerStore';
 import type { ChatAttachment } from '@/store/useChatStore';
 import { CATEGORY_TO_COLOR } from '@/lib/meta';
 import { humanDate } from '@/lib/date';
+import { occursOn, repeatLabel } from '@/lib/recurrence';
 
 export interface CommandInterpreter {
   parse(text: string): Promise<ParsedCommand | null>;
@@ -35,7 +36,7 @@ export async function handleUtterance(text: string): Promise<AssistantReply> {
   }
 
   if (cmd.kind === 'agenda') {
-    const events = store.events.filter((e) => e.date === cmd.date).sort((a, b) => a.start.localeCompare(b.start));
+    const events = store.events.filter((e) => occursOn(e, cmd.date)).sort((a, b) => a.start.localeCompare(b.start));
     const tasks = store.tasks.filter((t) => t.date === cmd.date && !t.done);
     const when = humanDate(cmd.date).toLowerCase();
     return {
@@ -51,9 +52,12 @@ export async function handleUtterance(text: string): Promise<AssistantReply> {
       start: cmd.start!,
       end: cmd.end!,
       color: CATEGORY_TO_COLOR[cmd.category],
+      repeat: cmd.repeat,
     });
     return {
-      text: `Добавил в календарь на ${humanDate(event.date).toLowerCase()}, ${event.start}.`,
+      text: event.repeat
+        ? `Добавил в календарь: ${repeatLabel(event.repeat).toLowerCase()} в ${event.start}, начиная с ${humanDate(event.date, { relative: false })}.`
+        : `Добавил в календарь на ${humanDate(event.date).toLowerCase()}, ${event.start}.`,
       attachment: { type: 'event', event },
     };
   }

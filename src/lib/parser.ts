@@ -9,7 +9,7 @@
  * Runs fully offline. To plug in an LLM later, implement `CommandInterpreter`
  * on the server and swap it in `features/assistant/interpreter.ts`.
  */
-import type { Category, DateKey, Priority, TimeStr } from '@/types';
+import type { Category, DateKey, Priority, Repeat, TimeStr } from '@/types';
 import { addDays, minutesToTime, startOfWeek, timeToMinutes, toKey, weekdayMon } from './date';
 
 export type ParsedCommand =
@@ -21,6 +21,7 @@ export type ParsedCommand =
       end?: TimeStr;
       priority: Priority;
       category: Category;
+      repeat?: Repeat;
     }
   | { kind: 'agenda'; date: DateKey };
 
@@ -218,6 +219,28 @@ function parseDate(ctx: Ctx): DateKey | undefined {
   return undefined;
 }
 
+/**
+ * "каждый день", "еженедельно", "каждые 2 недели", "раз в месяц", "ежегодно",
+ * "по понедельникам" / "каждую среду" (weekly, starting on the next such day).
+ */
+function parseRepeat(ctx: Ctx): { repeat?: Repeat; weekday?: number } {
+  const every = '(?:каждый|каждую|каждое|каждые|раз\\s+в)';
+  if (take(ctx, rx(`${B}(?:${every}\\s+день|ежедневно)${E}`))) return { repeat: { freq: 'day', interval: 1 } };
+  const nWeeks = take(ctx, rx(`${B}(?:каждые|раз\\s+в)\\s+(\\d+)\\s+недел\\p{L}*`));
+  if (nWeeks) return { repeat: { freq: 'week', interval: Number(nWeeks[1]) } };
+  if (take(ctx, rx(`${B}(?:${every}\\s+неделю|еженедельно)${E}`))) return { repeat: { freq: 'week', interval: 1 } };
+  const nMonths = take(ctx, rx(`${B}(?:каждые|раз\\s+в)\\s+(\\d+)\\s+месяц\\p{L}*`));
+  if (nMonths) return { repeat: { freq: 'month', interval: Number(nMonths[1]) } };
+  if (take(ctx, rx(`${B}(?:${every}\\s+месяц|ежемесячно)${E}`))) return { repeat: { freq: 'month', interval: 1 } };
+  if (take(ctx, rx(`${B}(?:${every}\\s+год|ежегодно)${E}`))) return { repeat: { freq: 'year', interval: 1 } };
+  const wd = take(ctx, rx(`${B}(?:каждый|каждую|каждое|по)\\s+(понедельник|вторник|сред|четверг|пятниц|суббот|воскресень)\\p{L}*`));
+  if (wd) {
+    const weekday = WEEKDAYS.find(([re]) => re.test(wd[1].toLowerCase()))![1];
+    return { repeat: { freq: 'week', interval: 1 }, weekday };
+  }
+  return {};
+}
+
 function cleanTitle(text: string): string {
   let t = text
     .replace(
@@ -258,16 +281,21 @@ export function parseCommand(input: string, now: Date = new Date()): ParsedComma
       : 'medium';
   const category = CATEGORY_RULES.find(([re]) => re.test(ctx.text))?.[1] ?? 'other';
 
-  const explicitTask = TASK_WORDS.test(ctx.text);
+  const rep = parseRepeat(ctx);
+  const explicitTask = TASK_WORDS.test(ctx.text) && !rep.repeat;
   const looksLikeEvent = EVENT_WORDS.test(ctx.text);
 
   const duration = parseDuration(ctx);
   const time = parseTime(ctx, looksLikeEvent || !explicitTask);
-  const date = parseDate(ctx) ?? time.date;
+  const weekdayDate =
+    rep.weekday !== undefined ? addDays(toKey(now), (rep.weekday - weekdayMon(now) + 7) % 7) : undefined;
+  const date = parseDate(ctx) ?? weekdayDate ?? time.date;
 
   // Routing: explicit task words win; otherwise timed or event-like phrases go to the calendar.
-  const kind: 'event' | 'task' =
-    explicitTask && !/встреч|встрет|созвон|совещани/iu.test(ctx.text)
+  // Repeating things live in the calendar.
+  const kind: 'event' | 'task' = rep.repeat
+    ? 'event'
+    : explicitTask && !/встреч|встрет|созвон|совещани/iu.test(ctx.text)
       ? 'task'
       : looksLikeEvent || (time.start && !explicitTask)
         ? 'event'
@@ -289,5 +317,6 @@ export function parseCommand(input: string, now: Date = new Date()): ParsedComma
     end: kind === 'event' ? end : undefined,
     priority,
     category,
+    repeat: kind === 'event' ? rep.repeat : undefined,
   };
 }

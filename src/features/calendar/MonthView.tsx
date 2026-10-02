@@ -1,7 +1,8 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import type { CalendarEvent, DateKey, Task } from '@/types';
 import { usePlannerStore } from '@/store/usePlannerStore';
-import { addMonths, fromKey, monthGrid, monthRows, todayKey, weekdayMon } from '@/lib/date';
+import { addDays, addMonths, fromKey, monthGrid, monthRows, todayKey, weekdayMon } from '@/lib/date';
+import { occurrencesBetween } from '@/lib/recurrence';
 import { EVENT_COLORS } from '@/lib/meta';
 
 const ROW_H = 92;
@@ -35,26 +36,28 @@ export function MonthView({ initial, todaySignal, onVisibleMonth, onOpenDay }: M
   const scroller = useRef<HTMLDivElement>(null);
   const today = todayKey();
 
+  const months = useMemo(() => {
+    const base = `${today.slice(0, 7)}-01`;
+    return Array.from({ length: RANGE_BACK + RANGE_FWD + 1 }, (_, i) => addMonths(base, i - RANGE_BACK));
+  }, [today]);
+
   const byDay = useMemo(() => {
+    const from = months[0];
+    const to = addDays(addMonths(months[months.length - 1], 1), -1);
     const map = new Map<DateKey, DayItems>();
     const slot = (d: DateKey) => {
       let v = map.get(d);
       if (!v) map.set(d, (v = { events: [], tasks: [] }));
       return v;
     };
-    for (const e of events) slot(e.date).events.push(e);
+    for (const e of events) for (const d of occurrencesBetween(e, from, to)) slot(d).events.push(e);
     for (const t of tasks) if (t.date && !t.done) slot(t.date).tasks.push(t);
     for (const v of map.values()) {
       v.events.sort((a, b) => a.start.localeCompare(b.start));
       v.tasks.sort((a, b) => (a.time ?? '99').localeCompare(b.time ?? '99'));
     }
     return map;
-  }, [events, tasks]);
-
-  const months = useMemo(() => {
-    const base = `${today.slice(0, 7)}-01`;
-    return Array.from({ length: RANGE_BACK + RANGE_FWD + 1 }, (_, i) => addMonths(base, i - RANGE_BACK));
-  }, [today]);
+  }, [events, tasks, months]);
 
   // Jump (without animation) to the initial month before the first paint.
   useLayoutEffect(() => {

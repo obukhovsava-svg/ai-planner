@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { CalendarEvent, DateKey, Task } from '@/types';
 import { STORAGE_KEYS, storage, uid } from '@/lib/storage';
 import { addDays, todayKey } from '@/lib/date';
+import { occurrencesBetween } from '@/lib/recurrence';
 
 export type NewTask = Omit<Task, 'id' | 'done' | 'createdAt' | 'completedAt'>;
 export type NewEvent = Omit<CalendarEvent, 'id' | 'createdAt'>;
@@ -96,12 +98,15 @@ export const usePlannerStore = create<PlannerState>()(
   ),
 );
 
-/** Set of dates that have at least one event or open task — drives calendar dots. */
-export function useBusyDates(): { events: Set<DateKey>; tasks: Set<DateKey> } {
+/** Dates in [from, to] with at least one event (repeats expanded) or open task — drives calendar dots. */
+export function useBusyDates(from: DateKey, to: DateKey): { events: Set<DateKey>; tasks: Set<DateKey> } {
   const events = usePlannerStore((s) => s.events);
   const tasks = usePlannerStore((s) => s.tasks);
-  return {
-    events: new Set(events.map((e) => e.date)),
-    tasks: new Set(tasks.filter((t) => !t.done && t.date).map((t) => t.date!)),
-  };
+  return useMemo(
+    () => ({
+      events: new Set(events.flatMap((e) => occurrencesBetween(e, from, to))),
+      tasks: new Set(tasks.filter((t) => !t.done && t.date).map((t) => t.date!)),
+    }),
+    [events, tasks, from, to],
+  );
 }

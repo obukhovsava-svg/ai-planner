@@ -13,13 +13,18 @@ export interface DateTimeValue {
 
 interface DatePickerSheetProps {
   open: boolean;
+  title?: string;
+  /** Show the optional time row (default true). */
+  withTime?: boolean;
+  /** Label of the button that clears the date (default "Без даты"). */
+  clearLabel?: string;
   value: DateTimeValue;
   onChange(value: DateTimeValue): void;
   onClose(): void;
 }
 
 /** iOS-style inline date picker (month grid + optional time) in a bottom sheet. */
-export function DatePickerSheet({ open, value, onChange, onClose }: DatePickerSheetProps) {
+export function DatePickerSheet({ open, title = 'Дата и время', withTime = true, clearLabel = 'Без даты', value, onChange, onClose }: DatePickerSheetProps) {
   const [date, setDate] = useState<DateKey | undefined>(value.date);
   const [time, setTime] = useState<TimeStr | undefined>(value.time);
   const [cursor, setCursor] = useState<DateKey>(value.date ?? todayKey());
@@ -69,7 +74,7 @@ export function DatePickerSheet({ open, value, onChange, onClose }: DatePickerSh
   };
 
   return (
-    <Sheet open={open} title="Дата и время" onClose={onClose}>
+    <Sheet open={open} title={title} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
           {quick.map(([label, key]) => (
@@ -138,30 +143,32 @@ export function DatePickerSheet({ open, value, onChange, onClose }: DatePickerSh
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[12px] bg-surface">
-          <div className="flex items-center justify-between px-4 py-2.5">
-            <span className="text-[17px]">Время</span>
-            <Switch
-              checked={Boolean(time)}
-              disabled={!date}
-              onChange={(on) => {
-                haptic.selection();
-                setTime(on ? '09:00' : undefined);
-              }}
-            />
-          </div>
-          {time && (
-            <div className="animate-fade-in flex items-center justify-between border-t-[0.5px] border-line px-4 py-2">
-              <span className="text-[15px] text-muted">{date ? humanDate(date) : ''}</span>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => e.target.value && setTime(e.target.value)}
-                className="rounded-[8px] bg-surface-2 px-3 py-1.5 text-[17px] text-fg outline-none"
+        {withTime && (
+          <div className="overflow-hidden rounded-[12px] bg-surface">
+            <div className="flex items-center justify-between px-4 py-2.5">
+              <span className="text-[17px]">Время</span>
+              <Switch
+                checked={Boolean(time)}
+                disabled={!date}
+                onChange={(on) => {
+                  haptic.selection();
+                  setTime(on ? '09:00' : undefined);
+                }}
               />
             </div>
-          )}
-        </div>
+            {time && (
+              <div className="animate-fade-in flex items-center justify-between border-t-[0.5px] border-line px-4 py-2">
+                <span className="text-[15px] text-muted">{date ? humanDate(date) : ''}</span>
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => e.target.value && setTime(e.target.value)}
+                  className="rounded-[8px] bg-surface-2 px-3 py-1.5 text-[17px] text-fg outline-none"
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-3">
           <button
@@ -174,7 +181,7 @@ export function DatePickerSheet({ open, value, onChange, onClose }: DatePickerSh
             disabled={!date}
             className="h-[50px] flex-1 rounded-[14px] bg-surface text-[17px] text-red transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] disabled:opacity-40"
           >
-            Без даты
+            {clearLabel}
           </button>
           <button
             type="button"

@@ -21,6 +21,19 @@ export interface Task {
   completedAt?: number;
 }
 
+export type RepeatFreq = 'day' | 'week' | 'month' | 'year';
+
+/** Recurrence rule (a small subset of RFC 5545 RRULE). */
+export interface Repeat {
+  freq: RepeatFreq;
+  /** Every N days/weeks/months/years. */
+  interval: number;
+  /** Last day an occurrence may fall on (inclusive). */
+  until?: DateKey;
+  /** Individual occurrences deleted with "only this event". */
+  exceptions?: DateKey[];
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -29,6 +42,8 @@ export interface CalendarEvent {
   end: TimeStr;
   color: EventColor;
   note?: string;
+  /** Present for repeating events; `date` is the first occurrence. */
+  repeat?: Repeat;
   createdAt: number;
 }
 

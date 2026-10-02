@@ -17,7 +17,7 @@ interface DayViewProps {
   open: boolean;
   onBack(): void;
   onCreate(date: DateKey, start?: string, end?: string): void;
-  onOpenEvent(e: CalendarEvent): void;
+  onOpenEvent(e: CalendarEvent, day: DateKey): void;
 }
 
 /**
@@ -109,7 +109,7 @@ export function DayView({ open, onBack, onCreate, onOpenEvent }: DayViewProps) {
         date={selected}
         onDateChange={setSelected}
         onCreate={(start, end) => onCreate(selected, start, end)}
-        onOpen={onOpenEvent}
+        onOpen={(e) => onOpenEvent(e, selected)}
       />
     </div>
   );

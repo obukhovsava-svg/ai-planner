@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Repeat } from 'lucide-react';
 import type { CalendarEvent, DateKey } from '@/types';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { addDays, longDate, minutesToTime, nowMinutes, timeToMinutes, todayKey } from '@/lib/date';
 import { EVENT_COLORS } from '@/lib/meta';
+import { occursOn } from '@/lib/recurrence';
 import { useSwipe } from '@/hooks/useSwipe';
 import { haptic } from '@/lib/telegram';
 
@@ -55,7 +56,7 @@ export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelin
   const [now, setNow] = useState(nowMinutes);
   const isToday = date === todayKey();
 
-  const events = useMemo(() => layoutEvents(allEvents.filter((e) => e.date === date)), [allEvents, date]);
+  const events = useMemo(() => layoutEvents(allEvents.filter((e) => occursOn(e, date))), [allEvents, date]);
   const dayTasks = useMemo(() => allTasks.filter((t) => t.date === date), [allTasks, date]);
 
   useEffect(() => {
@@ -155,7 +156,10 @@ export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelin
                 }}
               >
                 <span className={`absolute inset-y-1 left-1 w-[3px] rounded-full ${c.bar}`} />
-                <span className={`block truncate text-[13px] font-semibold leading-tight ${c.text}`}>{event.title}</span>
+                <span className={`flex items-center gap-1 text-[13px] font-semibold leading-tight ${c.text}`}>
+                  <span className="truncate">{event.title}</span>
+                  {event.repeat && <Repeat className="size-3 shrink-0 opacity-70" strokeWidth={2.5} />}
+                </span>
                 {!short && (
                   <span className="block truncate text-[11px] text-muted">
                     {event.start} – {event.end}
