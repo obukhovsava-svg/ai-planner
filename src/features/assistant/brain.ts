@@ -7,11 +7,12 @@
  *  • something is missing or ambiguous    → ask, with a mini picker card in the chat.
  * The user can answer by tapping the card or by typing ("в 15", "на час", "завтра", "задачей").
  *
- * Everything runs offline on top of lib/parser.ts. A server-side LLM can later replace
- * `analyze()` with the same `Analysis` shape without touching this file.
+ * Understanding comes from the AI worker (lib/ai.ts → /worker) when it is configured and
+ * reachable, otherwise from the offline rules in lib/parser.ts — both produce `Analysis`.
  */
 import type { CalendarEvent, DateKey, Task } from '@/types';
 import { analyze, parseDurationText, type Analysis } from '@/lib/parser';
+import { aiAnalyze } from '@/lib/ai';
 import { addDays, humanDate, minutesToTime, timeToMinutes, todayKey } from '@/lib/date';
 import { CATEGORY_TO_COLOR } from '@/lib/meta';
 import { nextOccurrence, occurrencesBetween, occursOn, repeatLabel } from '@/lib/recurrence';
@@ -170,10 +171,13 @@ function fillFromText(text: string, ask: Ask): Partial<Draft> | 'cancel' | null 
   const dur = parseDurationText(t);
   if (dur && ask === 'end') return { duration: dur };
 
+  // Several requests in one message are never an answer.
+  if (/[;\n]/u.test(text)) return null;
   const a = analyze(text);
   if (a.intent !== 'create') return null;
-  // Too much new content → it's a new request, not an answer.
-  if (a.title && a.title.split(/\s+/).length > 2 && !a.date && !a.start) return null;
+  // Anything left besides date/time/filler words ("давай", "лучше") is a new request, not an answer.
+  const rest = a.title.replace(/(?<![\p{L}])(давай(?:те)?|лучше|тогда|ну|ок|окей|можно|пусть|пожалуй|наверное|наверно|да|в|на|с|со)(?![\p{L}])/giu, '').trim();
+  if (rest) return null;
   if (a.date) patch.date = a.date;
   if (a.start) patch.start = a.start;
   if (a.end) patch.end = a.end;
@@ -344,31 +348,36 @@ function agenda(a: Analysis): AssistantReply {
   return { text: `${what ? `${what[0].toUpperCase()}${what.slice(1)}` : 'Запланировано'}: ${parts.join(' и ')}.`, attachment: { type: 'agenda', days } };
 }
 
-function handleOne(text: string): AssistantReply {
-  // An open question waiting for an answer?
+/** Typed answer to an open clarification question, if the text is one. */
+function answerPending(text: string): AssistantReply | null {
   const pending = [...chat().messages].reverse().find((m) => m.role === 'assistant' && m.attachment);
-  if (pending?.attachment?.type === 'clarify' && !pending.attachment.state) {
-    const fill = fillFromText(text, pending.attachment.ask);
-    if (fill === 'cancel') {
-      cancelClarify(pending.id);
-      return { text: 'Отменил.' };
-    }
-    if (fill) {
-      const reply = proceed({ ...pending.attachment.draft, ...fill });
-      // The question card collapses; the answer (next question or result) follows the user's message.
-      chat().update(pending.id, { attachment: { ...pending.attachment, state: 'answered' } });
-      return reply;
-    }
-    // Not an answer — drop the question silently and handle as a new request.
-    chat().update(pending.id, { attachment: { ...pending.attachment, state: 'cancelled' } });
+  if (pending?.attachment?.type !== 'clarify' || pending.attachment.state) return null;
+  const fill = fillFromText(text, pending.attachment.ask);
+  if (fill === 'cancel') {
+    cancelClarify(pending.id);
+    return { text: 'Отменил.' };
   }
+  if (fill) {
+    // The question card collapses; the answer (next question or result) follows the user's message.
+    chat().update(pending.id, { attachment: { ...pending.attachment, state: 'answered' } });
+    return proceed({ ...pending.attachment.draft, ...fill });
+  }
+  // Not an answer — drop the question silently and handle as a new request.
+  chat().update(pending.id, { attachment: { ...pending.attachment, state: 'cancelled' } });
+  return null;
+}
 
-  const a = analyze(text);
+/** Carries out one analysed request. */
+function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
   switch (a.intent) {
     case 'help':
       return { text: HELP };
     case 'smalltalk':
-      return { text: /спасиб|благодар/iu.test(text) ? 'Всегда пожалуйста! 🙂' : /пока/iu.test(text) ? 'До встречи!' : 'Привет! Скажите, что запланировать, или спросите «что у меня сегодня?».' };
+      return {
+        text:
+          aiReply ??
+          (/спасиб|благодар/iu.test(text) ? 'Всегда пожалуйста! 🙂' : /пока/iu.test(text) ? 'До встречи!' : 'Привет! Скажите, что запланировать, или спросите «что у меня сегодня?».'),
+      };
     case 'undo':
       return { text: undoLast() };
     case 'agenda':
@@ -395,19 +404,36 @@ function handleOne(text: string): AssistantReply {
       };
     }
     case 'create': {
-      if (!a.title && !a.date && !a.start && !a.repeat) return { text: 'Не совсем понял. Скажите, например: «встреча завтра с 15 до 16» или «купить хлеб».' };
+      if (!a.title && !a.date && !a.start && !a.repeat) return { text: aiReply ?? 'Не совсем понял. Скажите, например: «встреча завтра с 15 до 16» или «купить хлеб».' };
       return proceed(draftFrom(a));
     }
   }
 }
 
-/** Handles a whole message; several requests can be separated by ";", new lines or sentences. */
+/**
+ * Handles a whole message:
+ *  1. a typed answer to an open question, or undo/help/small talk → instant, offline;
+ *  2. otherwise the AI worker (if configured and reachable) — it also splits several requests;
+ *  3. fallback: offline rules, requests separated by ";", new lines or sentences.
+ */
 export async function handleUtterance(text: string): Promise<AssistantReply[]> {
-  const parts = text
+  const answered = answerPending(text);
+  if (answered) return [answered];
+
+  const local = analyze(text);
+  if (local.intent === 'undo' || local.intent === 'help' || local.intent === 'smalltalk') return [act(local, text)];
+
+  const ai = await aiAnalyze(text);
+  if (ai) {
+    if (!ai.actions.length) return [{ text: ai.reply! }];
+    return ai.actions.map((a) => act(a, text, ai.reply));
+  }
+
+  return text
     .split(/\n+|;\s*|\.\s+(?=[А-ЯЁA-Z])/u)
     .map((s) => s.trim())
-    .filter(Boolean);
-  return parts.map(handleOne);
+    .filter(Boolean)
+    .map((part) => act(analyze(part), part));
 }
 
 export { candLabel, durationLabel };

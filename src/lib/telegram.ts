@@ -56,6 +56,11 @@ function getWebApp(): TelegramWebApp | undefined {
   return window.Telegram?.WebApp;
 }
 
+/** Signed launch data; the AI worker uses it to verify requests come from this Mini App. */
+export function getInitData(): string {
+  return getWebApp()?.initData ?? '';
+}
+
 /** True only when actually launched inside a Telegram client. */
 export function isInTelegram(): boolean {
   return Boolean(getWebApp()?.initData);
