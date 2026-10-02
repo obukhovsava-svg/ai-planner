@@ -1,38 +1,81 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { ArrowUp, Mic, SquarePen } from 'lucide-react';
-import { Header, IconButton } from '@/components/Header';
-import { useChatStore } from '@/store/useChatStore';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { ArrowUp } from 'lucide-react';
+import { Header } from '@/components/Header';
+import { useChatStore, type ChatMessage } from '@/store/useChatStore';
+import { useUIStore } from '@/store/useUIStore';
 import { haptic } from '@/lib/telegram';
+import { aiStatus } from '@/lib/ai';
 import { ChatBubble } from './ChatBubble';
 import { handleUtterance } from './brain';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { VoiceOrb } from './VoiceOrb';
-import { aiStatus } from '@/lib/ai';
-import { useUIStore } from '@/store/useUIStore';
 
-const SUGGESTIONS = ['Встреча завтра с 15 до 16', 'Смены с 9 до 21 по графику 2/2', 'Английский по вторникам и четвергам в 19:00', 'Что у меня на неделе?'];
+const SUGGESTIONS = ['Встреча завтра с 15 до 16', 'Смены с 9 до 21 по графику 2/2', 'Английский по вторникам в 19:00', 'Что у меня на неделе?'];
 
+/** How long a completed action stays on screen before it dissolves. */
+const DISMISS_AFTER = 6000;
+const FADE_MS = 450;
+
+/** Still waiting for the user (a question card or a pick-one list)? */
+const isOpen = (m: ChatMessage) =>
+  (m.attachment?.type === 'clarify' || m.attachment?.type === 'choose') && !m.attachment.state;
+
+/** A finished action — fine to dissolve after a moment. Agenda/help/text answers stay until the next request. */
+const isDone = (m: ChatMessage) => ['event', 'task', 'undo', 'choose', 'clarify'].includes(m.attachment?.type ?? '') && !isOpen(m);
+
+/**
+ * Chat without history: the big voice orb is always there; above it only the current
+ * exchange (your request + the answer). Completed actions dissolve after a few seconds.
+ */
 export function AssistantTab() {
   const messages = useChatStore((s) => s.messages);
   const push = useChatStore((s) => s.push);
-  const clear = useChatStore((s) => s.clear);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
-  const scroller = useRef<HTMLDivElement>(null);
   const ai = useSyncExternalStore(aiStatus.subscribe, aiStatus.get);
   const showToast = useUIStore((s) => s.showToast);
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // The current exchange = the last user message and everything after it.
+  const exchange = useMemo(() => {
+    const i = messages.findLastIndex((m) => m.role === 'user');
+    return i < 0 ? [] : messages.slice(i);
+  }, [messages]);
+  const exchangeId = exchange[0]?.id;
+
+  // Opening the tab shows a clean screen — unless a question is still waiting for an answer.
+  const [hiddenId, setHiddenId] = useState<string | undefined>(() => (exchange.some(isOpen) ? undefined : exchangeId));
+  const [leaving, setLeaving] = useState(false);
+  const visible = Boolean(exchangeId) && exchangeId !== hiddenId;
+
+  const replies = exchange.slice(1);
+  const settled = !thinking && replies.length > 0 && !replies.some(isOpen) && replies.some(isDone);
+
+  useEffect(() => {
+    if (!visible || !settled) return;
+    const t1 = window.setTimeout(() => setLeaving(true), DISMISS_AFTER);
+    const t2 = window.setTimeout(() => {
+      setHiddenId(exchangeId);
+      setLeaving(false);
+    }, DISMISS_AFTER + FADE_MS);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [visible, settled, exchangeId, replies.length]);
 
   const submit = async (raw: string) => {
     const text = raw.trim();
     if (!text || thinking) return;
     setInput('');
+    setLeaving(false);
     push({ role: 'user', text });
     setThinking(true);
     try {
       // A short pause so the reply reads as a response rather than a flash.
-      const [replies] = await Promise.all([handleUtterance(text), new Promise((r) => setTimeout(r, 450))]);
-      for (const reply of replies) push({ role: 'assistant', ...reply });
-      const last = replies.at(-1)?.attachment?.type;
+      const [answers] = await Promise.all([handleUtterance(text), new Promise((r) => setTimeout(r, 450))]);
+      for (const reply of answers) push({ role: 'assistant', ...reply });
+      const last = answers.at(-1)?.attachment?.type;
       haptic.notify(last === 'event' || last === 'task' ? 'success' : 'warning');
     } finally {
       setThinking(false);
@@ -44,7 +87,7 @@ export function AssistantTab() {
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
-  }, [messages.length, messages.at(-1)?.text, thinking, speech.interim]);
+  }, [messages.length, messages.at(-1)?.text, thinking]);
 
   const toggleMic = () => {
     haptic.impact(listening ? 'light' : 'medium');
@@ -52,18 +95,14 @@ export function AssistantTab() {
     else speech.start();
   };
 
-  const empty = messages.length === 0;
+  const showHero = !visible && !thinking && !listening;
 
   return (
     <div className="flex h-full flex-col">
       <Header
         title="Ассистент"
         subtitle={
-          <button
-            type="button"
-            onClick={() => ai.detail && showToast(ai.detail)}
-            className="flex items-center gap-1.5 transition-opacity active:opacity-50"
-          >
+          <button type="button" onClick={() => ai.detail && showToast(ai.detail)} className="flex items-center gap-1.5 transition-opacity active:opacity-50">
             <span
               className={`size-[7px] rounded-full ${
                 ai.state === 'ok' ? 'bg-green' : ai.state === 'error' ? 'bg-red' : ai.state === 'off' ? 'bg-faint' : 'bg-faint/50'
@@ -72,83 +111,69 @@ export function AssistantTab() {
             {ai.state === 'ok' ? 'GPT · онлайн' : ai.state === 'error' ? 'Офлайн-режим · ошибка AI' : ai.state === 'off' ? 'Офлайн-режим' : 'GPT'}
           </button>
         }
-        actions={
-          !empty && (
-            <IconButton
-              label="Новый диалог"
-              onClick={() => {
-                haptic.impact('light');
-                clear();
-              }}
-            >
-              <SquarePen className="size-[17px]" strokeWidth={2.2} />
-            </IconButton>
-          )
-        }
       />
 
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-4">
-        {empty ? (
-          <div className="flex min-h-full flex-col items-center justify-center gap-8 pb-4 text-center">
-            <div className="animate-fade-up">
-              <h2 className="text-[28px] font-bold leading-tight tracking-[0.005em]">Чем могу помочь?</h2>
-              <p className="mt-2 text-[17px] leading-snug text-muted">
-                Скажите или напишите — я добавлю
-                <br />
-                событие в календарь или задачу.
-              </p>
-            </div>
-
-            <div className="animate-fade-up [animation-delay:80ms]">
-              <VoiceOrb listening={listening} onPress={toggleMic} />
-            </div>
-
-            <div className="flex min-h-11 flex-col items-center justify-center px-6">
-              {listening ? (
-                <p key="interim" className={`animate-fade-in text-[17px] ${speech.interim ? 'text-fg' : 'text-shimmer'}`}>
-                  {speech.interim || 'Слушаю…'}
+      {/* current exchange (or the welcome) */}
+      <div ref={scroller} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
+        <div className="flex min-h-full flex-col justify-end gap-3 py-3">
+          {showHero ? (
+            <div key="hero" className="animate-fade-in flex flex-col items-center gap-5 pb-2 text-center">
+              <div>
+                <h2 className="text-[28px] font-bold leading-tight">Чем могу помочь?</h2>
+                <p className="mt-2 text-[17px] leading-snug text-muted">
+                  Скажите или напишите — я добавлю
+                  <br />
+                  событие или задачу и уточню детали.
                 </p>
-              ) : speech.error ? (
-                <p className="text-[15px] text-red">{speech.error}</p>
-              ) : (
-                <p className="text-[13px] text-muted">
-                  {speech.supported ? 'Коснитесь, чтобы говорить' : 'Распознавание речи недоступно · демо-режим'}
-                </p>
-              )}
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                {SUGGESTIONS.map((s, i) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => submit(s)}
+                    className="animate-fade-up rounded-full bg-surface px-4 py-2 text-[15px] transition-transform duration-300 ease-spring active:scale-95"
+                    style={{ animationDelay: `${80 + i * 50}ms` }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
-
-            <div className="flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s, i) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => submit(s)}
-                  className="animate-fade-up rounded-full bg-surface px-4 py-2 text-[15px] transition-transform duration-300 ease-spring active:scale-95"
-                  style={{ animationDelay: `${160 + i * 50}ms` }}
-                >
-                  {s}
-                </button>
-              ))}
+          ) : (
+            <div
+              key={exchangeId ?? 'pending'}
+              className="flex flex-col gap-3 transition-[opacity,transform,filter] ease-spring"
+              style={{
+                transitionDuration: `${FADE_MS}ms`,
+                opacity: leaving ? 0 : 1,
+                transform: leaving ? 'translateY(-12px) scale(0.98)' : 'none',
+                filter: leaving ? 'blur(4px)' : 'none',
+              }}
+            >
+              {visible && exchange.map((m) => <ChatBubble key={m.id} message={m} />)}
+              {thinking && <p className="text-shimmer animate-fade-in pl-1 text-[17px]">Думаю…</p>}
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3 py-4">
-            {messages.map((m) => (
-              <ChatBubble key={m.id} message={m} />
-            ))}
-            {thinking && <p className="text-shimmer animate-fade-in pl-1 text-[17px]">Думаю…</p>}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <div className="pb-tabbar shrink-0 px-4 pt-2">
-        {!empty && listening && (
-          <div className="animate-fade-up mb-3 flex flex-col items-center gap-3">
-            <VoiceOrb size={72} listening onPress={toggleMic} />
-            <p className={`max-w-full truncate text-[17px] ${speech.interim ? 'text-fg' : 'text-shimmer'}`}>{speech.interim || 'Слушаю…'}</p>
+      {/* always-available voice orb + text field */}
+      <div className="pb-tabbar shrink-0 px-4">
+        <div className="flex flex-col items-center gap-2 pb-3 pt-1">
+          <VoiceOrb size={96} listening={listening} onPress={toggleMic} />
+          <div className="flex min-h-6 items-center px-6 text-center">
+            {listening ? (
+              <p key="interim" className={`animate-fade-in max-w-full truncate text-[17px] ${speech.interim ? 'text-fg' : 'text-shimmer'}`}>
+                {speech.interim || 'Слушаю…'}
+              </p>
+            ) : speech.error ? (
+              <p className="text-[15px] text-red">{speech.error}</p>
+            ) : (
+              <p className="text-[13px] text-muted">{speech.supported ? 'Коснитесь, чтобы говорить' : 'Голос недоступен · демо-режим'}</p>
+            )}
           </div>
-        )}
-        {!empty && speech.error && <p className="mb-2 text-center text-[13px] text-red">{speech.error}</p>}
+        </div>
         <form
           className="flex items-center gap-2 rounded-full bg-surface py-1 pl-4 pr-1 shadow-[0_0_0_0.5px_var(--line)]"
           onSubmit={(e) => {
@@ -159,33 +184,20 @@ export function AssistantTab() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Спросите что-нибудь"
+            placeholder="Или напишите…"
             enterKeyHint="send"
             className="min-w-0 flex-1 bg-transparent py-1.5 text-[17px] text-fg outline-none placeholder:text-muted"
           />
-          {input.trim() ? (
-            <button
-              key="send"
-              type="submit"
-              disabled={thinking}
-              aria-label="Отправить"
-              className="animate-fade-in grid size-[34px] shrink-0 place-items-center rounded-full bg-blue text-white transition-transform duration-300 ease-spring active:scale-90 disabled:opacity-40"
-            >
-              <ArrowUp className="size-[19px]" strokeWidth={2.6} />
-            </button>
-          ) : (
-            <button
-              key="mic"
-              type="button"
-              onClick={toggleMic}
-              aria-label={listening ? 'Остановить запись' : 'Голосовой ввод'}
-              className={`animate-fade-in grid size-[34px] shrink-0 place-items-center rounded-full transition-all duration-300 ease-spring active:scale-90 ${
-                listening ? 'bg-red text-white' : 'text-muted'
-              }`}
-            >
-              <Mic className="size-[20px]" strokeWidth={2} />
-            </button>
-          )}
+          <button
+            type="submit"
+            disabled={!input.trim() || thinking}
+            aria-label="Отправить"
+            className={`grid shrink-0 place-items-center rounded-full bg-blue text-white transition-all duration-500 ease-spring active:scale-90 ${
+              input.trim() ? 'size-[34px] opacity-100' : 'size-[34px] scale-50 opacity-0'
+            }`}
+          >
+            <ArrowUp className="size-[19px]" strokeWidth={2.6} />
+          </button>
         </form>
       </div>
     </div>

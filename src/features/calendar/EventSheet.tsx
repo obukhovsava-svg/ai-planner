@@ -24,7 +24,7 @@ interface EventSheetProps {
 }
 
 const fieldClass =
-  'w-full rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
+  'block w-full min-w-0 max-w-full appearance-none rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
 
 export function EventSheet({ draft, onClose }: EventSheetProps) {
   const addEvent = usePlannerStore((s) => s.addEvent);
@@ -100,13 +100,13 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
           onChange={(e) => set('title', e.target.value)}
         />
 
-        <label className="flex flex-col gap-1.5">
+        <label className="flex min-w-0 flex-col gap-1.5">
           <span className="px-4 text-[13px] uppercase text-muted">Дата</span>
           <input type="date" className={fieldClass} value={form.date} onChange={(e) => e.target.value && set('date', e.target.value)} />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1.5">
+          <label className="flex min-w-0 flex-col gap-1.5">
             <span className="px-4 text-[13px] uppercase text-muted">Начало</span>
             <input
               type="time"
@@ -121,7 +121,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
               }}
             />
           </label>
-          <label className="flex flex-col gap-1.5">
+          <label className="flex min-w-0 flex-col gap-1.5">
             <span className="px-4 text-[13px] uppercase text-muted">Конец</span>
             <input type="time" className={fieldClass} value={form.end} onChange={(e) => e.target.value && set('end', e.target.value)} />
           </label>

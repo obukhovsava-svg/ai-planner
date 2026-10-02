@@ -15,6 +15,7 @@ interface Env {
   MODEL: string;
   API_BASE: string;
   ALLOWED_ORIGIN: string;
+  APP_URL: string;
 }
 
 const MAX_TEXT = 600;
@@ -147,6 +148,57 @@ function systemPrompt(today: string, weekday: string, time: string): string {
 Список ближайших дел пользователя дан ниже, используй его, чтобы правильно назвать то, что нужно перенести/удалить/отметить.`;
 }
 
+/* ------------------------------------------------------------ Telegram bot (/start) */
+
+/** Secret Telegram must echo back on every webhook call; derived from the bot token, so nothing extra to store. */
+async function webhookSecret(env: Env): Promise<string> {
+  return hex(await hmac(enc.encode('ai-planner-webhook'), env.BOT_TOKEN)).slice(0, 48);
+}
+
+async function tg(env: Env, method: string, payload: unknown) {
+  const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return res.json() as Promise<{ ok: boolean; description?: string; result?: unknown }>;
+}
+
+const escapeHtml = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+
+function openButton(env: Env) {
+  return { inline_keyboard: [[{ text: '📅 Открыть планер', web_app: { url: env.APP_URL } }]] };
+}
+
+async function onTelegramUpdate(update: any, env: Env) {
+  const msg = update?.message;
+  if (!msg?.chat?.id || msg.chat.type !== 'private') return;
+  const name = escapeHtml(String(msg.from?.first_name ?? '').slice(0, 40));
+  const text = String(msg.text ?? '');
+
+  if (text.startsWith('/start') || text.startsWith('/help')) {
+    await tg(env, 'sendMessage', {
+      chat_id: msg.chat.id,
+      parse_mode: 'HTML',
+      text:
+        `Привет${name ? `, ${name}` : ''}! 👋\n\n` +
+        `Я — <b>AI-планер</b>: календарь, задачи и умный ассистент в одном месте.\n\n` +
+        `🗓 Расписание как в Календаре iPhone — месяц, день, повторы и графики смен 2/2\n` +
+        `✅ Задачи с датами, приоритетами и категориями\n` +
+        `✨ Ассистент понимает обычную речь: скажите «встреча с Анной завтра с 15 до 16» — и всё окажется в календаре\n\n` +
+        `Нажмите кнопку ниже, чтобы открыть планер 👇`,
+      reply_markup: openButton(env),
+    });
+    return;
+  }
+
+  await tg(env, 'sendMessage', {
+    chat_id: msg.chat.id,
+    text: 'Всё планирование — внутри приложения. Откройте планер и скажите ассистенту, что добавить 👇',
+    reply_markup: openButton(env),
+  });
+}
+
 /* ------------------------------------------------------------ Handler */
 
 function cors(origin: string | null, env: Env): Record<string, string> {
@@ -169,6 +221,28 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
     const url = new URL(request.url);
+
+    // Telegram → bot updates.
+    if (request.method === 'POST' && url.pathname === '/telegram/webhook') {
+      if (request.headers.get('X-Telegram-Bot-Api-Secret-Token') !== (await webhookSecret(env))) return new Response('forbidden', { status: 403 });
+      try {
+        await onTelegramUpdate(await request.json(), env);
+      } catch {
+        /* never make Telegram retry */
+      }
+      return new Response('ok');
+    }
+    // One-time setup: point the bot's webhook at this worker (idempotent; it can only ever point here).
+    if (request.method === 'POST' && url.pathname === '/telegram/setup') {
+      const result = await tg(env, 'setWebhook', {
+        url: `${url.origin}/telegram/webhook`,
+        secret_token: await webhookSecret(env),
+        allowed_updates: ['message'],
+        drop_pending_updates: true,
+      });
+      return json({ ok: result.ok, description: result.description }, 200, headers);
+    }
+
     if (request.method === 'GET' && url.pathname === '/health') {
       return json({ ok: true, model: env.MODEL, api: env.API_BASE, key: Boolean(env.OPENAI_API_KEY), bot: Boolean(env.BOT_TOKEN) }, 200, headers);
     }

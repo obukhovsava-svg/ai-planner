@@ -59,6 +59,16 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Freeze every scroll area behind the sheet while it is open.
+  useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    root.classList.add('sheet-open');
+    return () => {
+      if (!document.querySelectorAll('[role=dialog][data-open=true]').length) root.classList.remove('sheet-open');
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
@@ -74,6 +84,7 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
 
     let mode: 'idle' | 'pending' | 'drag' | 'native' = 'idle';
     let startY = 0;
+    let startX = 0;
     let lastY = 0;
     let lastT = 0;
     let velocity = 0;
@@ -90,6 +101,7 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
 
     const begin = (y: number, target: EventTarget | null) => {
       const el = target instanceof Element ? target : null;
+      lastY = y;
       if (el?.closest('input, textarea, select')) return;
       forced = Boolean(el?.closest('[data-drag-handle]'));
       mode = 'pending';
@@ -131,10 +143,28 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
       mode = 'idle';
     };
 
-    const onTouchStart = (e: TouchEvent) => begin(e.touches[0].clientY, e.target);
-    const onTouchMove = (e: TouchEvent) => {
-      if (move(e.touches[0].clientY) && e.cancelable) e.preventDefault();
+    const onTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      begin(e.touches[0].clientY, e.target);
     };
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0].clientY;
+      if (move(y) && e.cancelable) {
+        e.preventDefault();
+        return;
+      }
+      // Horizontal swipes (chip rows, calendar paging) stay native.
+      if (Math.abs(e.touches[0].clientX - startX) > Math.abs(y - startY)) return;
+      // Native scrolling inside the sheet: never let it chain to the page behind (iOS rubber-band).
+      const canScroll = p.scrollHeight > p.clientHeight + 1;
+      const atTop = p.scrollTop <= 0 && y > lastY;
+      const atBottom = p.scrollTop + p.clientHeight >= p.scrollHeight - 1 && y < lastY;
+      if ((!canScroll || atTop || atBottom) && e.cancelable && !(e.target as Element).closest?.('input, textarea, select')) e.preventDefault();
+      lastY = y;
+    };
+    // The dimmed backdrop never scrolls anything.
+    const stop = (e: TouchEvent) => e.cancelable && e.preventDefault();
+    b.addEventListener('touchmove', stop, { passive: false });
     // Mouse: only from the grabber/title area, so clicks inside the form stay clicks.
     const onPointerDown = (e: PointerEvent) => {
       if (e.pointerType !== 'mouse' || e.button !== 0) return;
@@ -159,6 +189,7 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
     return () => {
       p.removeEventListener('touchstart', onTouchStart);
       p.removeEventListener('touchmove', onTouchMove);
+      b.removeEventListener('touchmove', stop);
       p.removeEventListener('touchend', end);
       p.removeEventListener('touchcancel', end);
       p.removeEventListener('pointerdown', onPointerDown);
@@ -168,16 +199,22 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
   if (!mounted) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-50 flex items-end justify-center ${open ? '' : 'pointer-events-none'}`} role="dialog" aria-modal aria-label={title}>
+    <div
+      className={`fixed inset-0 z-50 flex items-end justify-center overscroll-none ${open ? '' : 'pointer-events-none'}`}
+      role="dialog"
+      aria-modal
+      aria-label={title}
+      data-open={open}
+    >
       <div
         ref={backdrop}
-        className="absolute inset-0 bg-black/35"
+        className="absolute inset-0 touch-none bg-black/35"
         style={{ animation: 'fade-in 0.35s ease backwards' }}
         onClick={() => onCloseRef.current()}
       />
       <div
         ref={panel}
-        className="animate-sheet-up pb-safe relative max-h-[92dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[28px] bg-bg shadow-[0_-10px_40px_rgb(0_0_0/0.18)]"
+        className="animate-sheet-up pb-safe relative max-h-[92dvh] w-full max-w-md overflow-y-auto overflow-x-hidden overscroll-contain rounded-t-[28px] bg-bg shadow-[0_-10px_40px_rgb(0_0_0/0.18)]"
       >
         <div data-drag-handle className="sticky top-0 z-10 cursor-grab touch-none bg-bg/90 px-4 pb-2 pt-2 backdrop-blur-xl">
           <div className="mx-auto mb-2 h-[5px] w-9 rounded-full bg-faint/60" />

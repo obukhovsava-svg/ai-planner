@@ -9,7 +9,7 @@ import { CATEGORY_META, PRIORITY_META } from '@/lib/meta';
 import { haptic } from '@/lib/telegram';
 
 const fieldClass =
-  'w-full rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
+  'block w-full min-w-0 max-w-full appearance-none rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
 
 export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): void }) {
   const updateTask = usePlannerStore((s) => s.updateTask);

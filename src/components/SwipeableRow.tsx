@@ -7,56 +7,85 @@ interface SwipeableRowProps {
   onDelete(): void;
 }
 
-const REVEAL = 84; // width of the red action area
-const COMMIT = 0.45; // swipe past this fraction of the row width deletes immediately
+const REVEAL = 76; // open position: room for the round button
+const COMMIT = 0.5; // swiping past half the row deletes on release
+const SPRING = 'cubic-bezier(0.32, 0.72, 0, 1)';
 
 /**
- * iOS-style swipe-to-delete. Swipe left to reveal "Удалить",
- * swipe far to delete instantly. Vertical scrolling is left untouched.
+ * Telegram-style swipe-to-delete: a round red trash button grows out of the right edge.
+ * Short swipe → the row stays open; long swipe → the button follows the row's edge and
+ * the row is deleted on release. Deleting slides the row out, then collapses its height,
+ * so the rows below glide up in one continuous motion.
  */
 export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
-  const row = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
   const start = useRef<{ x: number; y: number; base: number; axis?: 'x' | 'y' } | null>(null);
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [removing, setRemoving] = useState(false);
-  const passedCommit = useRef(false);
+  const pastCommit = useRef(false);
+  // The click a browser fires right after a drag must not count as a tap.
+  const justDragged = useRef(false);
+
+  const width = () => root.current?.offsetWidth ?? 360;
+  const committed = -offset > width() * COMMIT;
 
   const remove = () => {
+    if (removing) return;
     haptic.notify('warning');
     setRemoving(true);
-    setOffset(-(row.current?.offsetWidth ?? 400));
-    window.setTimeout(onDelete, 220);
+    setOffset(-width());
+    const el = root.current;
+    if (!el) return onDelete();
+    // After the slide-out, collapse the height smoothly, then drop the item.
+    window.setTimeout(() => {
+      const h = el.offsetHeight;
+      el.animate([{ height: `${h}px`, opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 280, easing: SPRING, fill: 'forwards' }).finished.then(
+        onDelete,
+        onDelete,
+      );
+    }, 180);
   };
 
+  const progress = Math.min(1, -offset / REVEAL);
+
   return (
-    <div
-      ref={row}
-      className={`relative overflow-hidden transition-[max-height,opacity] duration-300 ease-spring ${
-        removing ? 'max-h-0 opacity-0' : 'max-h-40'
-      }`}
-    >
-      <button
-        type="button"
-        onClick={remove}
-        aria-label="Удалить"
-        tabIndex={offset < 0 ? 0 : -1}
-        className="absolute inset-y-0 right-0 flex items-center justify-end gap-1.5 bg-red pr-5 text-[15px] font-medium text-white"
-        style={{ width: Math.max(REVEAL, -offset) }}
+    <div ref={root} className="relative overflow-hidden">
+      {/* action area behind the row */}
+      <div
+        className="absolute inset-y-0 right-0 flex items-center"
+        style={{
+          width: Math.max(0, -offset),
+          justifyContent: committed ? 'flex-start' : 'center',
+          paddingLeft: committed ? 16 : 0,
+        }}
       >
-        <Trash2 className="size-4" />
-        Удалить
-      </button>
+        <button
+          type="button"
+          onClick={remove}
+          aria-label="Удалить"
+          tabIndex={offset < 0 ? 0 : -1}
+          className="grid size-11 shrink-0 place-items-center rounded-full bg-red text-white shadow-[0_4px_14px_rgb(255_59_48/0.35)] active:scale-90"
+          style={{
+            transform: `scale(${committed ? 1.08 : 0.4 + 0.6 * progress})`,
+            opacity: Math.min(1, progress * 1.4),
+            transition: dragging ? 'transform 0.2s ease' : `transform 0.4s ${SPRING}, opacity 0.3s`,
+          }}
+        >
+          <Trash2 className="size-[19px]" strokeWidth={2.2} />
+        </button>
+      </div>
+
       <div
         className="relative touch-pan-y"
         style={{
           transform: `translateX(${offset}px)`,
-          transition: dragging ? 'none' : 'transform 0.5s var(--spring)',
+          transition: dragging ? 'none' : `transform ${removing ? 0.22 : 0.45}s ${SPRING}`,
         }}
         onPointerDown={(e) => {
-          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          if (removing || (e.pointerType === 'mouse' && e.button !== 0)) return;
           start.current = { x: e.clientX, y: e.clientY, base: offset };
-          passedCommit.current = false;
+          pastCommit.current = false;
         }}
         onPointerMove={(e) => {
           const s = start.current;
@@ -72,12 +101,13 @@ export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
             }
           }
           if (s.axis !== 'x') return;
-          const next = Math.min(0, s.base + dx);
+          // Resist a little when pulled right past the resting position.
+          const raw = s.base + dx;
+          const next = raw > 0 ? raw * 0.15 : raw;
           setOffset(next);
-          const width = row.current?.offsetWidth ?? 400;
-          const past = -next > width * COMMIT;
-          if (past !== passedCommit.current) {
-            passedCommit.current = past;
+          const past = -next > width() * COMMIT;
+          if (past !== pastCommit.current) {
+            pastCommit.current = past;
             haptic.impact('medium');
           }
         }}
@@ -86,8 +116,9 @@ export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
           start.current = null;
           setDragging(false);
           if (s?.axis !== 'x') return;
-          const width = row.current?.offsetWidth ?? 400;
-          if (-offset > width * COMMIT) remove();
+          justDragged.current = true;
+          window.setTimeout(() => (justDragged.current = false), 0);
+          if (-offset > width() * COMMIT) remove();
           else setOffset(-offset > REVEAL / 2 ? -REVEAL : 0);
         }}
         onPointerCancel={() => {
@@ -96,6 +127,11 @@ export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
           setOffset(0);
         }}
         onClickCapture={(e) => {
+          if (justDragged.current) {
+            e.stopPropagation();
+            e.preventDefault();
+            return;
+          }
           // A tap on an open row closes it instead of triggering the row's own action.
           if (offset !== 0 && !removing) {
             e.stopPropagation();
