@@ -13,6 +13,7 @@ interface Env {
   OPENAI_API_KEY: string;
   BOT_TOKEN: string;
   MODEL: string;
+  API_BASE: string;
   ALLOWED_ORIGIN: string;
 }
 
@@ -169,7 +170,7 @@ export default {
 
     const url = new URL(request.url);
     if (request.method === 'GET' && url.pathname === '/health') {
-      return json({ ok: true, model: env.MODEL, key: Boolean(env.OPENAI_API_KEY), bot: Boolean(env.BOT_TOKEN) }, 200, headers);
+      return json({ ok: true, model: env.MODEL, api: env.API_BASE, key: Boolean(env.OPENAI_API_KEY), bot: Boolean(env.BOT_TOKEN) }, 200, headers);
     }
     if (request.method !== 'POST' || url.pathname !== '/analyze') return json({ error: 'not_found' }, 404, headers);
 
@@ -186,20 +187,34 @@ export default {
     const text = String(body.text ?? '').slice(0, MAX_TEXT).trim();
     if (!text) return json({ error: 'empty' }, 400, headers);
 
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: env.MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt(String(body.today), String(body.weekday), String(body.time)) },
-          { role: 'system', content: `Ближайшие дела пользователя:\n${String(body.items ?? '').slice(0, 4000) || '(пусто)'}` },
-          { role: 'user', content: text },
-        ],
-        response_format: { type: 'json_schema', json_schema: { name: 'planner_actions', strict: true, schema: RESPONSE_SCHEMA } },
-        max_completion_tokens: 4000,
-      }),
+    const messages = [
+      { role: 'system', content: systemPrompt(String(body.today), String(body.weekday), String(body.time)) },
+      { role: 'system', content: `Ближайшие дела пользователя:\n${String(body.items ?? '').slice(0, 4000) || '(пусто)'}` },
+      { role: 'user', content: text },
+    ];
+    const call = (payload: Record<string, unknown>) =>
+      fetch(`${(env.API_BASE || 'https://api.openai.com/v1').replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: env.MODEL, max_completion_tokens: 4000, ...payload }),
+      });
+
+    let res = await call({
+      messages,
+      response_format: { type: 'json_schema', json_schema: { name: 'planner_actions', strict: true, schema: RESPONSE_SCHEMA } },
     });
+    // Some OpenAI-compatible providers don't support strict JSON schemas — fall back to JSON mode
+    // with the schema spelled out in the prompt (the app validates every field anyway).
+    if (res.status === 400) {
+      res = await call({
+        messages: [
+          ...messages.slice(0, 2),
+          { role: 'system', content: `Ответь ТОЛЬКО JSON-объектом по этой схеме:\n${JSON.stringify(RESPONSE_SCHEMA)}` },
+          messages[2],
+        ],
+        response_format: { type: 'json_object' },
+      });
+    }
 
     if (!res.ok) {
       const detail = (await res.text()).slice(0, 300);

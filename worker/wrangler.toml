@@ -1,13 +1,15 @@
 # Cloudflare Worker: the AI brain of the planner.
 # Secrets (set in the Cloudflare dashboard → Workers → ai-planner-brain → Settings → Variables and Secrets):
-#   OPENAI_API_KEY  — your OpenAI API key
+#   OPENAI_API_KEY  — your API key (OpenAI or an OpenAI-compatible provider)
 #   BOT_TOKEN       — your Telegram bot token from @BotFather (used to verify that requests come from your Mini App)
 name = "ai-planner-brain"
 main = "src/index.ts"
 compatibility_date = "2025-09-01"
 
 [vars]
-# Exact model id from your OpenAI dashboard (platform.openai.com → Models).
-MODEL = "gpt-5.6-sol"
+# Model id exactly as your API provider names it.
+MODEL = "openai/gpt-5.6-sol"
+# OpenAI-compatible API base URL of your provider (OpenAI itself: https://api.openai.com/v1).
+API_BASE = "https://apiracloud.ru/v1"
 # Only the published Mini App may call this worker.
 ALLOWED_ORIGIN = "https://obukhovsava-svg.github.io"
