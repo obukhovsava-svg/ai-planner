@@ -1,0 +1,262 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------- Design tokens ---------- */
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --line: #e2e8f0;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --blue: #2563eb;
+  --sky: #38bdf8;
+  --red: #ef4444;
+  --coral: #f87171;
+  --tabbar: rgb(255 255 255 / 0.78);
+  --shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.12);
+  --gemini: linear-gradient(135deg, #2563eb 0%, #38bdf8 42%, #f87171 72%, #ef4444 100%);
+  --gemini-soft: linear-gradient(135deg, rgb(37 99 235 / 0.12), rgb(239 68 68 / 0.12));
+  --tabbar-h: 64px;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0a0d14;
+  --surface: #121624;
+  --surface-2: #181d2e;
+  --line: #1f2937;
+  --fg: #f1f5f9;
+  --muted: #94a3b8;
+  --faint: #64748b;
+  --tabbar: rgb(18 22 36 / 0.72);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -16px rgb(0 0 0 / 0.6);
+  --gemini-soft: linear-gradient(135deg, rgb(37 99 235 / 0.2), rgb(239 68 68 / 0.18));
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-blue: var(--blue);
+  --color-sky: var(--sky);
+  --color-red: var(--red);
+  --color-coral: var(--coral);
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
+  --shadow-card: var(--shadow);
+}
+
+/* ---------- Base ---------- */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+button {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  /* 16px+ prevents iOS from zooming into focused fields */
+  font-size: max(16px, 1em);
+}
+
+/* Smooth colour cross-fade, enabled only while the theme is switching */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    fill 0.35s ease,
+    box-shadow 0.35s ease !important;
+}
+
+/* Circular reveal when the View Transitions API is available */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* ---------- Safe areas (iOS notch / Android gesture bar / Telegram fullscreen) ---------- */
+@utility pt-safe {
+  padding-top: max(env(safe-area-inset-top), calc(var(--tg-safe-top, 0px) + var(--tg-content-top, 0px)));
+}
+@utility pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px));
+}
+@utility app-height {
+  height: var(--tg-viewport-stable-height, 100dvh);
+}
+@utility pb-tabbar {
+  padding-bottom: calc(var(--tabbar-h) + max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px)) + 16px);
+}
+
+/* ---------- Gemini accents ---------- */
+@utility bg-gemini {
+  background-image: var(--gemini);
+}
+@utility bg-gemini-soft {
+  background-image: var(--gemini-soft);
+}
+@utility text-gemini {
+  background-image: var(--gemini);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---------- Animations ---------- */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes aura {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.18) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+    opacity: 0.75;
+  }
+}
+@keyframes ring {
+  from {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  to {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes check-pop {
+  0% {
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@utility animate-fade-up {
+  animation: fade-up 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility animate-fade-in {
+  animation: fade-in 0.2s ease both;
+}
+@utility animate-slide-right {
+  animation: slide-in-right 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility animate-slide-left {
+  animation: slide-in-left 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility animate-sheet-up {
+  animation: sheet-up 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility animate-aura {
+  animation: aura 3.2s linear infinite;
+}
+@utility animate-ring {
+  animation: ring 1.6s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+}
+@utility animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+@utility animate-check-pop {
+  animation: check-pop 0.3s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
