@@ -1,6 +1,6 @@
 import { mergeDocs, emptyDoc, type PlannerDoc } from '../../src/lib/merge';
 import { reminderInstances } from '../../src/lib/reminderCore';
-import { execute } from './exec';
+import { applyUndo, execute } from './exec';
 import { analyze, isConfident, splitRequests } from '../../src/lib/parser';
 /**
  * AI brain for the planner Mini App (Cloudflare Worker).
@@ -353,6 +353,15 @@ function rulesFirst(text: string, tz: number): LlmResult | null {
   return { ok: true, data: { actions: analyses as any[], reply: null } };
 }
 
+let undoTableReady = false;
+async function ensureUndoTable(env: Env) {
+  if (undoTableReady) return;
+  await env.DB.prepare(
+    'CREATE TABLE IF NOT EXISTS shortcut_undo (user_id TEXT PRIMARY KEY, ops TEXT NOT NULL, queue_id INTEGER, created_at INTEGER NOT NULL)',
+  ).run();
+  undoTableReady = true;
+}
+
 async function shortcutUser(env: Env, key: string) {
   if (!key || key.length < 20) return null;
   const { results } = await env.DB.prepare('SELECT user_id, tz FROM users WHERE token = ?1').bind(key).all<{ user_id: string; tz: number }>();
@@ -493,7 +502,7 @@ export default {
       return json({ doc: merged }, 200, headers);
     }
 
-    // iPhone Shortcut: dictated text → model → queued for the app; the bot confirms.
+    // iPhone Shortcut: dictated text → executed on the server copy; «Всё верно?» → Готово / Отмена ({"undo": true}).
     if (request.method === 'POST' && url.pathname === '/shortcut') {
       const u = await shortcutUser(env, url.searchParams.get('key') ?? (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, ''));
       const plain = (t: string, status = 200) => new Response(t, { status, headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' } });
@@ -501,45 +510,83 @@ export default {
       if (rateLimited(`s:${u.user_id}`)) return plain('Слишком много запросов, подождите минуту.', 429);
       const raw = await request.text();
       let text = raw;
+      let wantUndo = false;
       try {
         const j = JSON.parse(raw);
+        wantUndo = j.undo === true || j.undo === 'true' || j.undo === 1;
         text = String(j.text ?? j.Text ?? Object.values(j)[0] ?? '');
       } catch {
         const form = new URLSearchParams(raw);
         if (form.get('text')) text = form.get('text')!;
       }
+      await ensureUndoTable(env);
+
+      // «Отмена» in the Shortcut's menu: roll back the last dictated request.
+      if (wantUndo) {
+        const { results } = await env.DB.prepare('SELECT ops, queue_id, created_at FROM shortcut_undo WHERE user_id = ?1')
+          .bind(u.user_id)
+          .all<{ ops: string; queue_id: number | null; created_at: number }>();
+        const last = results[0];
+        if (!last || Date.now() - last.created_at > 30 * 60_000) return plain('Нечего отменять.');
+        const ops = JSON.parse(last.ops);
+        if (ops.length) {
+          const stored = await loadDoc(env, u.user_id);
+          await saveDoc(env, u.user_id, applyUndo(stored.doc, ops, Date.now()), stored.tz ?? u.tz ?? 0);
+        }
+        if (last.queue_id) await env.DB.prepare('DELETE FROM queue WHERE user_id = ?1 AND id >= ?2').bind(u.user_id, last.queue_id).run();
+        await env.DB.prepare('DELETE FROM shortcut_undo WHERE user_id = ?1').bind(u.user_id).run();
+        return plain('Отменено ↩️');
+      }
+
       text = text.slice(0, MAX_TEXT).trim();
       if (!text) return plain('Не расслышал — попробуйте ещё раз.', 400);
 
-      // The Shortcut waits for the result and shows it as an iPhone notification.
       const now = localNow(u.tz ?? 0);
       // Simple phrases: offline rules, instantly. Otherwise the model.
       const r = rulesFirst(text, u.tz ?? 0) ?? (await llm(env, text, now.today, now.weekday, now.time, ''));
-      const actions = r.ok ? (r.data.actions ?? []) : null;
+      let actions: any[] = r.ok ? (r.data.actions ?? []) : [];
+      const reply = r.ok && r.data.reply ? String(r.data.reply) : '';
+      let unsure = false;
+      // Not understood at all → just keep it as a task (and ask "всё верно?").
+      if (!actions.length && !reply) {
+        actions = [{ intent: 'create', title: text.charAt(0).toUpperCase() + text.slice(1), kindWord: 'task' }];
+        unsure = true;
+      }
 
-      // Run it on the server copy right away; only what needs the user goes to the app.
+      // Run it on the server copy right away; only what needs a choice (which one to delete…) goes to the app.
       let lines: string[] = [];
-      let unresolved: any[] | null = actions;
-      if (actions?.length) {
+      let unresolved: any[] = [];
+      let ops: any[] = [];
+      if (actions.length) {
         const stored = await loadDoc(env, u.user_id);
         const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
         lines = res.lines;
         unresolved = res.unresolved;
-        if (res.lines.length) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
+        ops = res.undo;
+        unsure ||= res.unsure || unresolved.length > 0;
+        if (ops.length) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
       }
-      if (!actions || unresolved?.length) {
-        await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
-          .bind(u.user_id, text, actions ? JSON.stringify(unresolved) : null, Date.now())
+      let queueId: number | null = null;
+      if (unresolved.length) {
+        const q = await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4) RETURNING id')
+          .bind(u.user_id, text, JSON.stringify(unresolved), Date.now())
+          .all<{ id: number }>();
+        queueId = q.results[0]?.id ?? null;
+      }
+      if (ops.length || queueId) {
+        await env.DB.prepare(
+          'INSERT INTO shortcut_undo (user_id, ops, queue_id, created_at) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id) DO UPDATE SET ops = ?2, queue_id = ?3, created_at = ?4',
+        )
+          .bind(u.user_id, JSON.stringify(ops), queueId, Date.now())
           .run();
       }
+
       const body = lines.join('; ');
-      const pending = !actions || unresolved?.length ? 'Нужно уточнение — откройте планер, вопрос ждёт в ассистенте.' : '';
-      const answer = lines.length
-        ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.${pending ? ` ${pending}` : ''}`
-        : r.ok && r.data.reply && !unresolved?.length
-          ? String(r.data.reply)
-          : `Нужно уточнение — откройте планер, вопрос ждёт в ассистенте.`;
-      return plain(answer);
+      const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+      let answer = lines.length ? `${cap(body)}.` : reply;
+      if (unresolved.length) answer = `${answer ? `${answer} ` : ''}Остальное уточню в планере.`;
+      // "Всё верно?" makes the Shortcut show «Готово» / «Отмена» instead of the banner.
+      return plain(unsure ? `${answer} Всё верно?` : lines.length ? `Готово ✅ ${answer}` : answer);
     }
 
     // Personal key for the Shortcut (issued to the signed-in Mini App user).

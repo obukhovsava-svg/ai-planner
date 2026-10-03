@@ -5,8 +5,9 @@ Builds the iPhone Shortcut "Планер" (unsigned plist) — sign with:
 Actions:
   1. Dictate text (Russian, stops after a pause)
   2. POST {"text": <dictated text>} to the user's personal link
-  3. Answer understood → a compact result banner ("Готово ✅ …"), no notification.
-     Needs details → a menu with "Открыть планер" (opens the Mini App on the assistant) / "Позже".
+  3. Sure → a compact result banner ("Готово ✅ …"), no notification.
+     Guessed something ("… Всё верно?") → a menu «Готово» / «Отмена»; «Отмена» POSTs {"undo": true}
+     and the server rolls the request back.
 On import the user is asked once for their personal link (Assistant → «Кнопка на iPhone»).
 """
 import plistlib, uuid, pathlib
@@ -15,10 +16,32 @@ DICTATE = str(uuid.uuid4()).upper()
 POST = str(uuid.uuid4()).upper()
 IF_GROUP = str(uuid.uuid4()).upper()
 MENU_GROUP = str(uuid.uuid4()).upper()
-URL_UUID = str(uuid.uuid4()).upper()
+LINK_UUID = str(uuid.uuid4()).upper()
+UNDO_UUID = str(uuid.uuid4()).upper()
 TEXT_UUID = str(uuid.uuid4()).upper()
-# Opens the Mini App straight on the assistant (start_param "a").
-PLANNER_LINK = "https://t.me/myliveplaners_bot?startapp=a"
+
+def link_token():
+    """The personal link (from the first "URL" action)."""
+    return {
+        "Value": {"string": "\ufffc", "attachmentsByRange": {"{0, 1}": {"OutputUUID": LINK_UUID, "Type": "ActionOutput", "OutputName": "URL"}}},
+        "WFSerializationType": "WFTextTokenString",
+    }
+
+def post(uuid_, value):
+    return {
+        "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
+        "WFWorkflowActionParameters": {
+            "UUID": uuid_,
+            "WFURL": link_token(),
+            "WFHTTPMethod": "POST",
+            "WFHTTPBodyType": "JSON",
+            "ShowHeaders": False,
+            "WFJSONValues": {
+                "Value": {"WFDictionaryFieldValueItems": [value]},
+                "WFSerializationType": "WFDictionaryFieldValue",
+            },
+        },
+    }
 
 def text_token(s):
     return {"Value": {"string": s}, "WFSerializationType": "WFTextTokenString"}
@@ -63,6 +86,11 @@ workflow = {
     "WFWorkflowHasShortcutInputVariables": False,
     "WFQuickActionSurfaces": [],
     "WFWorkflowActions": [
+        # 0: the personal link (asked once on import)
+        {
+            "WFWorkflowActionIdentifier": "is.workflow.actions.url",
+            "WFWorkflowActionParameters": {"UUID": LINK_UUID, "WFURLActionURL": ""},
+        },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.dictatetext",
             "WFWorkflowActionParameters": {
@@ -71,24 +99,7 @@ workflow = {
                 "WFDictateTextStopListening": "After Pause",
             },
         },
-        {
-            "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
-            "WFWorkflowActionParameters": {
-                "UUID": POST,
-                "WFURL": "https://ai-planner-brain.savelyobuhov.workers.dev/shortcut?key=ВСТАВЬТЕ_СВОЮ_ССЫЛКУ",
-                "WFHTTPMethod": "POST",
-                "WFHTTPBodyType": "JSON",
-                "ShowHeaders": False,
-                "WFJSONValues": {
-                    "Value": {
-                        "WFDictionaryFieldValueItems": [
-                            {"WFItemType": 0, "WFKey": text_token("text"), "WFValue": dictated}
-                        ]
-                    },
-                    "WFSerializationType": "WFDictionaryFieldValue",
-                },
-            },
-        },
+        post(POST, {"WFItemType": 0, "WFKey": text_token("text"), "WFValue": dictated}),
         # The answer as plain TEXT — otherwise "If" only offers "has any value / has no value".
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.detect.text",
@@ -100,7 +111,7 @@ workflow = {
                 },
             },
         },
-        # If the assistant needs details → a menu with "Открыть планер"; otherwise a result banner.
+        # A guess ("… Всё верно?") → menu «Готово» / «Отмена»; otherwise a result banner.
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
             "WFWorkflowActionParameters": {
@@ -108,14 +119,14 @@ workflow = {
                 "WFControlFlowMode": 0,
                 # Legacy single-condition keys (older iOS) …
                 "WFCondition": 99,  # "contains"
-                "WFConditionalActionString": "уточнение",
+                "WFConditionalActionString": "верно",
                 "WFInput": answer_input(),
                 # … and the current condition-table format (iOS 17+), same condition.
                 "WFConditions": {
                     "Value": {
                         "WFActionParameterFilterPrefix": 1,
                         "WFActionParameterFilterTemplates": [
-                            {"WFCondition": 99, "WFConditionalActionString": "уточнение", "WFInput": answer_input()}
+                            {"WFCondition": 99, "WFConditionalActionString": "верно", "WFInput": answer_input()}
                         ],
                     },
                     "WFSerializationType": "WFContentPredicateTableTemplate",
@@ -128,29 +139,27 @@ workflow = {
                 "GroupingIdentifier": MENU_GROUP,
                 "WFControlFlowMode": 0,
                 "WFMenuPrompt": answer_token(),
-                "WFMenuItems": ["Открыть планер", "Позже"],
+                "WFMenuItems": ["Готово", "Отмена"],
             },
         },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
-            "WFWorkflowActionParameters": {"GroupingIdentifier": MENU_GROUP, "WFControlFlowMode": 1, "WFMenuItemTitle": "Открыть планер"},
+            "WFWorkflowActionParameters": {"GroupingIdentifier": MENU_GROUP, "WFControlFlowMode": 1, "WFMenuItemTitle": "Готово"},
         },
         {
-            "WFWorkflowActionIdentifier": "is.workflow.actions.url",
-            "WFWorkflowActionParameters": {"UUID": URL_UUID, "WFURLActionURL": PLANNER_LINK},
+            "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
+            "WFWorkflowActionParameters": {"GroupingIdentifier": MENU_GROUP, "WFControlFlowMode": 1, "WFMenuItemTitle": "Отмена"},
         },
+        post(UNDO_UUID, {"WFItemType": 0, "WFKey": text_token("undo"), "WFValue": text_token("true")}),
         {
-            "WFWorkflowActionIdentifier": "is.workflow.actions.openurl",
+            "WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
             "WFWorkflowActionParameters": {
-                "WFInput": {
-                    "Value": {"OutputUUID": URL_UUID, "Type": "ActionOutput", "OutputName": "URL"},
-                    "WFSerializationType": "WFTextTokenAttachment",
+                "UUID": str(uuid.uuid4()).upper(),
+                "Text": {
+                    "Value": {"string": "\ufffc", "attachmentsByRange": {"{0, 1}": {"OutputUUID": UNDO_UUID, "Type": "ActionOutput", "OutputName": "Содержимое URL"}}},
+                    "WFSerializationType": "WFTextTokenString",
                 },
             },
-        },
-        {
-            "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
-            "WFWorkflowActionParameters": {"GroupingIdentifier": MENU_GROUP, "WFControlFlowMode": 1, "WFMenuItemTitle": "Позже"},
         },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
@@ -172,9 +181,9 @@ workflow = {
     ],
     "WFWorkflowImportQuestions": [
         {
-            "ActionIndex": 1,
+            "ActionIndex": 0,
             "Category": "Parameter",
-            "ParameterKey": "WFURL",
+            "ParameterKey": "WFURLActionURL",
             "DefaultValue": "",
             "Text": "Вставьте вашу личную ссылку из планера (Ассистент → «Кнопка на iPhone» → «Скопировать»)",
         }

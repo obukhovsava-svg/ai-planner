@@ -198,6 +198,14 @@ function parseTime(ctx: Ctx, isEvent: boolean): { start?: TimeStr; end?: TimeStr
       start = hhmm(applyDaypart(Number(h), p, isEvent), Number(ma ?? mb ?? 0));
     }
   }
+  // "с 17 вечера", "с 9:30" — a start without an end
+  if (!start) {
+    const from = take(ctx, rx(`${B}(?:с|со|от)\\s+${CLOCK}${notDate}(?:\\s*час(?:а|ов)?)?${PART}${E}`));
+    if (from) {
+      const [, h, ma, mb, p] = from;
+      start = hhmm(applyDaypart(Number(h), p, isEvent), Number(ma ?? mb ?? 0));
+    }
+  }
   if (!start) {
     const bare = take(ctx, /(?<![\d:.])(\d{1,2}):(\d{2})(?!\d)/u);
     if (bare) start = hhmm(Number(bare[1]), Number(bare[2]));
