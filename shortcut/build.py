@@ -5,7 +5,7 @@ Builds the iPhone Shortcut "Планер" (unsigned plist) — sign with:
 Actions:
   1. Dictate text (Russian, stops after a pause)
   2. POST {"text": <dictated text>} to the user's personal link
-  3. Show a notification with the assistant's answer ("Готово ✅ …").
+  3. Show the assistant's answer ("Готово ✅ …") as a compact result banner — no notification.
 On import the user is asked once for their personal link (Assistant → «Кнопка на iPhone»).
 """
 import plistlib, uuid, pathlib
@@ -61,12 +61,11 @@ workflow = {
             },
         },
         {
-            "WFWorkflowActionIdentifier": "is.workflow.actions.notification",
+            # "Show Result": a compact banner on top of the screen, no notification.
+            "WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
             "WFWorkflowActionParameters": {
                 "UUID": str(uuid.uuid4()).upper(),
-                "WFNotificationActionTitle": "Планер",
-                "WFNotificationActionSound": True,
-                "WFNotificationActionBody": {
+                "Text": {
                     "Value": {
                         "string": "\ufffc",
                         "attachmentsByRange": {"{0, 1}": {"OutputUUID": POST, "Type": "ActionOutput", "OutputName": "Содержимое URL"}},
