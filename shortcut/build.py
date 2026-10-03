@@ -15,11 +15,22 @@ DICTATE = str(uuid.uuid4()).upper()
 POST = str(uuid.uuid4()).upper()
 IF_GROUP = str(uuid.uuid4()).upper()
 MENU_GROUP = str(uuid.uuid4()).upper()
+URL_UUID = str(uuid.uuid4()).upper()
 # Opens the Mini App straight on the assistant (start_param "a").
 PLANNER_LINK = "https://t.me/myliveplaners_bot?startapp=a"
 
 def text_token(s):
     return {"Value": {"string": s}, "WFSerializationType": "WFTextTokenString"}
+
+def answer_input():
+    """The server's answer as the subject of the "If" condition."""
+    return {
+        "Type": "Variable",
+        "Variable": {
+            "Value": {"OutputUUID": POST, "Type": "ActionOutput", "OutputName": "Содержимое URL"},
+            "WFSerializationType": "WFTextTokenAttachment",
+        },
+    }
 
 def answer_token():
     """The server's answer ("Готово ✅ …" / "Нужно уточнение …") as a text variable."""
@@ -81,14 +92,19 @@ workflow = {
             "WFWorkflowActionParameters": {
                 "GroupingIdentifier": IF_GROUP,
                 "WFControlFlowMode": 0,
+                # Legacy single-condition keys (older iOS) …
                 "WFCondition": 99,  # "contains"
                 "WFConditionalActionString": "уточнение",
-                "WFInput": {
-                    "Type": "Variable",
-                    "Variable": {
-                        "Value": {"OutputUUID": POST, "Type": "ActionOutput", "OutputName": "Содержимое URL"},
-                        "WFSerializationType": "WFTextTokenAttachment",
+                "WFInput": answer_input(),
+                # … and the current condition-table format (iOS 17+), same condition.
+                "WFConditions": {
+                    "Value": {
+                        "WFActionParameterFilterPrefix": 1,
+                        "WFActionParameterFilterTemplates": [
+                            {"WFCondition": 99, "WFConditionalActionString": "уточнение", "WFInput": answer_input()}
+                        ],
                     },
+                    "WFSerializationType": "WFContentPredicateTableTemplate",
                 },
             },
         },
@@ -106,8 +122,17 @@ workflow = {
             "WFWorkflowActionParameters": {"GroupingIdentifier": MENU_GROUP, "WFControlFlowMode": 1, "WFMenuItemTitle": "Открыть планер"},
         },
         {
+            "WFWorkflowActionIdentifier": "is.workflow.actions.url",
+            "WFWorkflowActionParameters": {"UUID": URL_UUID, "WFURLActionURL": PLANNER_LINK},
+        },
+        {
             "WFWorkflowActionIdentifier": "is.workflow.actions.openurl",
-            "WFWorkflowActionParameters": {"WFInput": text_token(PLANNER_LINK), "Show-WFInput": True},
+            "WFWorkflowActionParameters": {
+                "WFInput": {
+                    "Value": {"OutputUUID": URL_UUID, "Type": "ActionOutput", "OutputName": "URL"},
+                    "WFSerializationType": "WFTextTokenAttachment",
+                },
+            },
         },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
