@@ -367,3 +367,19 @@ input[type='date']::-webkit-date-and-time-value,
 input[type='time']::-webkit-date-and-time-value {
   text-align: left;
 }
+
+/* Deep-linked task: a soft highlight pulse */
+@keyframes flash-row {
+  0%,
+  100% {
+    background-color: var(--surface);
+  }
+  25%,
+  60% {
+    background-color: color-mix(in srgb, var(--blue) 18%, var(--surface));
+  }
+}
+.flash,
+.flash > * > * > * {
+  animation: flash-row 1.8s ease-in-out 1;
+}

@@ -4,8 +4,8 @@ import { Sheet } from '@/components/Sheet';
 import { getShortcutLink } from '@/lib/shortcut';
 import { haptic, isInTelegram, openExternal } from '@/lib/telegram';
 
-/** Install page for the signed Shortcut (opens «Команды» directly). Served next to the app. */
-const INSTALL_URL = new URL('install.html', location.href).href;
+/** The signed Shortcut file, served next to the app; Safari hands it to «Команды». */
+const FILE_URL = new URL('planner.shortcut', location.href).href;
 
 /** Home-screen voice button: copy your personal link → install the ready-made Shortcut. */
 export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): void }) {
@@ -85,7 +85,7 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
                 <div>
                   <p className="text-[16px] font-semibold">Установите команду</p>
                   <p className="mt-0.5 text-[14px] leading-snug text-muted">
-                    Откроются «Команды» → «Добавить команду» → вставьте ссылку. Больше ничего настраивать не нужно.
+                    Откроется Safari и скачает файл → нажмите на него (или «Открыть в „Командах“») → «Добавить команду» → вставьте ссылку.
                   </p>
                 </div>
               </div>
@@ -93,7 +93,7 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
                 type="button"
                 onClick={() => {
                   haptic.impact('medium');
-                  openExternal(INSTALL_URL);
+                  openExternal(FILE_URL);
                 }}
                 className="flex w-full items-center justify-center gap-1.5 border-t-[0.5px] border-line bg-blue py-3 text-[16px] font-semibold text-white transition-opacity active:opacity-80"
               >

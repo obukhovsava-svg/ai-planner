@@ -3,7 +3,6 @@ import { Plus } from 'lucide-react';
 import type { DateKey } from '@/types';
 import { Header, IconButton } from '@/components/Header';
 import { useUIStore } from '@/store/useUIStore';
-import { usePlannerStore } from '@/store/usePlannerStore';
 import { monthTitle, todayKey } from '@/lib/date';
 import { MonthView } from './MonthView';
 import { DayView } from './DayView';
@@ -21,20 +20,6 @@ export function CalendarTab() {
   const [visibleMonth, setVisibleMonth] = useState<DateKey>(selected);
   const [todaySignal, setTodaySignal] = useState(0);
   const [draft, setDraft] = useState<EventDraft | null>(null);
-
-  // Deep link from a reminder: open that event (this occurrence) right away.
-  const focus = useUIStore((s) => s.focus);
-  const setFocus = useUIStore((s) => s.setFocus);
-  const events = usePlannerStore((s) => s.events);
-  useEffect(() => {
-    if (focus?.kind !== 'event') return;
-    const e = events.find((x) => x.id === focus.id);
-    setFocus(null);
-    if (!e) return;
-    const day = focus.date ?? e.date;
-    // Let the day screen slide in first (the timer must survive the focus reset above).
-    window.setTimeout(() => setDraft(e.repeat ? { ...e, date: day, occurrence: day, seriesDate: e.date } : e), 450);
-  }, [focus, events, setFocus]);
 
   // Keep the day screen mounted until its pop animation has finished.
   useEffect(() => {

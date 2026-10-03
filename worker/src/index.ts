@@ -390,7 +390,7 @@ async function sendDue(env: Env) {
     .bind(now + 20_000)
     .all<{ user_id: string; rid: string; text: string }>();
   for (const r of results) {
-    const res = await tg(env, 'sendMessage', { chat_id: r.user_id, text: r.text, reply_markup: openButton(env, r.rid) }).catch((e) => ({
+    const res = await tg(env, 'sendMessage', { chat_id: r.user_id, text: r.text, ...(r.rid.startsWith('diag:plain') ? {} : { reply_markup: openButton(env, r.rid) }) }).catch((e) => ({
       ok: false,
       description: String(e),
     }));
@@ -467,40 +467,33 @@ export default {
       text = text.slice(0, MAX_TEXT).trim();
       if (!text) return plain('Не расслышал — попробуйте ещё раз.', 400);
 
-      // Answer the Shortcut at once; the model + data work continues in the background
-      // and the bot sends the result a few seconds later.
-      ctx.waitUntil(
-        (async () => {
-          const now = localNow(u.tz ?? 0);
-          const r = await llm(env, text, now.today, now.weekday, now.time, '');
-          const actions = r.ok ? (r.data.actions ?? []) : null;
+      // The Shortcut waits for the result and shows it as an iPhone notification.
+      const now = localNow(u.tz ?? 0);
+      const r = await llm(env, text, now.today, now.weekday, now.time, '');
+      const actions = r.ok ? (r.data.actions ?? []) : null;
 
-          // Run it on the server copy right away; only what needs the user goes to the app.
-          let lines: string[] = [];
-          let unresolved: any[] | null = actions;
-          if (actions?.length) {
-            const stored = await loadDoc(env, u.user_id);
-            const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
-            lines = res.lines;
-            unresolved = res.unresolved;
-            if (res.lines.length) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
-          }
-          if (!actions || unresolved?.length) {
-            await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
-              .bind(u.user_id, text, actions ? JSON.stringify(unresolved) : null, Date.now())
-              .run();
-          }
-          const body = lines.join('; ');
-          const pending = !actions || unresolved?.length ? 'Остальное уточню в планере, когда откроете его.' : '';
-          const answer = lines.length
-            ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.${pending ? ` ${pending}` : ''}`
-            : r.ok && r.data.reply && !unresolved?.length
-              ? String(r.data.reply)
-              : `Принял: «${text}». Уточню детали в планере, когда откроете его.`;
-          await tg(env, 'sendMessage', { chat_id: u.user_id, text: `🎙 «${text}»\n${answer}`, reply_markup: openButton(env) }).catch(() => null);
-        })(),
-      );
-      const answer = 'Принял ✅ Результат пришлёт бот.';
+      // Run it on the server copy right away; only what needs the user goes to the app.
+      let lines: string[] = [];
+      let unresolved: any[] | null = actions;
+      if (actions?.length) {
+        const stored = await loadDoc(env, u.user_id);
+        const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
+        lines = res.lines;
+        unresolved = res.unresolved;
+        if (res.lines.length) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
+      }
+      if (!actions || unresolved?.length) {
+        await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
+          .bind(u.user_id, text, actions ? JSON.stringify(unresolved) : null, Date.now())
+          .run();
+      }
+      const body = lines.join('; ');
+      const pending = !actions || unresolved?.length ? 'Нужно уточнение — откройте планер, вопрос ждёт в ассистенте.' : '';
+      const answer = lines.length
+        ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.${pending ? ` ${pending}` : ''}`
+        : r.ok && r.data.reply && !unresolved?.length
+          ? String(r.data.reply)
+          : `Нужно уточнение — откройте планер, вопрос ждёт в ассистенте.`;
       return plain(answer);
     }
 

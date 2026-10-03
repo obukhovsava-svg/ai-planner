@@ -44,7 +44,15 @@ async function pull() {
       const actions = item.actions ? toAnalyses(item.actions) : null;
       for (const reply of await applyQueued(item.text, actions)) chat.push({ role: 'assistant', ...reply });
     }
-    if (items.length) useUIStore.getState().showToast(items.length === 1 ? 'Добавлено из команды iPhone' : `Добавлено из команды iPhone: ${items.length}`);
+    if (items.length) {
+      const waiting = useChatStore
+        .getState()
+        .messages.slice(-10)
+        .some((m) => ['clarify', 'choose', 'confirm', 'move-ask', 'remind-ask'].includes(m.attachment?.type ?? '') && !(m.attachment as { state?: string }).state);
+      // A question from the iPhone command is waiting → show it.
+      if (waiting) useUIStore.getState().setTab('assistant');
+      else useUIStore.getState().showToast(items.length === 1 ? 'Добавлено из команды iPhone' : `Добавлено из команды iPhone: ${items.length}`);
+    }
   } catch {
     /* offline — next tick retries */
   } finally {

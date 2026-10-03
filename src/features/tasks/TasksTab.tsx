@@ -36,15 +36,21 @@ export function TasksTab() {
   const [editing, setEditing] = useState<Task | null>(null);
   const list = useRef<HTMLDivElement>(null);
 
-  // Deep link from a reminder: open that task right away.
+  // Deep link from a reminder: scroll to the task and make it glow for a moment.
   const focus = useUIStore((s) => s.focus);
   const setFocus = useUIStore((s) => s.setFocus);
   useEffect(() => {
     if (focus?.kind !== 'task') return;
-    const t = tasks.find((x) => x.id === focus.id);
     setFocus(null);
-    if (t) setEditing(t);
-  }, [focus, tasks, setFocus]);
+    window.setTimeout(() => {
+      const row = list.current?.querySelector<HTMLElement>(`[data-flip-id="${focus.id}"]`);
+      if (!row) return;
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.remove('flash');
+      void row.offsetWidth; // restart the animation
+      row.classList.add('flash');
+    }, 450);
+  }, [focus, setFocus]);
   useFlip(list);
 
   // Additions/removals apply instantly; a re-order after ticking a task waits a beat,

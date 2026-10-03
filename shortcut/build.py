@@ -5,7 +5,7 @@ Builds the iPhone Shortcut "Планер" (unsigned plist) — sign with:
 Actions:
   1. Dictate text (Russian, stops after a pause)
   2. POST {"text": <dictated text>} to the user's personal link
-No "show result / notification" — the Telegram bot replies instead.
+  3. Show a notification with the assistant's answer ("Готово ✅ …").
 On import the user is asked once for their personal link (Assistant → «Кнопка на iPhone»).
 """
 import plistlib, uuid, pathlib
@@ -57,6 +57,21 @@ workflow = {
                         ]
                     },
                     "WFSerializationType": "WFDictionaryFieldValue",
+                },
+            },
+        },
+        {
+            "WFWorkflowActionIdentifier": "is.workflow.actions.notification",
+            "WFWorkflowActionParameters": {
+                "UUID": str(uuid.uuid4()).upper(),
+                "WFNotificationActionTitle": "Планер",
+                "WFNotificationActionSound": True,
+                "WFNotificationActionBody": {
+                    "Value": {
+                        "string": "\ufffc",
+                        "attachmentsByRange": {"{0, 1}": {"OutputUUID": POST, "Type": "ActionOutput", "OutputName": "Содержимое URL"}},
+                    },
+                    "WFSerializationType": "WFTextTokenString",
                 },
             },
         },

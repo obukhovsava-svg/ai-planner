@@ -25,20 +25,13 @@
     <div class="icon">🎙</div>
     <h1>Команда «Планер»</h1>
     <p>Нажали — продиктовали — ассистент всё записал, а бот в Telegram прислал «Готово ✅».</p>
-    <a id="install" class="btn" href="#">Добавить в «Команды»</a>
-    <a id="file" class="alt" href="planner.shortcut" download="Планер.shortcut">Скачать файл команды</a>
+    <a id="file" class="btn" href="planner.shortcut" download="Планер.shortcut">Скачать команду</a>
     <ol>
-      <li>Нажмите «Добавить команду».</li>
+      <li>Откройте скачанный файл (Safari → «Загрузки») → «Добавить команду».</li>
       <li>Вставьте вашу личную ссылку из планера (она уже скопирована, если вы нажали «Скопировать»).</li>
       <li>Готово. Для кнопки на экране «Домой»: удерживайте команду → «Поделиться» → «На экран „Домой“».</li>
     </ol>
   </main>
-  <script>
-    // shortcuts://import-shortcut downloads the signed file and opens the import screen directly.
-    var file = new URL('planner.shortcut', location.href).href;
-    var url = 'shortcuts://import-shortcut?url=' + encodeURIComponent(file) + '&name=' + encodeURIComponent('Планер');
-    document.getElementById('install').href = url;
-    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) setTimeout(function () { location.href = url; }, 300);
-  </script>
+
 </body>
 </html>
