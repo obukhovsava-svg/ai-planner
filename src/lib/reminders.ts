@@ -102,7 +102,7 @@ async function sync() {
   if (!AI_URL || !initData) return;
   const { events, tasks } = usePlannerStore.getState();
   const reminders = reminderInstances(events, tasks);
-  const body = JSON.stringify({ reminders });
+  const body = JSON.stringify({ reminders, tz: new Date().getTimezoneOffset() });
   if (body === lastSent) return;
   try {
     const res = await fetch(`${AI_URL.replace(/\/$/, '')}/reminders/sync`, {

@@ -3,6 +3,7 @@ import { Inbox } from 'lucide-react';
 import type { Category, Task } from '@/types';
 import { Header } from '@/components/Header';
 import { usePlannerStore } from '@/store/usePlannerStore';
+import { useUIStore } from '@/store/useUIStore';
 import { CATEGORY_META } from '@/lib/meta';
 import { haptic } from '@/lib/telegram';
 import { useFlip } from '@/hooks/useFlip';
@@ -34,6 +35,16 @@ export function TasksTab() {
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [editing, setEditing] = useState<Task | null>(null);
   const list = useRef<HTMLDivElement>(null);
+
+  // Deep link from a reminder: open that task right away.
+  const focus = useUIStore((s) => s.focus);
+  const setFocus = useUIStore((s) => s.setFocus);
+  useEffect(() => {
+    if (focus?.kind !== 'task') return;
+    const t = tasks.find((x) => x.id === focus.id);
+    setFocus(null);
+    if (t) setEditing(t);
+  }, [focus, tasks, setFocus]);
   useFlip(list);
 
   // Additions/removals apply instantly; a re-order after ticking a task waits a beat,

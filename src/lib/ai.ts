@@ -100,6 +100,11 @@ function toAnalysis(x: any): Analysis | null {
   };
 }
 
+/** Validates raw model actions (also used for commands queued by the iPhone Shortcut). */
+export function toAnalyses(raw: unknown): Analysis[] {
+  return Array.isArray(raw) ? (raw.map(toAnalysis).filter(Boolean) as Analysis[]) : [];
+}
+
 export async function aiAnalyze(text: string): Promise<AiResult | null> {
   if (!aiAvailable()) {
     setStatus({ state: 'off', detail: AI_URL ? 'Откройте приложение внутри Telegram' : 'AI-сервер не настроен' });

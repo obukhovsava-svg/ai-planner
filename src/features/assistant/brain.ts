@@ -643,6 +643,32 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
 }
 
 /**
+ * Applies commands dictated via the iPhone Shortcut (already confirmed by the bot):
+ * nothing is asked — reasonable defaults fill the gaps (1 h duration, today, 09:00…).
+ */
+export async function applyQueued(text: string, actions: Analysis[] | null): Promise<AssistantReply[]> {
+  if (!actions) return handleUtterance(text);
+  return actions.map((a) => {
+    if (a.intent !== 'create') return act(a, text);
+    const d = draftFrom(a);
+    if (!d.kind) d.kind = d.start ? 'event' : 'task';
+    if (d.needsStart) {
+      d.date ??= todayKey();
+      d.needsStart = false;
+    }
+    if (d.kind === 'event') {
+      if (!d.start) d.kind = 'task';
+      else {
+        d.date ??= todayKey();
+        if (!d.end && !d.duration) d.duration = 60;
+      }
+    }
+    if (d.kind === 'task' && d.remindOffset !== undefined && !d.date) d.date = todayKey();
+    return commit(d);
+  });
+}
+
+/**
  * Handles a whole message:
  *  1. a typed answer to an open question, or undo/help/small talk → instant, offline;
  *  2. otherwise the AI worker (if configured and reachable) — it also splits several requests;

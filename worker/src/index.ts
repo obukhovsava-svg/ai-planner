@@ -191,8 +191,10 @@ async function tg(env: Env, method: string, payload: unknown) {
 
 const escapeHtml = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
 
-function openButton(env: Env) {
-  return { inline_keyboard: [[{ text: '📅 Открыть планер', web_app: { url: env.APP_URL } }]] };
+/** "Open" button; with a reminder id it deep-links straight to that task / event. */
+function openButton(env: Env, rid?: string) {
+  const url = rid ? `${env.APP_URL}?open=${encodeURIComponent(rid)}` : env.APP_URL;
+  return { inline_keyboard: [[{ text: rid ? '📅 Открыть' : '📅 Открыть планер', web_app: { url } }]] };
 }
 
 async function onTelegramUpdate(update: any, env: Env) {
@@ -240,6 +242,108 @@ function cors(origin: string | null, env: Env): Record<string, string> {
 const json = (body: unknown, status: number, headers: Record<string, string>) =>
   new Response(JSON.stringify(body), { status, headers: { ...headers, 'Content-Type': 'application/json' } });
 
+type LlmResult =
+  | { ok: true; data: { actions?: any[]; reply?: string | null }; usage?: unknown }
+  | { ok: false; error: string; status?: number; detail?: string };
+
+/** One structured-output call to the model (strict JSON schema, JSON-mode fallback). */
+async function llm(env: Env, text: string, today: string, weekday: string, time: string, items: string): Promise<LlmResult> {
+  const messages = [
+    { role: 'system', content: systemPrompt(today, weekday, time) },
+    { role: 'system', content: `Ближайшие дела пользователя:\n${items.slice(0, 4000) || '(пусто)'}` },
+    { role: 'user', content: text },
+  ];
+  const call = (payload: Record<string, unknown>) =>
+    fetch(`${(env.API_BASE || 'https://api.openai.com/v1').replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: env.MODEL, max_completion_tokens: 4000, ...payload }),
+    });
+  let res = await call({
+    messages,
+    response_format: { type: 'json_schema', json_schema: { name: 'planner_actions', strict: true, schema: RESPONSE_SCHEMA } },
+  });
+  // Some OpenAI-compatible providers don't support strict JSON schemas — fall back to JSON mode
+  // with the schema spelled out in the prompt (the app validates every field anyway).
+  if (res.status === 400) {
+    res = await call({
+      messages: [
+        ...messages.slice(0, 2),
+        { role: 'system', content: `Ответь ТОЛЬКО JSON-объектом по этой схеме:\n${JSON.stringify(RESPONSE_SCHEMA)}` },
+        messages[2],
+      ],
+      response_format: { type: 'json_object' },
+    });
+  }
+  if (!res.ok) return { ok: false, error: 'upstream', status: res.status, detail: (await res.text()).slice(0, 300) };
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: unknown };
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) return { ok: false, error: 'empty_completion' };
+  try {
+    return { ok: true, data: JSON.parse(content), usage: data.usage };
+  } catch {
+    return { ok: false, error: 'bad_completion' };
+  }
+}
+
+/* ------------------------------------------------------------ iPhone Shortcut (voice → assistant) */
+
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+const WD_LONG = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** The user's local "now" from their stored timezone offset (JS getTimezoneOffset, minutes). */
+function localNow(tz: number) {
+  const d = new Date(Date.now() - tz * 60_000);
+  return {
+    today: `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`,
+    weekday: WD_LONG[d.getUTCDay()],
+    time: `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`,
+  };
+}
+
+function dayText(key: string, today: string): string {
+  if (key === today) return 'сегодня';
+  const d = new Date(`${key}T00:00:00Z`);
+  const t = new Date(`${today}T00:00:00Z`);
+  if (Math.round((d.getTime() - t.getTime()) / 86_400_000) === 1) return 'завтра';
+  return `${WD[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS_GEN[d.getUTCMonth()]}`;
+}
+
+/** Human confirmation of what the command records ("записал встречу «…» — завтра, 15:00–16:00"). */
+function summarize(a: any, today: string): string {
+  const title = String(a.title || '').trim();
+  if (a.intent === 'create') {
+    const isEvent = a.kindWord === 'event' || Boolean(a.repeat) || (a.eventHint && a.kindWord !== 'task') || Boolean(a.date && a.start && a.end);
+    const lower = title.toLowerCase();
+    const noun = isEvent
+      ? /встреч/.test(lower) ? 'встречу' : /смен/.test(lower) ? 'смену' : /тренир/.test(lower) ? 'тренировку' : /созвон/.test(lower) ? 'созвон' : 'событие'
+      : /домашк|дз|домашн|урок/.test(lower) ? 'домашку' : 'задачу';
+    const when = [a.date && dayText(a.date, today), a.start && (a.end ? `${a.start}–${a.end}` : a.start), a.repeat && 'с повтором']
+      .filter(Boolean)
+      .join(', ');
+    return `записал ${noun} «${title}»${when ? ` — ${when}` : ''}${a.remind ? ', напомню' : ''}`;
+  }
+  const verbs: Record<string, string> = {
+    delete: 'удалю',
+    move: 'перенесу',
+    complete: 'отмечу выполненной',
+    remind: a.remindCancel ? 'выключу напоминание для' : 'поставлю напоминание на',
+  };
+  if (verbs[a.intent]) return `${verbs[a.intent]} «${title || 'это'}», как только откроете планер`;
+  if (a.intent === 'agenda') return 'расписание — в планере';
+  return '';
+}
+
+async function shortcutUser(env: Env, key: string) {
+  if (!key || key.length < 20) return null;
+  const { results } = await env.DB.prepare('SELECT user_id, tz FROM users WHERE token = ?1').bind(key).all<{ user_id: string; tz: number }>();
+  return results[0] ?? null;
+}
+
+const randomToken = () => hex(crypto.getRandomValues(new Uint8Array(24)).buffer);
+
 /** Every minute: send what is due. Reminders more than 6 h late are dropped silently. */
 async function sendDue(env: Env) {
   const now = Date.now();
@@ -248,7 +352,7 @@ async function sendDue(env: Env) {
     .bind(now + 20_000)
     .all<{ user_id: string; rid: string; text: string }>();
   for (const r of results) {
-    await tg(env, 'sendMessage', { chat_id: r.user_id, text: r.text, reply_markup: openButton(env) }).catch(() => null);
+    await tg(env, 'sendMessage', { chat_id: r.user_id, text: r.text, reply_markup: openButton(env, r.rid) }).catch(() => null);
     await env.DB.prepare('UPDATE reminders SET sent = 1 WHERE user_id = ?1 AND rid = ?2').bind(r.user_id, r.rid).run();
   }
 }
@@ -285,11 +389,71 @@ export default {
       return json({ ok: result.ok, description: result.description }, 200, headers);
     }
 
+    // iPhone Shortcut: dictated text → model → queued for the app; the bot confirms.
+    if (request.method === 'POST' && url.pathname === '/shortcut') {
+      const u = await shortcutUser(env, url.searchParams.get('key') ?? (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, ''));
+      const plain = (t: string, status = 200) => new Response(t, { status, headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' } });
+      if (!u) return plain('Неверный ключ. Скопируйте ссылку заново: планер → Ассистент → «Кнопка на iPhone».', 401);
+      if (rateLimited(`s:${u.user_id}`)) return plain('Слишком много запросов, подождите минуту.', 429);
+      const raw = await request.text();
+      let text = raw;
+      try {
+        const j = JSON.parse(raw);
+        text = String(j.text ?? j.Text ?? Object.values(j)[0] ?? '');
+      } catch {
+        const form = new URLSearchParams(raw);
+        if (form.get('text')) text = form.get('text')!;
+      }
+      text = text.slice(0, MAX_TEXT).trim();
+      if (!text) return plain('Не расслышал — попробуйте ещё раз.', 400);
+
+      const now = localNow(u.tz ?? 0);
+      const r = await llm(env, text, now.today, now.weekday, now.time, '');
+      const actions = r.ok ? (r.data.actions ?? []) : null;
+      await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
+        .bind(u.user_id, text, actions ? JSON.stringify(actions) : null, Date.now())
+        .run();
+      const parts = (actions ?? []).map((a: any) => summarize(a, now.today)).filter(Boolean);
+      const body = parts.join('; ');
+      const answer = parts.length
+        ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.`
+        : r.ok && r.data.reply
+          ? String(r.data.reply)
+          : `Принял: «${text}». Выполню, как только откроете планер.`;
+      await tg(env, 'sendMessage', { chat_id: u.user_id, text: `🎙 «${text}»\n${answer}`, reply_markup: openButton(env) }).catch(() => null);
+      return plain(answer);
+    }
+
+    // Personal key for the Shortcut (issued to the signed-in Mini App user).
+    if (request.method === 'POST' && url.pathname === '/shortcut/token') {
+      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
+      const body = (await request.json().catch(() => ({}))) as { tz?: number; reset?: boolean };
+      const tz = Number.isFinite(body.tz) ? Math.round(body.tz!) : 0;
+      const { results } = await env.DB.prepare('SELECT token FROM users WHERE user_id = ?1').bind(user).all<{ token: string }>();
+      const token = results[0]?.token && !body.reset ? results[0].token : randomToken();
+      await env.DB.prepare('INSERT INTO users (user_id, token, tz) VALUES (?1, ?2, ?3) ON CONFLICT (user_id) DO UPDATE SET token = ?2, tz = ?3')
+        .bind(user, token, tz)
+        .run();
+      return json({ token, url: `${url.origin}/shortcut?key=${token}` }, 200, headers);
+    }
+
+    // The app collects what was dictated via the Shortcut and applies it locally.
+    if (request.method === 'POST' && url.pathname === '/shortcut/pull') {
+      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
+      const { results } = await env.DB.prepare('SELECT id, text, actions FROM queue WHERE user_id = ?1 ORDER BY id LIMIT 20')
+        .bind(user)
+        .all<{ id: number; text: string; actions: string | null }>();
+      if (results.length) await env.DB.prepare('DELETE FROM queue WHERE user_id = ?1 AND id <= ?2').bind(user, results[results.length - 1].id).run();
+      return json({ items: results.map((r) => ({ text: r.text, actions: r.actions ? JSON.parse(r.actions) : null })) }, 200, headers);
+    }
+
     // The Mini App syncs its upcoming reminders; the cron below sends them.
     if (request.method === 'POST' && url.pathname === '/reminders/sync') {
       const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
       if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
-      let payload: { reminders?: { rid?: unknown; at?: unknown; text?: unknown }[] };
+      let payload: { reminders?: { rid?: unknown; at?: unknown; text?: unknown }[]; tz?: number };
       try {
         payload = await request.json();
       } catch {
@@ -300,6 +464,7 @@ export default {
         .slice(0, 300)
         .map((r) => ({ rid: (r.rid as string).slice(0, 120), at: Math.round(r.at as number), text: (r.text as string).slice(0, 600) }));
       const stmts = [
+        ...(Number.isFinite(payload.tz) ? [env.DB.prepare('UPDATE users SET tz = ?2 WHERE user_id = ?1').bind(user, Math.round(payload.tz!))] : []),
         // Anything not re-sent was removed or edited away in the app.
         env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND sent = 0').bind(user),
         env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND sent = 1 AND fire_at < ?2').bind(user, Date.now() - 2 * 86_400_000),
@@ -335,46 +500,8 @@ export default {
     const text = String(body.text ?? '').slice(0, MAX_TEXT).trim();
     if (!text) return json({ error: 'empty' }, 400, headers);
 
-    const messages = [
-      { role: 'system', content: systemPrompt(String(body.today), String(body.weekday), String(body.time)) },
-      { role: 'system', content: `Ближайшие дела пользователя:\n${String(body.items ?? '').slice(0, 4000) || '(пусто)'}` },
-      { role: 'user', content: text },
-    ];
-    const call = (payload: Record<string, unknown>) =>
-      fetch(`${(env.API_BASE || 'https://api.openai.com/v1').replace(/\/$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: env.MODEL, max_completion_tokens: 4000, ...payload }),
-      });
-
-    let res = await call({
-      messages,
-      response_format: { type: 'json_schema', json_schema: { name: 'planner_actions', strict: true, schema: RESPONSE_SCHEMA } },
-    });
-    // Some OpenAI-compatible providers don't support strict JSON schemas — fall back to JSON mode
-    // with the schema spelled out in the prompt (the app validates every field anyway).
-    if (res.status === 400) {
-      res = await call({
-        messages: [
-          ...messages.slice(0, 2),
-          { role: 'system', content: `Ответь ТОЛЬКО JSON-объектом по этой схеме:\n${JSON.stringify(RESPONSE_SCHEMA)}` },
-          messages[2],
-        ],
-        response_format: { type: 'json_object' },
-      });
-    }
-
-    if (!res.ok) {
-      const detail = (await res.text()).slice(0, 300);
-      return json({ error: 'upstream', status: res.status, detail }, 502, headers);
-    }
-    const data = (await res.json()) as { choices?: { message?: { content?: string; refusal?: string } }[]; usage?: unknown };
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) return json({ error: 'empty_completion' }, 502, headers);
-    try {
-      return json({ ...JSON.parse(content), usage: data.usage }, 200, headers);
-    } catch {
-      return json({ error: 'bad_completion' }, 502, headers);
-    }
+    const r = await llm(env, text, String(body.today), String(body.weekday), String(body.time), String(body.items ?? ''));
+    if (!r.ok) return json({ error: r.error, status: r.status, detail: r.detail }, 502, headers);
+    return json({ ...r.data, usage: r.usage }, 200, headers);
   },
 };

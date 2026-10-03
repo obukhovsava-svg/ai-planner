@@ -26,6 +26,9 @@ interface UIState {
   /** Bumped when the calendar should return to its home state (today, current month). */
   calendarHome: number;
   goCalendarHome(): void;
+  /** Open this item's editor once (deep link from a reminder). */
+  focus: { kind: 'event' | 'task'; id: string; date?: DateKey } | null;
+  setFocus(focus: UIState['focus']): void;
 
   toast: Toast | null;
   showToast(message: string, action?: Toast['action']): void;
@@ -45,6 +48,8 @@ export const useUIStore = create<UIState>()(
       setSelectedDate: (selectedDate) => set({ selectedDate }),
       dayOpen: false,
       setDayOpen: (dayOpen) => set({ dayOpen }),
+      focus: null,
+      setFocus: (focus) => set({ focus }),
       calendarHome: 0,
       goCalendarHome: () => set((s) => ({ dayOpen: false, selectedDate: todayKey(), calendarHome: s.calendarHome + 1 })),
 

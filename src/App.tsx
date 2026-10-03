@@ -6,6 +6,7 @@ import { useUIStore } from '@/store/useUIStore';
 import { haptic } from '@/lib/telegram';
 import { useTabSwipe } from '@/hooks/useTabSwipe';
 import { useReminderSync } from '@/lib/reminders';
+import { useShortcutInbox } from '@/lib/shortcut';
 import { CalendarTab } from '@/features/calendar/CalendarTab';
 import { AssistantTab } from '@/features/assistant/AssistantTab';
 import { TasksTab } from '@/features/tasks/TasksTab';
@@ -26,6 +27,7 @@ export default function App() {
   const shell = useRef<HTMLDivElement>(null);
   const prev = useRef<TabId>(tab);
   useReminderSync();
+  useShortcutInbox();
 
   // Slide the new screen in from the side it is on.
   const dir = TAB_ORDER.indexOf(tab) - TAB_ORDER.indexOf(prev.current);
