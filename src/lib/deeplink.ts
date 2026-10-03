@@ -5,10 +5,12 @@
  *   a                         → the assistant (a question is waiting there)
  */
 import { useUIStore } from '@/store/useUIStore';
+import { getStartParam } from './telegram';
 
 export function handleDeepLink() {
   const params = new URLSearchParams(location.search);
-  const open = params.get('open');
+  // t.me/<bot>?startapp=a (from the iPhone command) arrives as Telegram's start_param.
+  const open = params.get('open') ?? getStartParam();
   if (!open) return;
   // Don't reopen on reload.
   params.delete('open');

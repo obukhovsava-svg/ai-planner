@@ -568,7 +568,12 @@ export default {
     }
 
     if (request.method === 'GET' && url.pathname === '/health') {
-      return json({ ok: true, model: env.MODEL, api: env.API_BASE, key: Boolean(env.OPENAI_API_KEY), bot: Boolean(env.BOT_TOKEN) }, 200, headers);
+      const me = (await tg(env, 'getMe', {}).catch(() => null)) as { result?: { username?: string } } | null;
+      return json(
+        { ok: true, model: env.WAI_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast', fallback: env.MODEL, bot: me?.result?.username ?? null },
+        200,
+        headers,
+      );
     }
     if (request.method !== 'POST' || url.pathname !== '/analyze') return json({ error: 'not_found' }, 404, headers);
 

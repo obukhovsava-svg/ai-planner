@@ -18,6 +18,7 @@ interface SafeAreaInset {
 
 interface TelegramWebApp {
   initData: string;
+  initDataUnsafe?: { start_param?: string };
   version: string;
   platform: string;
   colorScheme: 'light' | 'dark';
@@ -55,6 +56,11 @@ declare global {
 
 function getWebApp(): TelegramWebApp | undefined {
   return window.Telegram?.WebApp;
+}
+
+/** start_param of a t.me/<bot>?startapp=… link. */
+export function getStartParam(): string | undefined {
+  return getWebApp()?.initDataUnsafe?.start_param;
 }
 
 /** Signed launch data; the AI worker uses it to verify requests come from this Mini App. */
