@@ -6,3 +6,6 @@ dist
 # Cloudflare worker local files
 worker/.dev.vars
 worker/.wrangler
+
+# unsigned shortcut build artefact
+shortcut/*.unsigned.shortcut

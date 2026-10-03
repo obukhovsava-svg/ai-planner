@@ -1,21 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Check, Copy, RefreshCw } from 'lucide-react';
+import { Check, Copy, Download, RefreshCw } from 'lucide-react';
 import { Sheet } from '@/components/Sheet';
 import { getShortcutLink } from '@/lib/shortcut';
-import { haptic, isInTelegram } from '@/lib/telegram';
+import { haptic, isInTelegram, openExternal } from '@/lib/telegram';
 
-const STEPS: [string, string][] = [
-  ['Откройте «Команды»', 'Нажмите «+», чтобы создать новую команду.'],
-  ['«Диктовать текст»', 'Найдите это действие и добавьте. Язык — Русский, «Прекратить слушать» — «После паузы».'],
-  [
-    '«Получить содержимое URL»',
-    'Вставьте ссылку выше в поле URL. Нажмите «Показать больше»: Метод — POST, Текст запроса — JSON, добавьте поле: ключ text, значение — переменная «Продиктованный текст».',
-  ],
-  ['«Показать уведомление»', 'Добавьте и выберите переменную «Содержимое URL» — увидите ответ ассистента.'],
-  ['На экран «Домой»', 'Назовите команду «Планер», нажмите на название → «На экран „Домой“». Работает и «Привет, Siri, Планер», и Кнопка действия.'],
-];
+/** Install page for the signed Shortcut (opens «Команды» directly). Served next to the app. */
+const INSTALL_URL = new URL('install.html', location.href).href;
 
-/** Setup for the home-screen button: personal link + step-by-step Shortcut guide. */
+/** Home-screen voice button: copy your personal link → install the ready-made Shortcut. */
 export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): void }) {
   const [link, setLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,6 +19,7 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
     const r = await getShortcutLink(reset);
     setLink(r?.url ?? null);
     setLoading(false);
+    setCopied(false);
   };
 
   useEffect(() => {
@@ -46,7 +39,6 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
     }
     haptic.notify('success');
     setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
   };
 
   return (
@@ -56,48 +48,69 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
           Нажали кнопку на экране «Домой» → продиктовали → ассистент всё записал, а бот прислал «Готово ✅». Работает, даже когда планер закрыт.
         </p>
 
-        <div className="overflow-hidden rounded-[16px] bg-surface">
-          <p className="px-4 pt-3 text-[13px] uppercase text-muted">Ваша личная ссылка</p>
-          {!inTelegram ? (
-            <p className="px-4 pb-3.5 pt-1 text-[15px]">Откройте планер в Telegram, чтобы получить ссылку.</p>
-          ) : (
-            <>
+        {!inTelegram ? (
+          <p className="rounded-[16px] bg-surface px-4 py-3.5 text-[15px]">Откройте планер в Telegram, чтобы получить личную ссылку.</p>
+        ) : (
+          <>
+            {/* Step 1 — copy the personal link */}
+            <div className="overflow-hidden rounded-[16px] bg-surface">
+              <div className="flex items-center gap-3 px-4 pt-3">
+                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-blue text-[13px] font-semibold text-white">1</span>
+                <p className="text-[16px] font-semibold">Скопируйте вашу ссылку</p>
+              </div>
               <input
                 id="shortcut-link"
                 readOnly
                 value={loading ? 'Загружаю…' : (link ?? 'Не удалось получить ссылку — попробуйте ещё раз')}
                 onFocus={(e) => e.currentTarget.select()}
-                className="w-full bg-transparent px-4 pb-3 pt-1 font-mono text-[13px] text-fg outline-none"
+                className="w-full truncate bg-transparent px-4 pb-3 pl-[52px] pt-1 font-mono text-[12px] text-muted outline-none"
               />
-              <div className="grid grid-cols-2 border-t-[0.5px] border-line">
-                <button type="button" disabled={!link} onClick={copy} className="flex items-center justify-center gap-1.5 py-3 text-[15px] font-semibold text-blue active:bg-surface-2 disabled:opacity-40">
-                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                  {copied ? 'Скопировано' : 'Скопировать'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => load(true)}
-                  className="flex items-center justify-center gap-1.5 border-l-[0.5px] border-line py-3 text-[15px] text-red active:bg-surface-2"
-                >
-                  <RefreshCw className="size-4" /> Новая ссылка
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-        <p className="-mt-2 px-1 text-[13px] text-muted">Ссылка — как пароль: не делитесь ею. «Новая ссылка» отключает старую.</p>
+              <button
+                type="button"
+                disabled={!link}
+                onClick={copy}
+                className={`flex w-full items-center justify-center gap-1.5 border-t-[0.5px] border-line py-3 text-[16px] font-semibold transition-colors active:bg-surface-2 disabled:opacity-40 ${
+                  copied ? 'text-green' : 'text-blue'
+                }`}
+              >
+                {copied ? <Check className="size-4" strokeWidth={2.6} /> : <Copy className="size-4" />}
+                {copied ? 'Скопировано' : 'Скопировать ссылку'}
+              </button>
+            </div>
 
-        <ol className="overflow-hidden rounded-[16px] bg-surface">
-          {STEPS.map(([title, text], i) => (
-            <li key={title} className={`flex gap-3 px-4 py-3 ${i ? 'border-t-[0.5px] border-line' : ''}`}>
-              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-blue text-[13px] font-semibold text-white">{i + 1}</span>
-              <div>
-                <p className="text-[16px] font-semibold">{title}</p>
-                <p className="mt-0.5 text-[14px] leading-snug text-muted">{text}</p>
+            {/* Step 2 — install the ready-made Shortcut */}
+            <div className="overflow-hidden rounded-[16px] bg-surface">
+              <div className="flex items-start gap-3 px-4 py-3">
+                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-blue text-[13px] font-semibold text-white">2</span>
+                <div>
+                  <p className="text-[16px] font-semibold">Установите команду</p>
+                  <p className="mt-0.5 text-[14px] leading-snug text-muted">
+                    Откроются «Команды» → «Добавить команду» → вставьте ссылку. Больше ничего настраивать не нужно.
+                  </p>
+                </div>
               </div>
-            </li>
-          ))}
-        </ol>
+              <button
+                type="button"
+                onClick={() => {
+                  haptic.impact('medium');
+                  openExternal(INSTALL_URL);
+                }}
+                className="flex w-full items-center justify-center gap-1.5 border-t-[0.5px] border-line bg-blue py-3 text-[16px] font-semibold text-white transition-opacity active:opacity-80"
+              >
+                <Download className="size-4" strokeWidth={2.4} /> Установить команду «Планер»
+              </button>
+            </div>
+
+            <p className="px-1 text-[13px] leading-snug text-muted">
+              Кнопка на экране «Домой»: в «Командах» удерживайте «Планер» → «Поделиться» → «На экран „Домой“». Также работает «Привет, Siri, Планер» и
+              Кнопка действия.
+            </p>
+
+            <button type="button" onClick={() => load(true)} className="flex items-center justify-center gap-1.5 py-1 text-[14px] text-red active:opacity-60">
+              <RefreshCw className="size-3.5" /> Сбросить ссылку (старая перестанет работать)
+            </button>
+          </>
+        )}
       </div>
     </Sheet>
   );

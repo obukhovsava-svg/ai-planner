@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Установка команды «Планер»</title>
+  <style>
+    :root { --bg: #f2f2f7; --card: #fff; --fg: #000; --muted: rgb(60 60 67 / .6); --blue: #007aff; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #1c1c1e; --fg: #fff; --muted: rgb(235 235 245 / .6); --blue: #0a84ff; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100dvh; background: var(--bg); color: var(--fg); font: 17px/1.4 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; display: grid; place-items: center; padding: 24px 16px; }
+    main { width: 100%; max-width: 420px; text-align: center; }
+    .icon { width: 76px; height: 76px; border-radius: 18px; margin: 0 auto 16px; background: linear-gradient(135deg, #5b8cff, #a78bfa 55%, #ff8fa3); display: grid; place-items: center; color: #fff; font-size: 38px; }
+    h1 { font-size: 26px; margin: 0 0 8px; }
+    p { color: var(--muted); margin: 0 0 20px; }
+    a.btn { display: block; padding: 15px; border-radius: 999px; background: var(--blue); color: #fff; font-weight: 600; text-decoration: none; margin-bottom: 10px; }
+    a.alt { display: block; padding: 15px; border-radius: 999px; background: var(--card); color: var(--blue); text-decoration: none; }
+    ol { text-align: left; background: var(--card); border-radius: 16px; padding: 14px 16px 14px 34px; margin: 22px 0 0; color: var(--muted); font-size: 15px; }
+    li + li { margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="icon">🎙</div>
+    <h1>Команда «Планер»</h1>
+    <p>Нажали — продиктовали — ассистент всё записал, а бот в Telegram прислал «Готово ✅».</p>
+    <a id="install" class="btn" href="#">Добавить в «Команды»</a>
+    <a id="file" class="alt" href="Планер.shortcut" download>Скачать файл команды</a>
+    <ol>
+      <li>Нажмите «Добавить команду».</li>
+      <li>Вставьте вашу личную ссылку из планера (она уже скопирована, если вы нажали «Скопировать»).</li>
+      <li>Готово. Для кнопки на экране «Домой»: удерживайте команду → «Поделиться» → «На экран „Домой“».</li>
+    </ol>
+  </main>
+  <script>
+    // shortcuts://import-shortcut downloads the signed file and opens the import screen directly.
+    var file = new URL('Планер.shortcut', location.href).href;
+    var url = 'shortcuts://import-shortcut?url=' + encodeURIComponent(file) + '&name=' + encodeURIComponent('Планер');
+    document.getElementById('install').href = url;
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) setTimeout(function () { location.href = url; }, 300);
+  </script>
+</body>
+</html>

@@ -31,6 +31,7 @@ interface TelegramWebApp {
   setBackgroundColor(color: string): void;
   setBottomBarColor?(color: string): void;
   disableVerticalSwipes?(): void;
+  openLink?(url: string, options?: { try_instant_view?: boolean }): void;
   onEvent(event: string, cb: () => void): void;
   offEvent(event: string, cb: () => void): void;
   BackButton: {
@@ -108,6 +109,13 @@ function installTapHaptics() {
     if (performance.now() - lastHapticAt < 80) return;
     haptic.impact('light');
   });
+}
+
+/** Opens a link in the system browser (Safari) — needed for downloads and app links. */
+export function openExternal(url: string) {
+  const wa = getWebApp();
+  if (wa?.openLink && isInTelegram()) wa.openLink(url, { try_instant_view: false });
+  else window.open(url, '_blank', 'noopener');
 }
 
 /** Shows Telegram's native "Back" button in the header; returns a cleanup that hides it. */
