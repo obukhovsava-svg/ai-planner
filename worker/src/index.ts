@@ -201,7 +201,8 @@ const escapeHtml = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<
 /** "Open" button; with a reminder id it deep-links straight to that task / event. */
 function openButton(env: Env, rid?: string) {
   const url = rid ? `${env.APP_URL}?open=${encodeURIComponent(rid)}` : env.APP_URL;
-  return { inline_keyboard: [[{ text: rid ? '📅 Открыть' : '📅 Открыть планер', web_app: { url } }]] };
+  const label = rid === 'a' ? '✨ Ответить в планере' : rid ? '📅 Открыть' : '📅 Открыть планер';
+  return { inline_keyboard: [[{ text: label, web_app: { url } }]] };
 }
 
 async function onTelegramUpdate(update: any, env: Env) {
@@ -538,6 +539,11 @@ export default {
         : r.ok && r.data.reply && !unresolved?.length
           ? String(r.data.reply)
           : `Нужно уточнение — откройте планер, вопрос ждёт в ассистенте.`;
+      // Also a Telegram message (sent in parallel — the Shortcut doesn't wait for it).
+      const needsUser = !actions || Boolean(unresolved?.length);
+      ctx.waitUntil(
+        tg(env, 'sendMessage', { chat_id: u.user_id, text: `🎙 «${text}»\n${answer}`, reply_markup: openButton(env, needsUser ? 'a' : undefined) }).catch(() => null),
+      );
       return plain(answer);
     }
 
