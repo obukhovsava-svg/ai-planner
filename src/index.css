@@ -136,6 +136,8 @@ select {
 }
 @utility pb-tabbar {
   padding-bottom: calc(var(--tabbar-h) + max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px)) + 16px);
+  /* glides when the tab bar hides for the keyboard */
+  transition: padding-bottom 0.45s var(--spring);
 }
 
 /* ---------- Gemini accents ---------- */

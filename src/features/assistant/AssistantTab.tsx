@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { ArrowUp } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { useChatStore, type ChatMessage } from '@/store/useChatStore';
@@ -9,8 +9,6 @@ import { ChatBubble } from './ChatBubble';
 import { handleUtterance } from './brain';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { VoiceOrb } from './VoiceOrb';
-
-const SUGGESTIONS = ['Встреча завтра с 15 до 16', 'Смены с 9 до 21 по графику 2/2', 'Английский по вторникам в 19:00', 'Что у меня на неделе?'];
 
 /** How long a completed action stays on screen before it dissolves. */
 const DISMISS_AFTER = 6000;
@@ -118,37 +116,25 @@ export function AssistantTab() {
         }
       />
 
-      {/* current exchange (or the welcome) */}
+      {/* Welcome or current exchange, with the voice orb. Idle: the orb sits in the middle of the
+          screen; with an exchange on screen the spacer below collapses and everything settles down. */}
       <div ref={scroller} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
-        <div className="flex min-h-full flex-col justify-end gap-3 py-3">
+        <div className="flex min-h-full flex-col">
+          <div className="flex-1" />
+
           {showHero ? (
-            <div key="hero" className="animate-fade-in flex flex-col items-center gap-5 pb-2 text-center">
-              <div>
-                <h2 className="text-[28px] font-bold leading-tight">Чем могу помочь?</h2>
-                <p className="mt-2 text-[17px] leading-snug text-muted">
-                  Скажите или напишите — я добавлю
-                  <br />
-                  событие или задачу и уточню детали.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-2">
-                {SUGGESTIONS.map((s, i) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => submit(s)}
-                    className="animate-fade-up rounded-full bg-surface px-4 py-2 text-[15px] transition-transform duration-300 ease-spring active:scale-95"
-                    style={{ animationDelay: `${80 + i * 50}ms` }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+            <div key="hero" className="animate-fade-in pb-2 text-center">
+              <h2 className="text-[28px] font-bold leading-tight">Чем могу помочь?</h2>
+              <p className="mt-2 text-[17px] leading-snug text-muted">
+                Скажите или напишите — я добавлю
+                <br />
+                событие или задачу и уточню детали.
+              </p>
             </div>
           ) : (
             <div
               key={exchangeId ?? 'pending'}
-              className="flex flex-col gap-3 transition-[opacity,transform,filter] ease-spring"
+              className="flex flex-col gap-3 py-3 transition-[opacity,transform,filter] ease-spring"
               style={{
                 transitionDuration: `${FADE_MS}ms`,
                 opacity: leaving ? 0 : 1,
@@ -160,64 +146,61 @@ export function AssistantTab() {
               {thinking && <Thinking />}
             </div>
           )}
+
+          {/* voice orb — steps aside while the keyboard is up */}
+          <Collapse open={!typing}>
+            <div className="flex flex-col items-center gap-1 pt-1">
+              <VoiceOrb size={104} listening={listening} onPress={toggleMic} />
+              <div className="flex min-h-6 items-center px-6 text-center">
+                {listening ? (
+                  <p key="interim" className={`animate-fade-in max-w-full truncate text-[17px] ${speech.interim ? 'text-fg' : 'text-shimmer'}`}>
+                    {speech.interim || 'Слушаю…'}
+                  </p>
+                ) : speech.error ? (
+                  <p className="text-[15px] text-red">{speech.error}</p>
+                ) : (
+                  <p className="text-[13px] text-muted">{speech.supported ? 'Коснитесь, чтобы говорить' : 'Голос недоступен · демо-режим'}</p>
+                )}
+              </div>
+            </div>
+          </Collapse>
+
+          <div className="transition-[flex-grow] duration-700 ease-spring" style={{ flexGrow: showHero ? 1 : 0 }} />
         </div>
       </div>
 
-      {/* always-available voice orb + text field */}
+      {/* text field — steps aside while listening */}
       <div className="pb-tabbar shrink-0 px-4">
-        <div
-          className="grid transition-[grid-template-rows,opacity,transform] duration-500 ease-spring"
-          style={{
-            gridTemplateRows: typing ? '0fr' : '1fr',
-            opacity: typing ? 0 : 1,
-            transform: typing ? 'scale(0.85) translateY(20px)' : 'none',
-          }}
-          aria-hidden={typing}
-        >
-          <div className="min-h-0 overflow-hidden">
-        <div className="flex flex-col items-center gap-2 pb-3 pt-1">
-          <VoiceOrb size={96} listening={listening} onPress={toggleMic} />
-          <div className="flex min-h-6 items-center px-6 text-center">
-            {listening ? (
-              <p key="interim" className={`animate-fade-in max-w-full truncate text-[17px] ${speech.interim ? 'text-fg' : 'text-shimmer'}`}>
-                {speech.interim || 'Слушаю…'}
-              </p>
-            ) : speech.error ? (
-              <p className="text-[15px] text-red">{speech.error}</p>
-            ) : (
-              <p className="text-[13px] text-muted">{speech.supported ? 'Коснитесь, чтобы говорить' : 'Голос недоступен · демо-режим'}</p>
-            )}
-          </div>
-        </div>
-          </div>
-        </div>
-        <form
-          className="flex items-center gap-2 rounded-full bg-surface py-1 pl-4 pr-1 shadow-[0_0_0_0.5px_var(--line)]"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit(input);
-          }}
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onFocus={() => TOUCH && setTyping(true)}
-            onBlur={() => setTyping(false)}
-            placeholder="Или напишите…"
-            enterKeyHint="send"
-            className="min-w-0 flex-1 bg-transparent py-1.5 text-[17px] text-fg outline-none placeholder:text-muted"
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || thinking}
-            aria-label="Отправить"
-            className={`grid shrink-0 place-items-center rounded-full bg-blue text-white transition-all duration-500 ease-spring active:scale-90 ${
-              input.trim() ? 'size-[34px] opacity-100' : 'size-[34px] scale-50 opacity-0'
-            }`}
+        <Collapse open={!listening}>
+          <form
+            className="mt-2 flex items-center gap-2 rounded-full bg-surface py-1 pl-4 pr-1 shadow-[0_0_0_0.5px_var(--line)]"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit(input);
+            }}
           >
-            <ArrowUp className="size-[19px]" strokeWidth={2.6} />
-          </button>
-        </form>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onFocus={() => TOUCH && setTyping(true)}
+              onBlur={() => setTyping(false)}
+              placeholder="Или напишите…"
+              enterKeyHint="send"
+              tabIndex={listening ? -1 : 0}
+              className="min-w-0 flex-1 bg-transparent py-1.5 text-[17px] text-fg outline-none placeholder:text-muted"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || thinking}
+              aria-label="Отправить"
+              className={`grid shrink-0 place-items-center rounded-full bg-blue text-white transition-all duration-500 ease-spring active:scale-90 ${
+                input.trim() ? 'size-[34px] opacity-100' : 'size-[34px] scale-50 opacity-0'
+              }`}
+            >
+              <ArrowUp className="size-[19px]" strokeWidth={2.6} />
+            </button>
+          </form>
+        </Collapse>
       </div>
     </div>
   );
@@ -248,6 +231,19 @@ function Thinking() {
         ))}
       </span>
       <style>{'@keyframes think-dot{0%,80%,100%{transform:translateY(0);opacity:.35}40%{transform:translateY(-5px);opacity:1}}'}</style>
+    </div>
+  );
+}
+
+/** Smoothly collapses / expands its content (height + fade + slight shrink). */
+function Collapse({ open, children }: { open: boolean; children: ReactNode }) {
+  return (
+    <div
+      className="grid transition-[grid-template-rows,opacity,transform] duration-500 ease-spring"
+      style={{ gridTemplateRows: open ? '1fr' : '0fr', opacity: open ? 1 : 0, transform: open ? 'none' : 'scale(0.92)' }}
+      aria-hidden={!open}
+    >
+      <div className="min-h-0 overflow-hidden">{children}</div>
     </div>
   );
 }

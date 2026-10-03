@@ -13,16 +13,19 @@ interface VoiceOrbProps {
  */
 export function VoiceOrb({ listening, size = 120, onPress }: VoiceOrbProps) {
   const icon = Math.round(size * 0.3);
+  // The glow lives inside this box (no blur filter, nothing overflowing), so no ancestor
+  // can ever clip it into a rectangle — that is what produced the "square edges" on iOS.
+  const box = Math.round(size * 1.6);
   return (
-    <div className="relative grid place-items-center" style={{ width: size, height: size }}>
-      {/* ambient glow */}
+    <div className="relative grid place-items-center" style={{ width: box, height: box }}>
+      {/* ambient glow: layered radial gradients */}
       <span
-        className="pointer-events-none absolute rounded-full bg-[conic-gradient(from_90deg,var(--ai-1),var(--ai-2),var(--ai-3),var(--ai-1))] blur-2xl transition-[opacity,transform] duration-700 ease-spring"
+        className="pointer-events-none absolute inset-0 rounded-full transition-[opacity,transform] duration-700 ease-spring"
         style={{
-          width: size,
-          height: size,
-          opacity: listening ? 0.55 : 0.18,
-          transform: `scale(${listening ? 1.35 : 1.05})`,
+          background:
+            'radial-gradient(closest-side, rgb(167 139 250 / 0.45), rgb(91 140 255 / 0.25) 55%, rgb(255 143 163 / 0.12) 75%, transparent 100%)',
+          opacity: listening ? 1 : 0.45,
+          transform: `scale(${listening ? 1 : 0.8})`,
         }}
       />
       <button
