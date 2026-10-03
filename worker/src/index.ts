@@ -357,7 +357,7 @@ let undoTableReady = false;
 async function ensureUndoTable(env: Env) {
   if (undoTableReady) return;
   await env.DB.prepare(
-    'CREATE TABLE IF NOT EXISTS shortcut_undo (user_id TEXT PRIMARY KEY, ops TEXT NOT NULL, queue_id INTEGER, created_at INTEGER NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS shortcut_undo2 (user_id TEXT PRIMARY KEY, token TEXT NOT NULL, ops TEXT NOT NULL, queue_id INTEGER, created_at INTEGER NOT NULL)',
   ).run();
   undoTableReady = true;
 }
@@ -502,7 +502,7 @@ export default {
       return json({ doc: merged }, 200, headers);
     }
 
-    // iPhone Shortcut: dictated text → executed on the server copy; «Всё верно?» → Готово / Отмена ({"undo": true}).
+    // iPhone Shortcut: dictated text → executed on the server copy; «Всё верно?» → Готово / Отмена (one-time undo link).
     if (request.method === 'POST' && url.pathname === '/shortcut') {
       const u = await shortcutUser(env, url.searchParams.get('key') ?? (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, ''));
       const plain = (t: string, status = 200) => new Response(t, { status, headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' } });
@@ -510,33 +510,16 @@ export default {
       if (rateLimited(`s:${u.user_id}`)) return plain('Слишком много запросов, подождите минуту.', 429);
       const raw = await request.text();
       let text = raw;
-      let wantUndo = false;
+      let v2 = false;
       try {
         const j = JSON.parse(raw);
-        wantUndo = j.undo === true || j.undo === 'true' || j.undo === 1;
+        v2 = String(j.v ?? '') === '2';
         text = String(j.text ?? j.Text ?? Object.values(j)[0] ?? '');
       } catch {
         const form = new URLSearchParams(raw);
         if (form.get('text')) text = form.get('text')!;
       }
       await ensureUndoTable(env);
-
-      // «Отмена» in the Shortcut's menu: roll back the last dictated request.
-      if (wantUndo) {
-        const { results } = await env.DB.prepare('SELECT ops, queue_id, created_at FROM shortcut_undo WHERE user_id = ?1')
-          .bind(u.user_id)
-          .all<{ ops: string; queue_id: number | null; created_at: number }>();
-        const last = results[0];
-        if (!last || Date.now() - last.created_at > 30 * 60_000) return plain('Нечего отменять.');
-        const ops = JSON.parse(last.ops);
-        if (ops.length) {
-          const stored = await loadDoc(env, u.user_id);
-          await saveDoc(env, u.user_id, applyUndo(stored.doc, ops, Date.now()), stored.tz ?? u.tz ?? 0);
-        }
-        if (last.queue_id) await env.DB.prepare('DELETE FROM queue WHERE user_id = ?1 AND id >= ?2').bind(u.user_id, last.queue_id).run();
-        await env.DB.prepare('DELETE FROM shortcut_undo WHERE user_id = ?1').bind(u.user_id).run();
-        return plain('Отменено ↩️');
-      }
 
       text = text.slice(0, MAX_TEXT).trim();
       if (!text) return plain('Не расслышал — попробуйте ещё раз.', 400);
@@ -573,12 +556,15 @@ export default {
           .all<{ id: number }>();
         queueId = q.results[0]?.id ?? null;
       }
+      let undoUrl = '';
       if (ops.length || queueId) {
+        const token = randomToken();
         await env.DB.prepare(
-          'INSERT INTO shortcut_undo (user_id, ops, queue_id, created_at) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id) DO UPDATE SET ops = ?2, queue_id = ?3, created_at = ?4',
+          'INSERT INTO shortcut_undo2 (user_id, token, ops, queue_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (user_id) DO UPDATE SET token = ?2, ops = ?3, queue_id = ?4, created_at = ?5',
         )
-          .bind(u.user_id, JSON.stringify(ops), queueId, Date.now())
+          .bind(u.user_id, token, JSON.stringify(ops), queueId, Date.now())
           .run();
+        undoUrl = `${url.origin}/shortcut/undo?t=${token}`;
       }
 
       const body = lines.join('; ');
@@ -586,7 +572,31 @@ export default {
       let answer = lines.length ? `${cap(body)}.` : reply;
       if (unresolved.length) answer = `${answer ? `${answer} ` : ''}Остальное уточню в планере.`;
       // "Всё верно?" makes the Shortcut show «Готово» / «Отмена» instead of the banner.
-      return plain(unsure ? `${answer} Всё верно?` : lines.length ? `Готово ✅ ${answer}` : answer);
+      const out = unsure ? `${answer} Всё верно?` : lines.length ? `Готово ✅ ${answer}` : answer;
+      // v2 Shortcut: {text, undo} — «Отмена» calls the one-time undo link.
+      if (v2) return json({ text: out, undo: undoUrl }, 200, headers);
+      return plain(out);
+    }
+
+    // «Отмена» in the Shortcut's menu: rolls back the last dictated request (one-time link).
+    if (url.pathname === '/shortcut/undo') {
+      const plain = (t: string, status = 200) => new Response(t, { status, headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' } });
+      const token = url.searchParams.get('t') ?? '';
+      if (token.length < 20) return plain('Нечего отменять.');
+      await ensureUndoTable(env);
+      const { results } = await env.DB.prepare('SELECT user_id, ops, queue_id, created_at FROM shortcut_undo2 WHERE token = ?1')
+        .bind(token)
+        .all<{ user_id: string; ops: string; queue_id: number | null; created_at: number }>();
+      const last = results[0];
+      if (!last || Date.now() - last.created_at > 30 * 60_000) return plain('Нечего отменять.');
+      const ops = JSON.parse(last.ops);
+      if (ops.length) {
+        const stored = await loadDoc(env, last.user_id);
+        await saveDoc(env, last.user_id, applyUndo(stored.doc, ops, Date.now()), stored.tz ?? 0);
+      }
+      if (last.queue_id) await env.DB.prepare('DELETE FROM queue WHERE user_id = ?1 AND id >= ?2').bind(last.user_id, last.queue_id).run();
+      await env.DB.prepare('DELETE FROM shortcut_undo2 WHERE user_id = ?1').bind(last.user_id).run();
+      return plain('Отменено ↩️');
     }
 
     // Personal key for the Shortcut (issued to the signed-in Mini App user).

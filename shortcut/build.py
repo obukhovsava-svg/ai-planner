@@ -5,9 +5,10 @@ Builds the iPhone Shortcut "Планер" (unsigned plist) — sign with:
 Actions:
   1. Dictate text (Russian, stops after a pause)
   2. POST {"text": <dictated text>} to the user's personal link
+     The server answers {"text": "...", "undo": "<one-time undo link>"}.
   3. Sure → a compact result banner ("Готово ✅ …"), no notification.
-     Guessed something ("… Всё верно?") → a menu «Готово» / «Отмена»; «Отмена» POSTs {"undo": true}
-     and the server rolls the request back.
+     Guessed something ("… Всё верно?") → a menu «Готово» / «Отмена»; «Отмена» opens the undo link
+     in the background and the server rolls the request back.
 On import the user is asked once for their personal link (Assistant → «Кнопка на iPhone»).
 """
 import plistlib, uuid, pathlib
@@ -16,30 +17,29 @@ DICTATE = str(uuid.uuid4()).upper()
 POST = str(uuid.uuid4()).upper()
 IF_GROUP = str(uuid.uuid4()).upper()
 MENU_GROUP = str(uuid.uuid4()).upper()
-LINK_UUID = str(uuid.uuid4()).upper()
+KEY_TEXT = str(uuid.uuid4()).upper()
+KEY_UNDO = str(uuid.uuid4()).upper()
 UNDO_UUID = str(uuid.uuid4()).upper()
 TEXT_UUID = str(uuid.uuid4()).upper()
 
-def link_token():
-    """The personal link (from the first "URL" action)."""
+def out_of(uuid_, name):
+    return {"Value": {"OutputUUID": uuid_, "Type": "ActionOutput", "OutputName": name}, "WFSerializationType": "WFTextTokenAttachment"}
+
+def token_of(uuid_, name):
     return {
-        "Value": {"string": "\ufffc", "attachmentsByRange": {"{0, 1}": {"OutputUUID": LINK_UUID, "Type": "ActionOutput", "OutputName": "URL"}}},
+        "Value": {"string": "\ufffc", "attachmentsByRange": {"{0, 1}": {"OutputUUID": uuid_, "Type": "ActionOutput", "OutputName": name}}},
         "WFSerializationType": "WFTextTokenString",
     }
 
-def post(uuid_, value):
+def dict_value(uuid_, key):
+    """Get Dictionary Value <key> from the server's answer."""
     return {
-        "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
         "WFWorkflowActionParameters": {
             "UUID": uuid_,
-            "WFURL": link_token(),
-            "WFHTTPMethod": "POST",
-            "WFHTTPBodyType": "JSON",
-            "ShowHeaders": False,
-            "WFJSONValues": {
-                "Value": {"WFDictionaryFieldValueItems": [value]},
-                "WFSerializationType": "WFDictionaryFieldValue",
-            },
+            "WFGetDictionaryValueType": "Value",
+            "WFDictionaryKey": key,
+            "WFInput": out_of(POST, "Содержимое URL"),
         },
     }
 
@@ -86,11 +86,6 @@ workflow = {
     "WFWorkflowHasShortcutInputVariables": False,
     "WFQuickActionSurfaces": [],
     "WFWorkflowActions": [
-        # 0: the personal link (asked once on import)
-        {
-            "WFWorkflowActionIdentifier": "is.workflow.actions.url",
-            "WFWorkflowActionParameters": {"UUID": LINK_UUID, "WFURLActionURL": ""},
-        },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.dictatetext",
             "WFWorkflowActionParameters": {
@@ -99,16 +94,32 @@ workflow = {
                 "WFDictateTextStopListening": "After Pause",
             },
         },
-        post(POST, {"WFItemType": 0, "WFKey": text_token("text"), "WFValue": dictated}),
+        {
+            "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
+            "WFWorkflowActionParameters": {
+                "UUID": POST,
+                "WFURL": "https://ai-planner-brain.savelyobuhov.workers.dev/shortcut?key=ВСТАВЬТЕ_СВОЮ_ССЫЛКУ",
+                "WFHTTPMethod": "POST",
+                "WFHTTPBodyType": "JSON",
+                "ShowHeaders": False,
+                "WFJSONValues": {
+                    "Value": {
+                        "WFDictionaryFieldValueItems": [
+                            {"WFItemType": 0, "WFKey": text_token("text"), "WFValue": dictated},
+                            {"WFItemType": 0, "WFKey": text_token("v"), "WFValue": text_token("2")},
+                        ]
+                    },
+                    "WFSerializationType": "WFDictionaryFieldValue",
+                },
+            },
+        },
+        dict_value(KEY_TEXT, "text"),
         # The answer as plain TEXT — otherwise "If" only offers "has any value / has no value".
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.detect.text",
             "WFWorkflowActionParameters": {
                 "UUID": TEXT_UUID,
-                "WFInput": {
-                    "Value": {"OutputUUID": POST, "Type": "ActionOutput", "OutputName": "Содержимое URL"},
-                    "WFSerializationType": "WFTextTokenAttachment",
-                },
+                "WFInput": out_of(KEY_TEXT, "Значение словаря"),
             },
         },
         # A guess ("… Всё верно?") → menu «Готово» / «Отмена»; otherwise a result banner.
@@ -150,16 +161,14 @@ workflow = {
             "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
             "WFWorkflowActionParameters": {"GroupingIdentifier": MENU_GROUP, "WFControlFlowMode": 1, "WFMenuItemTitle": "Отмена"},
         },
-        post(UNDO_UUID, {"WFItemType": 0, "WFKey": text_token("undo"), "WFValue": text_token("true")}),
+        dict_value(KEY_UNDO, "undo"),
+        {
+            "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
+            "WFWorkflowActionParameters": {"UUID": UNDO_UUID, "WFURL": token_of(KEY_UNDO, "Значение словаря"), "WFHTTPMethod": "GET", "ShowHeaders": False},
+        },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
-            "WFWorkflowActionParameters": {
-                "UUID": str(uuid.uuid4()).upper(),
-                "Text": {
-                    "Value": {"string": "\ufffc", "attachmentsByRange": {"{0, 1}": {"OutputUUID": UNDO_UUID, "Type": "ActionOutput", "OutputName": "Содержимое URL"}}},
-                    "WFSerializationType": "WFTextTokenString",
-                },
-            },
+            "WFWorkflowActionParameters": {"UUID": str(uuid.uuid4()).upper(), "Text": token_of(UNDO_UUID, "Содержимое URL")},
         },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
@@ -181,9 +190,9 @@ workflow = {
     ],
     "WFWorkflowImportQuestions": [
         {
-            "ActionIndex": 0,
+            "ActionIndex": 1,
             "Category": "Parameter",
-            "ParameterKey": "WFURLActionURL",
+            "ParameterKey": "WFURL",
             "DefaultValue": "",
             "Text": "Вставьте вашу личную ссылку из планера (Ассистент → «Кнопка на iPhone» → «Скопировать»)",
         }
