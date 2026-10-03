@@ -363,7 +363,8 @@ async function commitShortcut(env: Env, user: string, text: string, actions: any
   const now = localNow(tz);
   const stored = await loadDoc(env, user);
   const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
-  if (res.lines.length) await saveDoc(env, user, res.doc, stored.tz ?? tz);
+  const changed = JSON.stringify(res.doc) !== JSON.stringify(stored.doc);
+  if (changed) await saveDoc(env, user, res.doc, stored.tz ?? tz);
   if (res.unresolved.length) {
     await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
       .bind(user, text, JSON.stringify(res.unresolved), Date.now())
@@ -371,7 +372,8 @@ async function commitShortcut(env: Env, user: string, text: string, actions: any
   }
   const body = res.lines.join('; ');
   const rest = res.unresolved.length ? ' Остальное уточню в планере.' : '';
-  return body ? `Готово ✅ ${cap(body)}.${rest}` : `Уточню в планере, когда откроете.`;
+  if (!body) return 'Уточню в планере, когда откроете.';
+  return changed ? `Готово ✅ ${cap(body)}.${rest}` : `${cap(body)}${/[.:]$/.test(body) ? '' : '.'}${rest}`;
 }
 
 let pendingTableReady = false;
@@ -560,6 +562,9 @@ export default {
       const doc = actions.length ? await loadDoc(env, u.user_id) : null;
       const preview = doc ? execute(doc.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() }) : null;
       unsure ||= Boolean(preview && (preview.unsure || preview.unresolved.length));
+      // The v2 Shortcut always asks «Готово / Отмена» before anything changes; only lookups answer straight away.
+      const changes = Boolean(doc && preview && (preview.unresolved.length || JSON.stringify(preview.doc) !== JSON.stringify(doc.doc)));
+      if (v2 && changes) unsure = true;
       if (!unsure) {
         const out = preview ? await commitShortcut(env, u.user_id, text, actions, u.tz ?? 0) : reply;
         return v2 ? json({ text: out, confirm: '' }, 200, headers) : plain(out);
