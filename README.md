@@ -71,7 +71,7 @@ src/
 - **Reminders**: computed on the server from the stored data in the user's timezone
   (`src/lib/reminderCore.ts`), sent by the bot every minute; the 35-day window is rolled daily.
 - **Assistant**: `POST /analyze` → OpenAI-compatible model with a strict JSON schema.
-- **iPhone Shortcut**: `public/Планер.shortcut` (signed, built by `shortcut/build.py`), installed
+- **iPhone Shortcut**: `public/planner.shortcut` (signed, built by `shortcut/build.py`), installed
   via `install.html`. Dictation → `POST /shortcut?key=…` → the model parses it, `worker/src/exec.ts`
   applies it to the stored data right away, the bot replies «Готово ✅ …». Anything needing a
   decision (bulk delete, ambiguous match) is queued and finished by the app.

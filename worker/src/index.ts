@@ -249,6 +249,8 @@ type LlmResult =
   | { ok: true; data: { actions?: any[]; reply?: string | null }; usage?: unknown }
   | { ok: false; error: string; status?: number; detail?: string };
 
+let effortOk = true;
+
 /** One structured-output call to the model (strict JSON schema, JSON-mode fallback). */
 async function llm(env: Env, text: string, today: string, weekday: string, time: string, items: string): Promise<LlmResult> {
   const messages = [
@@ -262,10 +264,13 @@ async function llm(env: Env, text: string, today: string, weekday: string, time:
       headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: env.MODEL, max_completion_tokens: 4000, ...payload }),
     });
-  let res = await call({
-    messages,
-    response_format: { type: 'json_schema', json_schema: { name: 'planner_actions', strict: true, schema: RESPONSE_SCHEMA } },
-  });
+  const strict = { messages, response_format: { type: 'json_schema', json_schema: { name: 'planner_actions', strict: true, schema: RESPONSE_SCHEMA } } };
+  // Parsing a short phrase needs little "thinking" — ask for the fast mode; remember if the provider rejects it.
+  let res = effortOk ? await call({ ...strict, reasoning_effort: 'low' }) : await call(strict);
+  if (res.status === 400 && effortOk) {
+    effortOk = false;
+    res = await call(strict);
+  }
   // Some OpenAI-compatible providers don't support strict JSON schemas — fall back to JSON mode
   // with the schema spelled out in the prompt (the app validates every field anyway).
   if (res.status === 400) {
@@ -380,13 +385,19 @@ function cleanDoc(raw: any): PlannerDoc | null {
 /** Every minute: send what is due. Reminders more than 6 h late are dropped silently. */
 async function sendDue(env: Env) {
   const now = Date.now();
-  await env.DB.prepare('UPDATE reminders SET sent = 1 WHERE sent = 0 AND fire_at < ?1').bind(now - 6 * 3600_000).run();
+  await env.DB.prepare('UPDATE reminders SET sent = 3 WHERE sent = 0 AND fire_at < ?1').bind(now - 6 * 3600_000).run();
   const { results } = await env.DB.prepare('SELECT user_id, rid, text FROM reminders WHERE sent = 0 AND fire_at <= ?1 ORDER BY fire_at LIMIT 50')
     .bind(now + 20_000)
     .all<{ user_id: string; rid: string; text: string }>();
   for (const r of results) {
-    await tg(env, 'sendMessage', { chat_id: r.user_id, text: r.text, reply_markup: openButton(env, r.rid) }).catch(() => null);
-    await env.DB.prepare('UPDATE reminders SET sent = 1 WHERE user_id = ?1 AND rid = ?2').bind(r.user_id, r.rid).run();
+    const res = await tg(env, 'sendMessage', { chat_id: r.user_id, text: r.text, reply_markup: openButton(env, r.rid) }).catch((e) => ({
+      ok: false,
+      description: String(e),
+    }));
+    // Keep Telegram's answer so delivery problems are visible (sent = 2 → failed).
+    await env.DB.prepare('UPDATE reminders SET sent = ?3, error = ?4 WHERE user_id = ?1 AND rid = ?2')
+      .bind(r.user_id, r.rid, res.ok ? 1 : 2, res.ok ? null : String(res.description ?? 'unknown').slice(0, 300))
+      .run();
   }
 }
 
@@ -395,7 +406,7 @@ export default {
     ctx.waitUntil(controller.cron === '0 3 * * *' ? rollAllReminders(env) : sendDue(env));
   },
 
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }): Promise<Response> {
     const headers = cors(request.headers.get('Origin'), env);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
@@ -456,33 +467,40 @@ export default {
       text = text.slice(0, MAX_TEXT).trim();
       if (!text) return plain('Не расслышал — попробуйте ещё раз.', 400);
 
-      const now = localNow(u.tz ?? 0);
-      const r = await llm(env, text, now.today, now.weekday, now.time, '');
-      const actions = r.ok ? (r.data.actions ?? []) : null;
+      // Answer the Shortcut at once; the model + data work continues in the background
+      // and the bot sends the result a few seconds later.
+      ctx.waitUntil(
+        (async () => {
+          const now = localNow(u.tz ?? 0);
+          const r = await llm(env, text, now.today, now.weekday, now.time, '');
+          const actions = r.ok ? (r.data.actions ?? []) : null;
 
-      // Run it on the server copy right away; only what needs the user goes to the app.
-      let lines: string[] = [];
-      let unresolved: any[] | null = actions;
-      if (actions?.length) {
-        const stored = await loadDoc(env, u.user_id);
-        const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
-        lines = res.lines;
-        unresolved = res.unresolved;
-        if (res.lines.length) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
-      }
-      if (!actions || unresolved?.length) {
-        await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
-          .bind(u.user_id, text, actions ? JSON.stringify(unresolved) : null, Date.now())
-          .run();
-      }
-      const body = lines.join('; ');
-      const pending = !actions || unresolved?.length ? 'Остальное уточню в планере, когда откроете его.' : '';
-      const answer = lines.length
-        ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.${pending ? ` ${pending}` : ''}`
-        : r.ok && r.data.reply && !unresolved?.length
-          ? String(r.data.reply)
-          : `Принял: «${text}». Уточню детали в планере, когда откроете его.`;
-      await tg(env, 'sendMessage', { chat_id: u.user_id, text: `🎙 «${text}»\n${answer}`, reply_markup: openButton(env) }).catch(() => null);
+          // Run it on the server copy right away; only what needs the user goes to the app.
+          let lines: string[] = [];
+          let unresolved: any[] | null = actions;
+          if (actions?.length) {
+            const stored = await loadDoc(env, u.user_id);
+            const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
+            lines = res.lines;
+            unresolved = res.unresolved;
+            if (res.lines.length) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
+          }
+          if (!actions || unresolved?.length) {
+            await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
+              .bind(u.user_id, text, actions ? JSON.stringify(unresolved) : null, Date.now())
+              .run();
+          }
+          const body = lines.join('; ');
+          const pending = !actions || unresolved?.length ? 'Остальное уточню в планере, когда откроете его.' : '';
+          const answer = lines.length
+            ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.${pending ? ` ${pending}` : ''}`
+            : r.ok && r.data.reply && !unresolved?.length
+              ? String(r.data.reply)
+              : `Принял: «${text}». Уточню детали в планере, когда откроете его.`;
+          await tg(env, 'sendMessage', { chat_id: u.user_id, text: `🎙 «${text}»\n${answer}`, reply_markup: openButton(env) }).catch(() => null);
+        })(),
+      );
+      const answer = 'Принял ✅ Результат пришлёт бот.';
       return plain(answer);
     }
 
