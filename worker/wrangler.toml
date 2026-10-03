@@ -22,6 +22,6 @@ binding = "DB"
 database_name = "ai-planner-reminders"
 database_id = "c5e5e1a7-a4c1-4863-b885-7cc5eb17ab3d"
 
-# Check for due reminders every minute.
 [triggers]
-crons = ["* * * * *"]
+# every minute: send due reminders; 03:00 UTC daily: roll the 35-day window
+crons = ["* * * * *", "0 3 * * *"]

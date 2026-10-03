@@ -63,6 +63,22 @@ src/
 - **Voice** — Web Speech API (`ru-RU`). Where it is unavailable (many WebViews), a demo mode
   simulates recognition so the flow can still be tested.
 
+## Server (Cloudflare Worker + D1) — `worker/`
+
+- **Data**: each user's planner (tasks, events, tombstones) lives in D1 (`state`). The app syncs
+  the whole document (`POST /state/sync`, authorised by Telegram `initData`); the server merges
+  per item (newest `updatedAt` wins, deletions are tombstones) — see `src/lib/merge.ts`.
+- **Reminders**: computed on the server from the stored data in the user's timezone
+  (`src/lib/reminderCore.ts`), sent by the bot every minute; the 35-day window is rolled daily.
+- **Assistant**: `POST /analyze` → OpenAI-compatible model with a strict JSON schema.
+- **iPhone Shortcut**: `public/Планер.shortcut` (signed, built by `shortcut/build.py`), installed
+  via `install.html`. Dictation → `POST /shortcut?key=…` → the model parses it, `worker/src/exec.ts`
+  applies it to the stored data right away, the bot replies «Готово ✅ …». Anything needing a
+  decision (bulk delete, ambiguous match) is queued and finished by the app.
+- **Bot**: `/start` greeting; reminder buttons deep-link to the item (`?open=t:<id>` / `e:<id>:<date>`).
+
+Secrets (Cloudflare dashboard → Worker → Settings → Variables and Secrets): `OPENAI_API_KEY`, `BOT_TOKEN`.
+
 ## Backend integration
 
 - **Storage**: replace `localAdapter` in `src/lib/storage.ts` with HTTP calls

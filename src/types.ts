@@ -30,6 +30,8 @@ export interface Task {
   createdAt: number;
   completedAt?: number;
   remind?: Reminder;
+  /** Last change (ms) — newer wins when syncing. */
+  updatedAt?: number;
 }
 
 export type RepeatFreq = 'day' | 'week' | 'month' | 'year';
@@ -61,6 +63,8 @@ export interface CalendarEvent {
   repeat?: Repeat;
   remind?: Reminder;
   createdAt: number;
+  /** Last change (ms) — newer wins when syncing. */
+  updatedAt?: number;
 }
 
 export type EventColor = 'blue' | 'red' | 'violet' | 'green' | 'amber';

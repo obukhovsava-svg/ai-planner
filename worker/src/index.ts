@@ -1,3 +1,6 @@
+import { mergeDocs, emptyDoc, type PlannerDoc } from '../../src/lib/merge';
+import { reminderInstances } from '../../src/lib/reminderCore';
+import { execute } from './exec';
 /**
  * AI brain for the planner Mini App (Cloudflare Worker).
  *
@@ -39,7 +42,7 @@ const hits = new Map<string, number[]>();
 const enc = new TextEncoder();
 
 async function hmac(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> {
-  const k = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const k = await crypto.subtle.importKey('raw', key as BufferSource, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return crypto.subtle.sign('HMAC', k, enc.encode(data));
 }
 
@@ -288,8 +291,6 @@ async function llm(env: Env, text: string, today: string, weekday: string, time:
 
 /* ------------------------------------------------------------ iPhone Shortcut (voice → assistant) */
 
-const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-const WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 const WD_LONG = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -303,39 +304,6 @@ function localNow(tz: number) {
   };
 }
 
-function dayText(key: string, today: string): string {
-  if (key === today) return 'сегодня';
-  const d = new Date(`${key}T00:00:00Z`);
-  const t = new Date(`${today}T00:00:00Z`);
-  if (Math.round((d.getTime() - t.getTime()) / 86_400_000) === 1) return 'завтра';
-  return `${WD[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS_GEN[d.getUTCMonth()]}`;
-}
-
-/** Human confirmation of what the command records ("записал встречу «…» — завтра, 15:00–16:00"). */
-function summarize(a: any, today: string): string {
-  const title = String(a.title || '').trim();
-  if (a.intent === 'create') {
-    const isEvent = a.kindWord === 'event' || Boolean(a.repeat) || (a.eventHint && a.kindWord !== 'task') || Boolean(a.date && a.start && a.end);
-    const lower = title.toLowerCase();
-    const noun = isEvent
-      ? /встреч/.test(lower) ? 'встречу' : /смен/.test(lower) ? 'смену' : /тренир/.test(lower) ? 'тренировку' : /созвон/.test(lower) ? 'созвон' : 'событие'
-      : /домашк|дз|домашн|урок/.test(lower) ? 'домашку' : 'задачу';
-    const when = [a.date && dayText(a.date, today), a.start && (a.end ? `${a.start}–${a.end}` : a.start), a.repeat && 'с повтором']
-      .filter(Boolean)
-      .join(', ');
-    return `записал ${noun} «${title}»${when ? ` — ${when}` : ''}${a.remind ? ', напомню' : ''}`;
-  }
-  const verbs: Record<string, string> = {
-    delete: 'удалю',
-    move: 'перенесу',
-    complete: 'отмечу выполненной',
-    remind: a.remindCancel ? 'выключу напоминание для' : 'поставлю напоминание на',
-  };
-  if (verbs[a.intent]) return `${verbs[a.intent]} «${title || 'это'}», как только откроете планер`;
-  if (a.intent === 'agenda') return 'расписание — в планере';
-  return '';
-}
-
 async function shortcutUser(env: Env, key: string) {
   if (!key || key.length < 20) return null;
   const { results } = await env.DB.prepare('SELECT user_id, tz FROM users WHERE token = ?1').bind(key).all<{ user_id: string; tz: number }>();
@@ -343,6 +311,71 @@ async function shortcutUser(env: Env, key: string) {
 }
 
 const randomToken = () => hex(crypto.getRandomValues(new Uint8Array(24)).buffer);
+
+/* ------------------------------------------------------------ Server-side planner data */
+
+const MAX_DOC = 900_000;
+
+async function loadDoc(env: Env, user: string): Promise<{ doc: PlannerDoc; tz: number | null }> {
+  const { results } = await env.DB.prepare('SELECT doc, tz FROM state WHERE user_id = ?1').bind(user).all<{ doc: string; tz: number | null }>();
+  if (!results[0]) return { doc: emptyDoc(), tz: null };
+  try {
+    return { doc: JSON.parse(results[0].doc) as PlannerDoc, tz: results[0].tz };
+  } catch {
+    return { doc: emptyDoc(), tz: results[0].tz };
+  }
+}
+
+async function saveDoc(env: Env, user: string, doc: PlannerDoc, tz: number) {
+  await env.DB.prepare(
+    'INSERT INTO state (user_id, doc, tz, updated_at) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id) DO UPDATE SET doc = ?2, tz = ?3, updated_at = ?4',
+  )
+    .bind(user, JSON.stringify(doc), tz, Date.now())
+    .run();
+  await scheduleReminders(env, user, doc, tz);
+}
+
+/** Recomputes the user's upcoming reminders from their data (35 days ahead). */
+async function scheduleReminders(env: Env, user: string, doc: PlannerDoc, tz: number) {
+  const list = reminderInstances(doc.events, doc.tasks, { today: localNow(tz).today, tz });
+  await env.DB.batch([
+    // Anything not re-scheduled was removed or edited away.
+    env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND sent = 0').bind(user),
+    env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND sent = 1 AND fire_at < ?2').bind(user, Date.now() - 2 * 86_400_000),
+    ...list.map((r) =>
+      env.DB.prepare(
+        `INSERT INTO reminders (user_id, rid, fire_at, text, sent) VALUES (?1, ?2, ?3, ?4, 0)
+         ON CONFLICT (user_id, rid) DO UPDATE SET
+           text = excluded.text,
+           sent = CASE WHEN reminders.sent = 1 AND reminders.fire_at = excluded.fire_at THEN 1 ELSE 0 END,
+           fire_at = excluded.fire_at`,
+      ).bind(user, r.rid, r.at, r.text),
+    ),
+  ]);
+}
+
+/** Daily: roll every user's 35-day reminder window forward, even if the app is never opened. */
+async function rollAllReminders(env: Env) {
+  const { results } = await env.DB.prepare('SELECT user_id, doc, tz FROM state').all<{ user_id: string; doc: string; tz: number | null }>();
+  for (const r of results) {
+    try {
+      await scheduleReminders(env, r.user_id, JSON.parse(r.doc), r.tz ?? 0);
+    } catch {
+      /* skip a broken row */
+    }
+  }
+}
+
+/** Light sanity check of a document coming from a client. */
+function cleanDoc(raw: any): PlannerDoc | null {
+  if (!raw || !Array.isArray(raw.tasks) || !Array.isArray(raw.events)) return null;
+  const ok = (x: any) => x && typeof x.id === 'string' && typeof x.title === 'string' && typeof x.createdAt === 'number';
+  return {
+    tasks: raw.tasks.filter(ok).slice(0, 3000),
+    events: raw.events.filter((e: any) => ok(e) && typeof e.date === 'string' && typeof e.start === 'string' && typeof e.end === 'string').slice(0, 3000),
+    deleted: raw.deleted && typeof raw.deleted === 'object' ? raw.deleted : {},
+  };
+}
 
 /** Every minute: send what is due. Reminders more than 6 h late are dropped silently. */
 async function sendDue(env: Env) {
@@ -358,8 +391,8 @@ async function sendDue(env: Env) {
 }
 
 export default {
-  async scheduled(_controller: unknown, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
-    ctx.waitUntil(sendDue(env));
+  async scheduled(controller: { cron?: string }, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
+    ctx.waitUntil(controller.cron === '0 3 * * *' ? rollAllReminders(env) : sendDue(env));
   },
 
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -389,6 +422,22 @@ export default {
       return json({ ok: result.ok, description: result.description }, 200, headers);
     }
 
+    // Two-way sync: merge the app's document with the server copy, store, return the result.
+    if (request.method === 'POST' && url.pathname === '/state/sync') {
+      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
+      const body = (await request.json().catch(() => null)) as { doc?: unknown; tz?: number } | null;
+      const incoming = cleanDoc(body?.doc);
+      if (!incoming) return json({ error: 'bad_doc' }, 400, headers);
+      const stored = await loadDoc(env, user);
+      const tz = Number.isFinite(body?.tz) ? Math.round(body!.tz!) : (stored.tz ?? 0);
+      const merged = mergeDocs(stored.doc, incoming);
+      if (JSON.stringify(merged).length > MAX_DOC) return json({ error: 'too_large' }, 413, headers);
+      await saveDoc(env, user, merged, tz);
+      await env.DB.prepare('UPDATE users SET tz = ?2 WHERE user_id = ?1').bind(user, tz).run();
+      return json({ doc: merged }, 200, headers);
+    }
+
     // iPhone Shortcut: dictated text → model → queued for the app; the bot confirms.
     if (request.method === 'POST' && url.pathname === '/shortcut') {
       const u = await shortcutUser(env, url.searchParams.get('key') ?? (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, ''));
@@ -410,16 +459,29 @@ export default {
       const now = localNow(u.tz ?? 0);
       const r = await llm(env, text, now.today, now.weekday, now.time, '');
       const actions = r.ok ? (r.data.actions ?? []) : null;
-      await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
-        .bind(u.user_id, text, actions ? JSON.stringify(actions) : null, Date.now())
-        .run();
-      const parts = (actions ?? []).map((a: any) => summarize(a, now.today)).filter(Boolean);
-      const body = parts.join('; ');
-      const answer = parts.length
-        ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.`
-        : r.ok && r.data.reply
+
+      // Run it on the server copy right away; only what needs the user goes to the app.
+      let lines: string[] = [];
+      let unresolved: any[] | null = actions;
+      if (actions?.length) {
+        const stored = await loadDoc(env, u.user_id);
+        const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
+        lines = res.lines;
+        unresolved = res.unresolved;
+        if (res.lines.length) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
+      }
+      if (!actions || unresolved?.length) {
+        await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
+          .bind(u.user_id, text, actions ? JSON.stringify(unresolved) : null, Date.now())
+          .run();
+      }
+      const body = lines.join('; ');
+      const pending = !actions || unresolved?.length ? 'Остальное уточню в планере, когда откроете его.' : '';
+      const answer = lines.length
+        ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.${pending ? ` ${pending}` : ''}`
+        : r.ok && r.data.reply && !unresolved?.length
           ? String(r.data.reply)
-          : `Принял: «${text}». Выполню, как только откроете планер.`;
+          : `Принял: «${text}». Уточню детали в планере, когда откроете его.`;
       await tg(env, 'sendMessage', { chat_id: u.user_id, text: `🎙 «${text}»\n${answer}`, reply_markup: openButton(env) }).catch(() => null);
       return plain(answer);
     }
@@ -447,39 +509,6 @@ export default {
         .all<{ id: number; text: string; actions: string | null }>();
       if (results.length) await env.DB.prepare('DELETE FROM queue WHERE user_id = ?1 AND id <= ?2').bind(user, results[results.length - 1].id).run();
       return json({ items: results.map((r) => ({ text: r.text, actions: r.actions ? JSON.parse(r.actions) : null })) }, 200, headers);
-    }
-
-    // The Mini App syncs its upcoming reminders; the cron below sends them.
-    if (request.method === 'POST' && url.pathname === '/reminders/sync') {
-      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
-      if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
-      let payload: { reminders?: { rid?: unknown; at?: unknown; text?: unknown }[]; tz?: number };
-      try {
-        payload = await request.json();
-      } catch {
-        return json({ error: 'bad_json' }, 400, headers);
-      }
-      const list = (payload.reminders ?? [])
-        .filter((r) => typeof r.rid === 'string' && typeof r.at === 'number' && typeof r.text === 'string')
-        .slice(0, 300)
-        .map((r) => ({ rid: (r.rid as string).slice(0, 120), at: Math.round(r.at as number), text: (r.text as string).slice(0, 600) }));
-      const stmts = [
-        ...(Number.isFinite(payload.tz) ? [env.DB.prepare('UPDATE users SET tz = ?2 WHERE user_id = ?1').bind(user, Math.round(payload.tz!))] : []),
-        // Anything not re-sent was removed or edited away in the app.
-        env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND sent = 0').bind(user),
-        env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND sent = 1 AND fire_at < ?2').bind(user, Date.now() - 2 * 86_400_000),
-        ...list.map((r) =>
-          env.DB.prepare(
-            `INSERT INTO reminders (user_id, rid, fire_at, text, sent) VALUES (?1, ?2, ?3, ?4, 0)
-             ON CONFLICT (user_id, rid) DO UPDATE SET
-               text = excluded.text,
-               sent = CASE WHEN reminders.sent = 1 AND reminders.fire_at = excluded.fire_at THEN 1 ELSE 0 END,
-               fire_at = excluded.fire_at`,
-          ).bind(user, r.rid, r.at, r.text),
-        ),
-      ];
-      await env.DB.batch(stmts);
-      return json({ ok: true, count: list.length }, 200, headers);
     }
 
     if (request.method === 'GET' && url.pathname === '/health') {

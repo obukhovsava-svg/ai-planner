@@ -5,7 +5,7 @@ import { Toast } from '@/components/Toast';
 import { useUIStore } from '@/store/useUIStore';
 import { haptic } from '@/lib/telegram';
 import { useTabSwipe } from '@/hooks/useTabSwipe';
-import { useReminderSync } from '@/lib/reminders';
+import { useServerSync } from '@/lib/sync';
 import { useShortcutInbox } from '@/lib/shortcut';
 import { CalendarTab } from '@/features/calendar/CalendarTab';
 import { AssistantTab } from '@/features/assistant/AssistantTab';
@@ -26,7 +26,8 @@ export default function App() {
   // Listeners live on the stable outer box (<main> is re-created on every tab change).
   const shell = useRef<HTMLDivElement>(null);
   const prev = useRef<TabId>(tab);
-  useReminderSync();
+  // Data lives on the server too: two-way sync (reminders are computed there).
+  useServerSync();
   useShortcutInbox();
 
   // Slide the new screen in from the side it is on.
