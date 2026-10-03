@@ -50,7 +50,7 @@ export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
   const progress = Math.min(1, -offset / REVEAL);
 
   return (
-    <div ref={root} className="relative overflow-hidden">
+    <div ref={root} data-swipe-lock className="relative overflow-hidden">
       {/* action area behind the row */}
       <div
         className="absolute inset-y-0 right-0 flex items-center"

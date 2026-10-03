@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { ArrowUp } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { useChatStore, type ChatMessage } from '@/store/useChatStore';
@@ -16,11 +16,11 @@ const FADE_MS = 450;
 
 /** Still waiting for the user (a question card or a pick-one list)? */
 const isOpen = (m: ChatMessage) =>
-  ['clarify', 'choose', 'confirm', 'move-ask'].includes(m.attachment?.type ?? '') && !(m.attachment as { state?: string }).state;
+  ['clarify', 'choose', 'confirm', 'move-ask', 'remind-ask'].includes(m.attachment?.type ?? '') && !(m.attachment as { state?: string }).state;
 
 /** A finished action — fine to dissolve after a moment. Agenda/help/text answers stay until the next request. */
 const isDone = (m: ChatMessage) =>
-  ['event', 'task', 'undo', 'choose', 'clarify', 'confirm', 'move-ask'].includes(m.attachment?.type ?? '') && !isOpen(m);
+  ['event', 'task', 'undo', 'choose', 'clarify', 'confirm', 'move-ask', 'remind-ask'].includes(m.attachment?.type ?? '') && !isOpen(m);
 
 /** On phones the on-screen keyboard needs the room — the orb steps aside while typing. */
 const TOUCH = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
@@ -98,7 +98,8 @@ export function AssistantTab() {
     else speech.start();
   };
 
-  const showHero = !visible && !thinking && !listening;
+  // The hero stays while listening, so the orb doesn't move when tapped.
+  const showHero = !visible && !thinking;
 
   return (
     <div className="flex h-full flex-col">
@@ -171,7 +172,11 @@ export function AssistantTab() {
 
       {/* text field — steps aside while listening */}
       <div className="pb-tabbar shrink-0 px-4">
-        <Collapse open={!listening}>
+        <div
+          className="transition-[opacity,transform] duration-500 ease-spring"
+          style={{ opacity: listening ? 0 : 1, transform: listening ? 'translateY(12px) scale(0.97)' : 'none', pointerEvents: listening ? 'none' : undefined }}
+          aria-hidden={listening}
+        >
           <form
             className="mt-2 flex items-center gap-2 rounded-full bg-surface py-1 pl-4 pr-1 shadow-[0_0_0_0.5px_var(--line)]"
             onSubmit={(e) => {
@@ -200,7 +205,7 @@ export function AssistantTab() {
               <ArrowUp className="size-[19px]" strokeWidth={2.6} />
             </button>
           </form>
-        </Collapse>
+        </div>
       </div>
     </div>
   );
@@ -235,15 +240,36 @@ function Thinking() {
   );
 }
 
-/** Smoothly collapses / expands its content (height + fade + slight shrink). */
+/**
+ * Smoothly hides / shows its content. Hiding: fade out first, then release the space;
+ * showing: take the space first, then fade in — so a clipped edge is never visible.
+ * Uses max-height (animatable everywhere, incl. older iOS WebViews).
+ */
 function Collapse({ open, children }: { open: boolean; children: ReactNode }) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [h, setH] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setH(el.scrollHeight));
+    ro.observe(el);
+    setH(el.scrollHeight);
+    return () => ro.disconnect();
+  }, []);
   return (
     <div
-      className="grid transition-[grid-template-rows,opacity,transform] duration-500 ease-spring"
-      style={{ gridTemplateRows: open ? '1fr' : '0fr', opacity: open ? 1 : 0, transform: open ? 'none' : 'scale(0.92)' }}
       aria-hidden={!open}
+      style={{
+        maxHeight: open ? (h ?? 'none') : 0,
+        opacity: open ? 1 : 0,
+        overflow: 'hidden',
+        pointerEvents: open ? undefined : 'none',
+        transition: open
+          ? 'max-height 0.42s var(--spring), opacity 0.35s ease 0.18s'
+          : 'opacity 0.22s ease, max-height 0.42s var(--spring) 0.16s',
+      }}
     >
-      <div className="min-h-0 overflow-hidden">{children}</div>
+      <div ref={inner}>{children}</div>
     </div>
   );
 }

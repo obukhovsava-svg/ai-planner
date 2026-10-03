@@ -3,6 +3,7 @@ import { Check, ChevronRight, Repeat as RepeatIcon, Trash2 } from 'lucide-react'
 import type { CalendarEvent, DateKey, EventColor, Repeat } from '@/types';
 import { Sheet } from '@/components/Sheet';
 import { DatePickerSheet } from '@/components/DatePickerSheet';
+import { RemindRow } from '@/components/RemindRow';
 import { REPEAT_OPTIONS, repeatLabel, sameRule } from '@/lib/recurrence';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { useUIStore } from '@/store/useUIStore';
@@ -142,6 +143,8 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
             </div>
           )}
         </div>
+
+        <RemindRow value={form.remind} onChange={(r) => set('remind', r)} hasDate />
 
         <div className="flex flex-col gap-1.5">
           <span className="px-4 text-[13px] uppercase text-muted">Цвет</span>

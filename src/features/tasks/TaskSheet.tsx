@@ -3,6 +3,7 @@ import { CalendarDays, ChevronRight, Trash2 } from 'lucide-react';
 import type { Category, Priority, Task } from '@/types';
 import { Sheet } from '@/components/Sheet';
 import { DatePickerSheet, formatDateTime } from '@/components/DatePickerSheet';
+import { RemindRow } from '@/components/RemindRow';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { useUIStore } from '@/store/useUIStore';
 import { CATEGORY_META, PRIORITY_META } from '@/lib/meta';
@@ -56,6 +57,13 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
           <span className={`text-[17px] ${form.date ? 'text-blue' : 'text-muted'}`}>{formatDateTime(form)}</span>
           <ChevronRight className="size-5 text-faint" />
         </button>
+
+        <RemindRow
+          value={form.remind}
+          onChange={(r) => setForm({ ...form, remind: r })}
+          hasDate={Boolean(form.date)}
+          timeMissing={Boolean(form.date && !form.time)}
+        />
 
         <div className="flex flex-col gap-1.5">
           <span className="px-4 text-[13px] uppercase text-muted">Приоритет</span>
@@ -123,7 +131,15 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
       <DatePickerSheet
         open={picker}
         value={{ date: form.date, time: form.time }}
-        onChange={({ date, time }) => setForm({ ...form, date, time })}
+        onChange={({ date, time }) =>
+          setForm({
+            ...form,
+            date,
+            time,
+            // Keep the reminder meaningful: offsets need a date, exact moments are for undated tasks.
+            remind: form.remind && (date ? (form.remind.at ? { offset: 0 } : form.remind) : form.remind.at ? form.remind : undefined),
+          })
+        }
         onClose={() => setPicker(false)}
       />
     </Sheet>

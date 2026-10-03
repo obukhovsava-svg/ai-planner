@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Repeat } from 'lucide-react';
+import { Bell, Check, Repeat } from 'lucide-react';
 import type { CalendarEvent, DateKey } from '@/types';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { addDays, longDate, minutesToTime, nowMinutes, timeToMinutes, todayKey } from '@/lib/date';
@@ -159,6 +159,7 @@ export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelin
                 <span className={`flex items-center gap-1 text-[13px] font-semibold leading-tight ${c.text}`}>
                   <span className="truncate">{event.title}</span>
                   {event.repeat && <Repeat className="size-3 shrink-0 opacity-70" strokeWidth={2.5} />}
+                  {event.remind && <Bell className="size-3 shrink-0 opacity-70" strokeWidth={2.5} />}
                 </span>
                 {!short && (
                   <span className="block truncate text-[11px] text-muted">

@@ -9,7 +9,19 @@
  *  • CORS is limited to ALLOWED_ORIGIN; a small per-user rate limit guards against loops.
  */
 
+/* Minimal D1 typings (avoids pulling in @cloudflare/workers-types). */
+interface D1Stmt {
+  bind(...values: unknown[]): D1Stmt;
+  all<T>(): Promise<{ results: T[] }>;
+  run(): Promise<unknown>;
+}
+interface D1Database {
+  prepare(query: string): D1Stmt;
+  batch(statements: D1Stmt[]): Promise<unknown>;
+}
+
 interface Env {
+  DB: D1Database;
   OPENAI_API_KEY: string;
   BOT_TOKEN: string;
   MODEL: string;
@@ -73,9 +85,10 @@ const ACTION_SCHEMA = {
   required: [
     'intent', 'title', 'date', 'start', 'end', 'duration', 'repeat', 'needsStart', 'kindWord',
     'eventHint', 'taskHint', 'priority', 'category', 'range', 'sourceDate', 'all', 'targetKind', 'bulk',
+    'remind', 'remindOffset', 'remindCancel',
   ],
   properties: {
-    intent: { type: 'string', enum: ['create', 'agenda', 'delete', 'move', 'complete', 'undo', 'help', 'smalltalk'] },
+    intent: { type: 'string', enum: ['create', 'agenda', 'delete', 'move', 'complete', 'remind', 'undo', 'help', 'smalltalk'] },
     title: { type: 'string', description: 'create: short title in nominative case. delete/move/complete: what to look for.' },
     date: nullable('string', { description: 'YYYY-MM-DD. For move: the NEW date.' }),
     start: nullable('string', { description: 'HH:MM, 24h' }),
@@ -115,6 +128,9 @@ const ACTION_SCHEMA = {
     sourceDate: nullable('string', { description: 'move: the date the thing is moved FROM ("со среды")' }),
     all: { type: 'boolean', description: 'delete: whole series of one repeating thing ("все тренировки")' },
     targetKind: nullable('string', { enum: ['event', 'task', 'any', null], description: 'delete/move: which kind is meant ("удали событие" → event, "все задачи" → task, "все дела" → any)' }),
+    remind: { type: 'boolean', description: 'create: the new item should get a reminder ("напомни купить хлеб в 10")' },
+    remindOffset: nullable('integer', { description: 'minutes before ("за час" → 60, "за день" → 1440); 0 = at the time; null if not said' }),
+    remindCancel: { type: 'boolean', description: 'remind: switch a reminder OFF ("убери напоминание о …")' },
     bulk: { type: 'boolean', description: 'delete EVERYTHING of targetKind in date/range ("удали все события на понедельник", "удали все задачи", "очисти всё на завтра")' },
   },
 } as const;
@@ -147,6 +163,10 @@ function systemPrompt(today: string, weekday: string, time: string): string {
 - Массовое удаление («удали все события на понедельник», «удали все задачи», «очисти всё на завтра», «удали все дела на неделе»): intent delete, bulk true, title "", targetKind event/task/any, date или range.
 - Если не названо, что именно удалить/перенести («удали», «перенеси задачу», «удали событие»): title "", targetKind по слову — приложение само покажет список на выбор.
 - Если при переносе не сказано, на когда («перенеси встречу с Анной»): date и start null — приложение спросит.
+- Напоминания о СУЩЕСТВУЮЩЕМ деле («напомни о встрече с Анной за час», «напомни за 15 минут до тренировки», «напоминай за день до каждой смены», «поставь напоминание на обед»): intent remind, title = что ищем (в именительном падеже), remindOffset если сказано за сколько, иначе null.
+- Выключить напоминание («убери/отключи напоминание о тренировке», «не напоминай о планёрке»): intent remind, remindCancel true.
+- Новое дело с напоминанием («напомни купить хлеб завтра в 10», «напомни через 2 часа выключить духовку», «напомни позвонить маме»): intent create, remind true, remindOffset 0 если просят напомнить в указанное время; taskHint true.
+- Если непонятно, существующее это дело или новое, — используй intent remind: приложение само создаст дело, если не найдёт.
 - agenda («что у меня завтра / на неделе / на выходных»): range с from/to.
 - undo («отмени последнее»), help («что ты умеешь»), smalltalk (приветствие, спасибо) — reply с коротким дружелюбным ответом.
 - Если смысл неясен — actions пустой, reply: короткий уточняющий вопрос по-русски.
@@ -220,7 +240,24 @@ function cors(origin: string | null, env: Env): Record<string, string> {
 const json = (body: unknown, status: number, headers: Record<string, string>) =>
   new Response(JSON.stringify(body), { status, headers: { ...headers, 'Content-Type': 'application/json' } });
 
+/** Every minute: send what is due. Reminders more than 6 h late are dropped silently. */
+async function sendDue(env: Env) {
+  const now = Date.now();
+  await env.DB.prepare('UPDATE reminders SET sent = 1 WHERE sent = 0 AND fire_at < ?1').bind(now - 6 * 3600_000).run();
+  const { results } = await env.DB.prepare('SELECT user_id, rid, text FROM reminders WHERE sent = 0 AND fire_at <= ?1 ORDER BY fire_at LIMIT 50')
+    .bind(now + 20_000)
+    .all<{ user_id: string; rid: string; text: string }>();
+  for (const r of results) {
+    await tg(env, 'sendMessage', { chat_id: r.user_id, text: r.text, reply_markup: openButton(env) }).catch(() => null);
+    await env.DB.prepare('UPDATE reminders SET sent = 1 WHERE user_id = ?1 AND rid = ?2').bind(r.user_id, r.rid).run();
+  }
+}
+
 export default {
+  async scheduled(_controller: unknown, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
+    ctx.waitUntil(sendDue(env));
+  },
+
   async fetch(request: Request, env: Env): Promise<Response> {
     const headers = cors(request.headers.get('Origin'), env);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
@@ -246,6 +283,38 @@ export default {
         drop_pending_updates: true,
       });
       return json({ ok: result.ok, description: result.description }, 200, headers);
+    }
+
+    // The Mini App syncs its upcoming reminders; the cron below sends them.
+    if (request.method === 'POST' && url.pathname === '/reminders/sync') {
+      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
+      let payload: { reminders?: { rid?: unknown; at?: unknown; text?: unknown }[] };
+      try {
+        payload = await request.json();
+      } catch {
+        return json({ error: 'bad_json' }, 400, headers);
+      }
+      const list = (payload.reminders ?? [])
+        .filter((r) => typeof r.rid === 'string' && typeof r.at === 'number' && typeof r.text === 'string')
+        .slice(0, 300)
+        .map((r) => ({ rid: (r.rid as string).slice(0, 120), at: Math.round(r.at as number), text: (r.text as string).slice(0, 600) }));
+      const stmts = [
+        // Anything not re-sent was removed or edited away in the app.
+        env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND sent = 0').bind(user),
+        env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND sent = 1 AND fire_at < ?2').bind(user, Date.now() - 2 * 86_400_000),
+        ...list.map((r) =>
+          env.DB.prepare(
+            `INSERT INTO reminders (user_id, rid, fire_at, text, sent) VALUES (?1, ?2, ?3, ?4, 0)
+             ON CONFLICT (user_id, rid) DO UPDATE SET
+               text = excluded.text,
+               sent = CASE WHEN reminders.sent = 1 AND reminders.fire_at = excluded.fire_at THEN 1 ELSE 0 END,
+               fire_at = excluded.fire_at`,
+          ).bind(user, r.rid, r.at, r.text),
+        ),
+      ];
+      await env.DB.batch(stmts);
+      return json({ ok: true, count: list.length }, 200, headers);
     }
 
     if (request.method === 'GET' && url.pathname === '/health') {

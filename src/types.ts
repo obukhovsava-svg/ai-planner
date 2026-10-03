@@ -8,6 +8,16 @@ export type Priority = 'low' | 'medium' | 'high';
 
 export type Category = 'work' | 'personal' | 'health' | 'study' | 'other';
 
+/**
+ * A reminder sent by the Telegram bot.
+ *  • offset — minutes before the item's time (0 = at that moment);
+ *  • at     — exact local time 'YYYY-MM-DDTHH:MM', for tasks without a date.
+ */
+export interface Reminder {
+  offset?: number;
+  at?: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -19,6 +29,7 @@ export interface Task {
   category: Category;
   createdAt: number;
   completedAt?: number;
+  remind?: Reminder;
 }
 
 export type RepeatFreq = 'day' | 'week' | 'month' | 'year';
@@ -48,6 +59,7 @@ export interface CalendarEvent {
   note?: string;
   /** Present for repeating events; `date` is the first occurrence. */
   repeat?: Repeat;
+  remind?: Reminder;
   createdAt: number;
 }
 

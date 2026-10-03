@@ -15,6 +15,8 @@ export interface Draft {
   needsStart?: boolean;
   priority: Priority;
   category: Category;
+  /** Created with "напомни …": minutes before (0 = at the time). */
+  remindOffset?: number;
 }
 
 export type Ask = 'kind' | 'date' | 'time' | 'end' | 'start-day';
@@ -37,17 +39,19 @@ export type ChatAttachment =
   | { type: 'clarify'; draft: Draft; ask: Ask; state?: 'cancelled' | 'answered' }
   | {
       type: 'choose';
-      action: 'delete' | 'move' | 'complete';
+      action: 'delete' | 'move' | 'complete' | 'remind';
       candidates: Candidate[];
       /** move: where to; delete: whether to drop the whole series. */
-      target?: { date?: DateKey; start?: TimeStr; end?: TimeStr; duration?: number; all?: boolean };
+      target?: { date?: DateKey; start?: TimeStr; end?: TimeStr; duration?: number; all?: boolean; offset?: number; cancel?: boolean };
       state?: 'done' | 'cancelled';
     }
   | { type: 'undo'; state?: 'done' }
   /** Bulk delete waiting for "Удалить / Отмена". Events with `date` lose only that occurrence. */
   | { type: 'confirm'; events: { id: string; date?: DateKey }[]; tasks: string[]; label: string; state?: 'done' | 'cancelled' }
   /** Move without a new time: ask the day, then the time. */
-  | { type: 'move-ask'; candidate: Candidate; step: 'date' | 'time'; date?: DateKey; state?: 'done' | 'cancelled' };
+  | { type: 'move-ask'; candidate: Candidate; step: 'date' | 'time'; date?: DateKey; state?: 'done' | 'cancelled' }
+  /** Reminder for an existing item: how long before (or, for undated tasks, which day and time). */
+  | { type: 'remind-ask'; candidate: Candidate; step: 'offset' | 'date' | 'time'; date?: DateKey; state?: 'done' | 'cancelled' };
 
 export interface ChatMessage {
   id: string;

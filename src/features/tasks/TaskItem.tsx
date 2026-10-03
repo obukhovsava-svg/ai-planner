@@ -4,6 +4,7 @@ import { usePlannerStore } from '@/store/usePlannerStore';
 import { useUIStore } from '@/store/useUIStore';
 import { CATEGORY_META, PRIORITY_META } from '@/lib/meta';
 import { humanDate, todayKey } from '@/lib/date';
+import { atLabel, offsetLabel } from '@/lib/reminders';
 import { haptic } from '@/lib/telegram';
 
 interface TaskItemProps {
@@ -23,6 +24,7 @@ export function TaskItem({ task, showDate = true, onOpen }: TaskItemProps) {
   const meta = [
     showDate && task.date ? humanDate(task.date) : null,
     task.time,
+    task.remind && !task.done ? `🔔 ${task.remind.at ? atLabel(task.remind.at) : offsetLabel(task.remind.offset ?? 0).replace('в момент начала', 'вовремя')}` : null,
     `${CATEGORY_META[task.category].emoji} ${CATEGORY_META[task.category].label}`,
   ].filter(Boolean);
 

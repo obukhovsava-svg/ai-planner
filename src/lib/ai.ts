@@ -14,7 +14,7 @@ import { occurrencesBetween } from './recurrence';
 const TIMEOUT_MS = 12_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
-const INTENTS: Intent[] = ['create', 'agenda', 'delete', 'move', 'complete', 'undo', 'help', 'smalltalk'];
+const INTENTS: Intent[] = ['create', 'agenda', 'delete', 'move', 'complete', 'remind', 'undo', 'help', 'smalltalk'];
 
 /** Last AI round-trip outcome, shown under the assistant title. */
 export type AiStatus = { state: 'idle' | 'ok' | 'error' | 'off'; detail?: string };
@@ -94,6 +94,9 @@ function toAnalysis(x: any): Analysis | null {
     all: Boolean(x.all),
     targetKind: ['event', 'task', 'any'].includes(x.targetKind) ? x.targetKind : undefined,
     bulk: x.intent === 'delete' && Boolean(x.bulk),
+    remind: x.intent === 'create' && Boolean(x.remind),
+    remindOffset: int(x.remindOffset, 0, 60 * 24 * 60),
+    remindCancel: x.intent === 'remind' && Boolean(x.remindCancel),
   };
 }
 

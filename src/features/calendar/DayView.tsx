@@ -51,6 +51,7 @@ export function DayView({ open, onBack, onCreate, onOpenEvent }: DayViewProps) {
   return (
     <div
       ref={root}
+      data-swipe-lock
       className="animate-push-in absolute inset-0 z-10 flex flex-col bg-[var(--cal-bg)] shadow-[-10px_0_30px_rgb(0_0_0/0.12)]"
       onPointerDown={(e) => {
         if (e.clientX > EDGE || !open) return;

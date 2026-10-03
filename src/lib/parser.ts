@@ -15,7 +15,7 @@
 import type { Category, DateKey, Priority, Repeat, TimeStr } from '@/types';
 import { addDays, minutesToTime, startOfWeek, timeToMinutes, toKey, weekdayMon } from './date';
 
-export type Intent = 'create' | 'agenda' | 'delete' | 'move' | 'complete' | 'undo' | 'help' | 'smalltalk';
+export type Intent = 'create' | 'agenda' | 'delete' | 'move' | 'complete' | 'remind' | 'undo' | 'help' | 'smalltalk';
 
 export interface Analysis {
   intent: Intent;
@@ -45,6 +45,12 @@ export interface Analysis {
   targetKind?: 'event' | 'task' | 'any';
   /** delete: everything of `targetKind` in `range`/`date` ("удали все события на понедельник"). */
   bulk: boolean;
+  /** create: "напомни купить хлеб в 10" — the new item gets a reminder. */
+  remind?: boolean;
+  /** Minutes before ("за час" → 60); 0 = at the time itself. */
+  remindOffset?: number;
+  /** remind: "убери напоминание о …". */
+  remindCancel?: boolean;
 }
 
 // Unicode-aware word boundaries (JS \b only understands ASCII).
@@ -89,6 +95,12 @@ const NOUN_FIX: Record<string, string> = {
   встречу: 'встреча', тренировку: 'тренировка', планёрку: 'планёрка', планерку: 'планерка',
   презентацию: 'презентация', консультацию: 'консультация', пробежку: 'пробежка',
   лекцию: 'лекция', уборку: 'уборка', смены: 'смена', смену: 'смена', пару: 'пара', пары: 'пара',
+  // prepositional / genitive after "о …", "до …"
+  встрече: 'встреча', встречи: 'встреча', тренировке: 'тренировка', тренировки: 'тренировка',
+  планёрке: 'планёрка', планерке: 'планерка', планёрки: 'планёрка', смене: 'смена', лекции: 'лекция',
+  презентации: 'презентация', консультации: 'консультация', пробежке: 'пробежка', уборке: 'уборка',
+  паре: 'пара', созвоне: 'созвон', созвона: 'созвон', обеде: 'обед', обеда: 'обед', ужине: 'ужин', ужина: 'ужин',
+  отчёте: 'отчёт', отчете: 'отчет', отчёта: 'отчёт', дне: 'день', дня: 'день', приёме: 'приём', приеме: 'прием',
 };
 
 interface Ctx {
@@ -369,6 +381,24 @@ function cleanTitle(text: string): string {
   return t ? t[0].toUpperCase() + t.slice(1) : '';
 }
 
+const REMIND_CANCEL_RE = rx(
+  `^\\s*(?:пожалуйста\\s+)?(?:убери|удали|отмени|выключи|отключи|сними|не\\s+напоминай)(?:\\s+(?:все\\s+)?напоминани\\p{L}*)?${E}`,
+);
+const REMIND_RE = rx(
+  `^\\s*(?:пожалуйста\\s+)?(?:напомни(?:те)?|напомнить|напоминай(?:те)?|(?:поставь|поставить|создай|добавь|включи|сделай)\\s+напоминани\\p{L}*)${E}\\s*(?:мне\\s+)?(?:пожалуйста\\s+)?`,
+);
+
+/** "за час", "за 15 минут", "за полчаса", "за сутки", "за 2 дня" → minutes. */
+function parseRemindOffset(ctx: Ctx): number | undefined {
+  if (take(ctx, rx(`${B}за\\s+полчаса${E}`))) return 30;
+  if (take(ctx, rx(`${B}за\\s+сутки${E}`))) return 1440;
+  const m = take(ctx, rx(`${B}за\\s+(\\d+(?:[.,]5)?)?\\s*(минут\\p{L}*|мин|час\\p{L}*|ч|день|дня|дней|сут\\p{L}*|недел\\p{L}*)${E}`));
+  if (!m) return undefined;
+  const n = m[1] ? Number(m[1].replace(',', '.')) : 1;
+  const u = m[2].toLowerCase();
+  return Math.round(u.startsWith('мин') ? n : u.startsWith('ч') ? n * 60 : u.startsWith('недел') ? n * 10080 : n * 1440);
+}
+
 const AGENDA_RE = rx(
   `^\\s*(?:а\\s+)?(?:что|какие|какой|покажи|расскажи|какое|есть\\s+ли)${E}.*(?:план|дел|задач|событи|расписани|у\\s+меня|запланирован|встреч)`,
 );
@@ -419,6 +449,38 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
   if (UNDO_RE.test(t)) return baseAnalysis('undo');
   if (SMALLTALK_RE.test(t) && t.trim().split(/\s+/).length <= 4) return baseAnalysis('smalltalk', t.trim());
   if (AGENDA_RE.test(t)) return { ...baseAnalysis('agenda'), range: agendaRange(ctx) };
+
+  // Reminders: "напомни о встрече за час", "напоминай за день до каждой смены",
+  // "убери напоминание о тренировке", or "напомни купить хлеб в 10" (a new item with a reminder).
+  const cancelRemind = REMIND_CANCEL_RE.test(t) && /напомин/iu.test(t);
+  if (cancelRemind || REMIND_RE.test(t)) {
+    take(ctx, cancelRemind ? REMIND_CANCEL_RE : REMIND_RE);
+    const offset = cancelRemind ? undefined : parseRemindOffset(ctx);
+    const about = rx(
+      `^\\s*(?:о|об|обо|про|насч[её]т|для|до|на(?=\\s+(?!\\d|завтра|сегодня|послезавтра|понедельник|вторник|среду|четверг|пятниц|суббот|воскресень|следующ|эт[уо]|выходн|неделе|полчаса|час|сутки)))\\s+(?!\\d)`,
+    );
+    if (cancelRemind || about.test(ctx.text)) {
+      take(ctx, about);
+      take(ctx, rx(`${B}(?:каждой|каждого|каждую|каждый|всех|все|моей|моего|мою|моём|моем)${E}`));
+      const duration = parseDuration(ctx);
+      const time = parseTime(ctx, true);
+      const date = parseDate(ctx) ?? time.date;
+      return {
+        ...baseAnalysis('remind', cleanTitle(ctx.text)),
+        date,
+        start: time.start,
+        end: time.end ?? (time.start && duration ? minutesToTime(timeToMinutes(time.start) + duration) : undefined),
+        duration,
+        remindOffset: offset,
+        remindCancel: cancelRemind,
+        eventHint: EVENT_WORDS.test(t),
+        taskHint: TASK_WORDS.test(ctx.text),
+      };
+    }
+    const inner = analyze(ctx.text, now);
+    if (inner.intent !== 'create') return inner;
+    return { ...inner, remind: true, remindOffset: offset, taskHint: inner.eventHint ? inner.taskHint : true };
+  }
 
   const done = t.match(COMPLETE_RE);
   if (done) return baseAnalysis('complete', cleanTitle(done[1] ?? done[2] ?? done[3] ?? ''));
