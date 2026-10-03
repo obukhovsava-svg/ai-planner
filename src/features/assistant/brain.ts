@@ -11,7 +11,7 @@
  * reachable, otherwise from the offline rules in lib/parser.ts — both produce `Analysis`.
  */
 import type { CalendarEvent, DateKey, Task } from '@/types';
-import { analyze, parseDurationText, type Analysis } from '@/lib/parser';
+import { analyze, isConfident, parseDurationText, splitRequests, type Analysis } from '@/lib/parser';
 import { aiAnalyze } from '@/lib/ai';
 import { addDays, humanDate, minutesToTime, timeToMinutes, todayKey } from '@/lib/date';
 import { CATEGORY_TO_COLOR } from '@/lib/meta';
@@ -681,17 +681,20 @@ export async function handleUtterance(text: string): Promise<AssistantReply[]> {
   const local = analyze(text);
   if (local.intent === 'undo' || local.intent === 'help' || local.intent === 'smalltalk') return [act(local, text)];
 
+  // Simple phrases: offline rules, instantly and for free. The model only when they're unsure.
+  const parts = splitRequests(text);
+  const analyses = parts.map((p) => analyze(p));
+  if (analyses.length && analyses.every((a, i) => isConfident(a, parts[i]))) {
+    return analyses.map((a, i) => act(a, parts[i]));
+  }
+
   const ai = await aiAnalyze(text);
   if (ai) {
     if (!ai.actions.length) return [{ text: ai.reply! }];
     return ai.actions.map((a) => act(a, text, ai.reply));
   }
 
-  return text
-    .split(/\n+|;\s*|\.\s+(?=[А-ЯЁA-Z])/u)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((part) => act(analyze(part), part));
+  return splitRequests(text).map((part) => act(analyze(part), part));
 }
 
 export { candLabel, durationLabel };

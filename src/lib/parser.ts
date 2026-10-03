@@ -243,7 +243,7 @@ function parseDate(ctx: Ctx): DateKey | undefined {
   // "в пятницу", "в следующий вторник", "с понедельника", "начиная со среды"
   const wd = take(
     ctx,
-    rx(`${B}(?:(?:в|во|на|с|со|начиная\\s+с|начиная\\s+со)\\s+)?(следующ\\p{L}*\\s+)?(понедельник|понедельника|вторник|вторника|среду|среда|среды|четверг|четверга|пятниц[уаы]|суббот[уаы]|воскресенье|воскресенья)${E}`),
+    rx(`${B}(?:(?:в|во|на|с|со|к|ко|до|начиная\\s+с|начиная\\s+со)\\s+)?(следующ\\p{L}*\\s+)?(понедельник|понедельника|понедельнику|вторник|вторника|вторнику|среду|среда|среды|среде|четверг|четверга|четвергу|пятниц[уаые]|суббот[уаые]|воскресенье|воскресенья|воскресенью)${E}`),
   );
   if (wd) {
     const target = weekdayOf(wd[2])!;
@@ -587,4 +587,46 @@ export function parseQuick(input: string, now: Date = new Date()) {
   const a = analyze(input, now);
   if (a.intent !== 'create') return undefined;
   return { title: a.title, date: a.date, start: a.start, priority: a.priority, category: a.category };
+}
+
+/**
+ * Is the offline analysis trustworthy enough to act on without the model?
+ * Used by the app and the server: confident phrases are handled instantly and for free;
+ * the rest (several requests at once, leftovers the rules didn't understand) go to the model.
+ */
+export function isConfident(a: Analysis, text: string): boolean {
+  const t = text.toLowerCase();
+  if (/[;\n]/.test(text)) return false;
+  // "… и напомни …", "… а ещё купи …" — several requests in one sentence.
+  if (/\s(?:и|а\s+также|а\s+ещё|а\s+еще|потом|ещё|еще)\s+(?:напомни|купи|добавь|поставь|запиши|удали|перенеси|создай|сделай|отметь)/u.test(t)) return false;
+  switch (a.intent) {
+    case 'help':
+    case 'undo':
+    case 'smalltalk':
+    case 'agenda':
+      return true;
+    case 'delete':
+    case 'move':
+    case 'complete':
+    case 'remind':
+      return Boolean(a.title || a.bulk || a.targetKind) && !/\d{3,}/.test(a.title);
+    case 'create': {
+      if (!a.title || a.title.split(/\s+/).length > 6) return false;
+      // Date / time words left in the title mean the rules missed something.
+      return !/\d|понедельник|вторник|сред[ауы]|четверг|пятниц|суббот|воскресень|январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр|утр[аом]|вечер|ночь|ночи|днём|днем|через|кажд|ежедн|еженед|неделе|недели|месяц|завтра|сегодня|послезавтра|полдень|полночь|час[аов]?(?![\p{L}])/iu.test(
+        a.title,
+      );
+    }
+  }
+}
+
+/**
+ * Splits a message into separate requests: ";", new lines, sentences, and
+ * "… и напомни …", "… а ещё купи …", "… потом перенеси …".
+ */
+export function splitRequests(text: string): string[] {
+  return text
+    .split(/\n+|;\s*|\.\s+(?=[А-ЯЁA-Z])|,?\s+(?:и|а\s+также|а\s+ещё|а\s+еще|потом|ещё|еще)\s+(?=(?:напомни|купи|добавь|поставь|запиши|удали|перенеси|создай|сделай|отметь|запланируй)(?![\p{L}]))/iu)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }

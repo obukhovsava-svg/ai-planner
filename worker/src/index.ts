@@ -1,6 +1,7 @@
 import { mergeDocs, emptyDoc, type PlannerDoc } from '../../src/lib/merge';
 import { reminderInstances } from '../../src/lib/reminderCore';
 import { execute } from './exec';
+import { analyze, isConfident, splitRequests } from '../../src/lib/parser';
 /**
  * AI brain for the planner Mini App (Cloudflare Worker).
  *
@@ -24,6 +25,9 @@ interface D1Database {
 }
 
 interface Env {
+  AI: { run(model: string, input: Record<string, unknown>): Promise<any> };
+  /** Workers AI model (free tier); the OpenAI-compatible provider is only a fallback. */
+  WAI_MODEL?: string;
   DB: D1Database;
   OPENAI_API_KEY: string;
   BOT_TOKEN: string;
@@ -251,8 +255,36 @@ type LlmResult =
 
 let effortOk = true;
 
-/** One structured-output call to the model (strict JSON schema, JSON-mode fallback). */
+/** Free & fast: Cloudflare Workers AI with a JSON schema. */
+async function workersAi(env: Env, messages: { role: string; content: string }[]): Promise<LlmResult> {
+  try {
+    const r = await env.AI.run(env.WAI_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
+      messages,
+      response_format: { type: 'json_schema', json_schema: RESPONSE_SCHEMA },
+      max_tokens: 1200,
+      temperature: 0,
+    });
+    const data = typeof r?.response === 'string' ? JSON.parse(r.response) : r?.response;
+    if (!data || !Array.isArray(data.actions)) return { ok: false, error: 'bad_completion' };
+    return { ok: true, data, usage: r?.usage };
+  } catch (e) {
+    return { ok: false, error: 'workers_ai', detail: String(e).slice(0, 200) };
+  }
+}
+
+/** Model call: Workers AI first; the paid OpenAI-compatible provider only if that fails. */
 async function llm(env: Env, text: string, today: string, weekday: string, time: string, items: string): Promise<LlmResult> {
+  const fast = await workersAi(env, [
+    { role: 'system', content: systemPrompt(today, weekday, time) },
+    { role: 'system', content: `Ближайшие дела пользователя:\n${items.slice(0, 4000) || '(пусто)'}` },
+    { role: 'user', content: text },
+  ]);
+  if (fast.ok || !env.OPENAI_API_KEY) return fast;
+  return providerLlm(env, text, today, weekday, time, items);
+}
+
+/** OpenAI-compatible provider (strict JSON schema, JSON-mode fallback). */
+async function providerLlm(env: Env, text: string, today: string, weekday: string, time: string, items: string): Promise<LlmResult> {
   const messages = [
     { role: 'system', content: systemPrompt(today, weekday, time) },
     { role: 'system', content: `Ближайшие дела пользователя:\n${items.slice(0, 4000) || '(пусто)'}` },
@@ -307,6 +339,17 @@ function localNow(tz: number) {
     weekday: WD_LONG[d.getUTCDay()],
     time: `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`,
   };
+}
+
+/** The rules' answer when they are sure (as a model-shaped result), otherwise null. */
+function rulesFirst(text: string, tz: number): LlmResult | null {
+  // A Date whose UTC fields are the user's local time — the parser reads local fields, and the worker runs in UTC.
+  const localDate = new Date(Date.now() - tz * 60_000);
+  const parts = splitRequests(text);
+  const analyses = parts.map((p) => analyze(p, localDate));
+  if (!analyses.length || !analyses.every((a, i) => isConfident(a, parts[i]))) return null;
+  if (analyses.some((a) => ['help', 'undo', 'smalltalk'].includes(a.intent))) return null;
+  return { ok: true, data: { actions: analyses as any[], reply: null } };
 }
 
 async function shortcutUser(env: Env, key: string) {
@@ -469,7 +512,8 @@ export default {
 
       // The Shortcut waits for the result and shows it as an iPhone notification.
       const now = localNow(u.tz ?? 0);
-      const r = await llm(env, text, now.today, now.weekday, now.time, '');
+      // Simple phrases: offline rules, instantly. Otherwise the model.
+      const r = rulesFirst(text, u.tz ?? 0) ?? (await llm(env, text, now.today, now.weekday, now.time, ''));
       const actions = r.ok ? (r.data.actions ?? []) : null;
 
       // Run it on the server copy right away; only what needs the user goes to the app.

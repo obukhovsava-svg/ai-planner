@@ -17,6 +17,10 @@ APP_URL = "https://obukhovsava-svg.github.io/ai-planner/"
 ALLOWED_ORIGIN = "https://obukhovsava-svg.github.io"
 
 # Reminders the Telegram bot sends on time (see /reminders/sync and the cron below).
+# Cloudflare Workers AI (free tier) — fast models on Cloudflare's own network.
+[ai]
+binding = "AI"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "ai-planner-reminders"
