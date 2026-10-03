@@ -16,18 +16,21 @@ POST = str(uuid.uuid4()).upper()
 IF_GROUP = str(uuid.uuid4()).upper()
 MENU_GROUP = str(uuid.uuid4()).upper()
 URL_UUID = str(uuid.uuid4()).upper()
+TEXT_UUID = str(uuid.uuid4()).upper()
 # Opens the Mini App straight on the assistant (start_param "a").
 PLANNER_LINK = "https://t.me/myliveplaners_bot?startapp=a"
 
 def text_token(s):
     return {"Value": {"string": s}, "WFSerializationType": "WFTextTokenString"}
 
+AS_TEXT = [{"Type": "WFCoercionVariableAggrandizement", "CoercionItemClass": "WFStringContentItem"}]
+
 def answer_input():
-    """The server's answer as the subject of the "If" condition."""
+    """The server's answer (as Text) as the subject of the "If" condition."""
     return {
         "Type": "Variable",
         "Variable": {
-            "Value": {"OutputUUID": POST, "Type": "ActionOutput", "OutputName": "Содержимое URL"},
+            "Value": {"OutputUUID": TEXT_UUID, "Type": "ActionOutput", "OutputName": "Текст", "Aggrandizements": AS_TEXT},
             "WFSerializationType": "WFTextTokenAttachment",
         },
     }
@@ -37,7 +40,7 @@ def answer_token():
     return {
         "Value": {
             "string": "\ufffc",
-            "attachmentsByRange": {"{0, 1}": {"OutputUUID": POST, "Type": "ActionOutput", "OutputName": "Содержимое URL"}},
+            "attachmentsByRange": {"{0, 1}": {"OutputUUID": TEXT_UUID, "Type": "ActionOutput", "OutputName": "Текст"}},
         },
         "WFSerializationType": "WFTextTokenString",
     }
@@ -83,6 +86,17 @@ workflow = {
                         ]
                     },
                     "WFSerializationType": "WFDictionaryFieldValue",
+                },
+            },
+        },
+        # The answer as plain TEXT — otherwise "If" only offers "has any value / has no value".
+        {
+            "WFWorkflowActionIdentifier": "is.workflow.actions.detect.text",
+            "WFWorkflowActionParameters": {
+                "UUID": TEXT_UUID,
+                "WFInput": {
+                    "Value": {"OutputUUID": POST, "Type": "ActionOutput", "OutputName": "Содержимое URL"},
+                    "WFSerializationType": "WFTextTokenAttachment",
                 },
             },
         },
