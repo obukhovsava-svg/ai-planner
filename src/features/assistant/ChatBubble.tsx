@@ -9,7 +9,7 @@ import { addDays, fromKey, humanDate, minutesToTime, timeToMinutes, todayKey, we
 import { repeatLabel } from '@/lib/recurrence';
 import { haptic } from '@/lib/telegram';
 import { DatePickerSheet } from '@/components/DatePickerSheet';
-import { answerChoose, answerClarify, cancelClarify, candLabel, durationLabel, undoLast } from './brain';
+import { answerChoose, answerClarify, answerConfirm, answerMove, cancelCard, cancelClarify, candLabel, durationLabel, undoLast } from './brain';
 
 export function ChatBubble({ message }: { message: ChatMessage }) {
   if (message.role === 'user') {
@@ -39,6 +39,10 @@ function Attachment({ message }: { message: ChatMessage }) {
       return a.state ? null : <ChooseCard message={message} />;
     case 'undo':
       return <UndoChip message={message} />;
+    case 'confirm':
+      return a.state ? null : <ConfirmCard id={message.id} />;
+    case 'move-ask':
+      return a.state ? null : <MoveAskCard id={message.id} a={a} />;
     default:
       return <ItemCard message={message} a={a} />;
   }
@@ -200,6 +204,103 @@ function ClarifyCard({ id, draft, ask }: { id: string; draft: Draft; ask: 'kind'
   );
 }
 
+/* ---------------------------------------------------------------- confirm / move */
+
+function ConfirmCard({ id }: { id: string }) {
+  return (
+    <div className="animate-fade-up grid grid-cols-2 overflow-hidden rounded-[18px] bg-surface">
+      <button
+        type="button"
+        onClick={() => {
+          haptic.notify('warning');
+          answerConfirm(id);
+        }}
+        className="py-3.5 text-[17px] font-semibold text-red transition-colors active:bg-surface-2"
+      >
+        Удалить
+      </button>
+      <button type="button" onClick={() => cancelCard(id)} className="border-l-[0.5px] border-line py-3.5 text-[17px] text-blue transition-colors active:bg-surface-2">
+        Отмена
+      </button>
+    </div>
+  );
+}
+
+/** "Перенеси X" without a new time: pick the day, then the time. */
+function MoveAskCard({ id, a }: { id: string; a: Extract<ChatAttachment, { type: 'move-ask' }> }) {
+  const [picker, setPicker] = useState(false);
+  const [custom, setCustom] = useState('');
+  const today = todayKey();
+  const days: [string, DateKey][] = [
+    ['Сегодня', today],
+    ['Завтра', addDays(today, 1)],
+    ...Array.from({ length: 5 }, (_, i) => {
+      const d = addDays(today, i + 2);
+      return [`${WD[weekdayMon(fromKey(d))]} ${fromKey(d).getDate()}`, d] as [string, DateKey];
+    }),
+  ];
+  return (
+    <div className="animate-fade-up overflow-hidden rounded-[18px] bg-surface">
+      <div className="flex flex-wrap gap-2 p-3.5">
+        {a.step === 'date' ? (
+          <>
+            {days
+              .filter(([, d]) => d !== a.candidate.date)
+              .map(([label, d]) => (
+                <Chip key={d} onClick={() => answerMove(id, { date: d })}>
+                  {label}
+                </Chip>
+              ))}
+            <Chip onClick={() => setPicker(true)}>
+              <span className="flex items-center gap-1.5">
+                <CalendarDays className="size-4 text-blue" /> Другая дата
+              </span>
+            </Chip>
+          </>
+        ) : (
+          <>
+            {a.candidate.time && (
+              <Chip tone="accent" onClick={() => answerMove(id, { keepTime: true })}>
+                Оставить {a.candidate.time}
+              </Chip>
+            )}
+            {TIME_CHIPS.filter((t) => t !== a.candidate.time).map((t) => (
+              <Chip key={t} onClick={() => answerMove(id, { start: t })}>
+                {t}
+              </Chip>
+            ))}
+            <form
+              className="flex items-center gap-1.5 rounded-full bg-surface-2 py-1 pl-3.5 pr-1"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (custom) answerMove(id, { start: custom });
+              }}
+            >
+              <span className="text-[15px] text-muted">Своё</span>
+              <input type="time" value={custom} onChange={(e) => setCustom(e.target.value)} className="bg-transparent text-[15px] text-fg outline-none" />
+              <button type="submit" disabled={!custom} className="rounded-full bg-blue px-3 py-1 text-[13px] font-semibold text-white disabled:opacity-30">
+                OK
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+      <button type="button" onClick={() => cancelCard(id)} className="w-full border-t-[0.5px] border-line py-3 text-[15px] text-red transition-colors active:bg-surface-2">
+        Отмена
+      </button>
+      <DatePickerSheet
+        open={picker}
+        title="Новая дата"
+        withTime={false}
+        clearLabel="Отмена"
+        value={{ date: a.candidate.date }}
+        onChange={({ date }) => date && answerMove(id, { date })}
+        onClose={() => setPicker(false)}
+      />
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------- choose / undo */
 
 function ChooseCard({ message }: { message: ChatMessage }) {
@@ -220,6 +321,9 @@ function ChooseCard({ message }: { message: ChatMessage }) {
           <span className="min-w-0 flex-1 truncate text-[17px]">{candLabel(c)}</span>
         </button>
       ))}
+      <button type="button" onClick={() => cancelCard(message.id)} className="w-full border-t-[0.5px] border-line py-3 text-[15px] text-red transition-colors active:bg-surface-2">
+        Отмена
+      </button>
     </div>
   );
 }

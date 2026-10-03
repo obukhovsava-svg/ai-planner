@@ -89,9 +89,11 @@ function toAnalysis(x: any): Analysis | null {
     taskHint: Boolean(x.taskHint),
     priority: ['low', 'medium', 'high'].includes(x.priority) ? x.priority : 'medium',
     category: ['work', 'personal', 'health', 'study', 'other'].includes(x.category) ? x.category : 'other',
-    range: x.intent === 'agenda' ? (range ?? { from: todayKey(), to: todayKey(), label: '' }) : undefined,
+    range: x.intent === 'agenda' ? (range ?? { from: todayKey(), to: todayKey(), label: '' }) : range,
     sourceDate: str(x.sourceDate, DATE),
     all: Boolean(x.all),
+    targetKind: ['event', 'task', 'any'].includes(x.targetKind) ? x.targetKind : undefined,
+    bulk: x.intent === 'delete' && Boolean(x.bulk),
   };
 }
 

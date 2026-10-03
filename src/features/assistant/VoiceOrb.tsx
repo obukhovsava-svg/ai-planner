@@ -30,7 +30,7 @@ export function VoiceOrb({ listening, size = 120, onPress }: VoiceOrbProps) {
         onClick={onPress}
         aria-label={listening ? 'Остановить запись' : 'Начать голосовой ввод'}
         aria-pressed={listening}
-        className={`relative isolate overflow-hidden rounded-full bg-white shadow-[inset_0_0_0_0.5px_rgb(255_255_255/0.6),0_10px_30px_-10px_rgb(91_140_255/0.5)] transition-transform duration-700 ease-spring active:scale-95 dark:bg-[#101018] ${
+        className={`relative isolate overflow-hidden rounded-full [clip-path:circle(50%)] [-webkit-mask-image:-webkit-radial-gradient(white,black)] [transform:translateZ(0)] bg-white shadow-[inset_0_0_0_0.5px_rgb(255_255_255/0.6),0_10px_30px_-10px_rgb(91_140_255/0.5)] transition-transform duration-700 ease-spring active:scale-95 dark:bg-[#101018] ${
           listening ? 'scale-[1.08]' : 'animate-breathe'
         }`}
         style={{ width: size, height: size }}

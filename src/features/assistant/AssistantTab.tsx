@@ -18,10 +18,14 @@ const FADE_MS = 450;
 
 /** Still waiting for the user (a question card or a pick-one list)? */
 const isOpen = (m: ChatMessage) =>
-  (m.attachment?.type === 'clarify' || m.attachment?.type === 'choose') && !m.attachment.state;
+  ['clarify', 'choose', 'confirm', 'move-ask'].includes(m.attachment?.type ?? '') && !(m.attachment as { state?: string }).state;
 
 /** A finished action — fine to dissolve after a moment. Agenda/help/text answers stay until the next request. */
-const isDone = (m: ChatMessage) => ['event', 'task', 'undo', 'choose', 'clarify'].includes(m.attachment?.type ?? '') && !isOpen(m);
+const isDone = (m: ChatMessage) =>
+  ['event', 'task', 'undo', 'choose', 'clarify', 'confirm', 'move-ask'].includes(m.attachment?.type ?? '') && !isOpen(m);
+
+/** On phones the on-screen keyboard needs the room — the orb steps aside while typing. */
+const TOUCH = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
 /**
  * Chat without history: the big voice orb is always there; above it only the current
@@ -32,6 +36,7 @@ export function AssistantTab() {
   const push = useChatStore((s) => s.push);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
+  const [typing, setTyping] = useState(false);
   const ai = useSyncExternalStore(aiStatus.subscribe, aiStatus.get);
   const showToast = useUIStore((s) => s.showToast);
   const scroller = useRef<HTMLDivElement>(null);
@@ -152,7 +157,7 @@ export function AssistantTab() {
               }}
             >
               {visible && exchange.map((m) => <ChatBubble key={m.id} message={m} />)}
-              {thinking && <p className="text-shimmer animate-fade-in pl-1 text-[17px]">Думаю…</p>}
+              {thinking && <Thinking />}
             </div>
           )}
         </div>
@@ -160,6 +165,16 @@ export function AssistantTab() {
 
       {/* always-available voice orb + text field */}
       <div className="pb-tabbar shrink-0 px-4">
+        <div
+          className="grid transition-[grid-template-rows,opacity,transform] duration-500 ease-spring"
+          style={{
+            gridTemplateRows: typing ? '0fr' : '1fr',
+            opacity: typing ? 0 : 1,
+            transform: typing ? 'scale(0.85) translateY(20px)' : 'none',
+          }}
+          aria-hidden={typing}
+        >
+          <div className="min-h-0 overflow-hidden">
         <div className="flex flex-col items-center gap-2 pb-3 pt-1">
           <VoiceOrb size={96} listening={listening} onPress={toggleMic} />
           <div className="flex min-h-6 items-center px-6 text-center">
@@ -174,6 +189,8 @@ export function AssistantTab() {
             )}
           </div>
         </div>
+          </div>
+        </div>
         <form
           className="flex items-center gap-2 rounded-full bg-surface py-1 pl-4 pr-1 shadow-[0_0_0_0.5px_var(--line)]"
           onSubmit={(e) => {
@@ -184,6 +201,8 @@ export function AssistantTab() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onFocus={() => TOUCH && setTyping(true)}
+            onBlur={() => setTyping(false)}
             placeholder="Или напишите…"
             enterKeyHint="send"
             className="min-w-0 flex-1 bg-transparent py-1.5 text-[17px] text-fg outline-none placeholder:text-muted"
@@ -200,6 +219,35 @@ export function AssistantTab() {
           </button>
         </form>
       </div>
+    </div>
+  );
+}
+
+/** "Думаю" with a spinning sparkle, a light sweep over the word and bouncing dots. */
+function Thinking() {
+  return (
+    <div className="animate-fade-in flex items-center gap-2 pl-1" role="status" aria-label="Думаю">
+      <svg viewBox="0 0 24 24" className="size-5 animate-[spin_2.4s_linear_infinite]" aria-hidden>
+        <defs>
+          <linearGradient id="think-g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="var(--ai-1)" />
+            <stop offset="0.5" stopColor="var(--ai-2)" />
+            <stop offset="1" stopColor="var(--ai-3)" />
+          </linearGradient>
+        </defs>
+        <path d="M12 2.5c.5 4.6 2.9 7 9.5 9.5-6.6 2.5-9 4.9-9.5 9.5-.5-4.6-2.9-7-9.5-9.5 6.6-2.5 9-4.9 9.5-9.5Z" fill="url(#think-g)" />
+      </svg>
+      <span className="text-shimmer text-[17px] font-medium">Думаю</span>
+      <span className="flex items-end gap-[3px] pb-[3px]">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="size-[5px] rounded-full bg-[var(--ai-2)]"
+            style={{ animation: `think-dot 1.1s ease-in-out ${i * 0.16}s infinite` }}
+          />
+        ))}
+      </span>
+      <style>{'@keyframes think-dot{0%,80%,100%{transform:translateY(0);opacity:.35}40%{transform:translateY(-5px);opacity:1}}'}</style>
     </div>
   );
 }

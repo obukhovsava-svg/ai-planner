@@ -281,8 +281,129 @@ export function answerChoose(messageId: string, candidate: Candidate) {
   if (!msg || msg.attachment?.type !== 'choose' || msg.attachment.state) return;
   const { action, target } = msg.attachment;
   const reply =
-    action === 'delete' ? doDelete(candidate, Boolean(target?.all)) : action === 'move' ? doMove(candidate, target ?? {}) : doComplete(candidate);
+    action === 'delete'
+      ? doDelete(candidate, Boolean(target?.all))
+      : action === 'move'
+        ? target?.date || target?.start
+          ? doMove(candidate, target)
+          : moveAsk(candidate)
+        : doComplete(candidate);
   chat().update(messageId, { text: reply.text, attachment: reply.attachment ?? { ...msg.attachment, state: 'done' } });
+}
+
+/** Nearest upcoming events (occurrences) and open tasks — for "удали / перенеси" without a name. */
+function upcoming(kinds: ('event' | 'task')[], date?: DateKey): Candidate[] {
+  const p = planner();
+  const from = date ?? todayKey();
+  const to = date ?? addDays(from, 14);
+  const out: Candidate[] = [];
+  if (kinds.includes('event')) {
+    for (const e of p.events) {
+      for (const d of occurrencesBetween(e, from, to).slice(0, 2)) out.push({ kind: 'event', id: e.id, title: e.title, date: d, time: e.start });
+    }
+  }
+  if (kinds.includes('task')) {
+    for (const t of p.tasks) {
+      if (t.done || (date && t.date !== date)) continue;
+      out.push({ kind: 'task', id: t.id, title: t.title, date: t.date, time: t.time });
+    }
+  }
+  return out
+    .sort((a, b) => (a.date ?? '9999').localeCompare(b.date ?? '9999') || (a.time ?? '99').localeCompare(b.time ?? '99'))
+    .slice(0, 6);
+}
+
+function moveAsk(c: Candidate): AssistantReply {
+  return { text: `На какой день перенести ${candLabel(c)}?`, attachment: { type: 'move-ask', candidate: c, step: 'date' } };
+}
+
+/** Tapped a day / time in the move card. */
+export function answerMove(messageId: string, patch: { date?: DateKey; start?: string; keepTime?: boolean }) {
+  const msg = chat().messages.find((m) => m.id === messageId);
+  if (!msg || msg.attachment?.type !== 'move-ask' || msg.attachment.state) return;
+  const a = msg.attachment;
+  if (a.step === 'date' && patch.date) {
+    const c = a.candidate;
+    // Tasks without a time move by date only.
+    if (c.kind === 'task' && !c.time) {
+      const r = doMove(c, { date: patch.date });
+      chat().update(messageId, { text: r.text, attachment: r.attachment ?? { ...a, state: 'done' } });
+      return;
+    }
+    chat().update(messageId, { text: `Во сколько ${when(patch.date)}?`, attachment: { ...a, step: 'time', date: patch.date } });
+    return;
+  }
+  if (a.step === 'time') {
+    const r = doMove(a.candidate, { date: a.date, start: patch.keepTime ? undefined : patch.start });
+    chat().update(messageId, { text: r.text, attachment: r.attachment ?? { ...a, state: 'done' } });
+  }
+}
+
+export function cancelCard(messageId: string) {
+  const msg = chat().messages.find((m) => m.id === messageId);
+  const a = msg?.attachment;
+  if (!a || !['confirm', 'move-ask', 'choose', 'clarify'].includes(a.type)) return;
+  chat().update(messageId, { text: 'Хорошо, ничего не меняю.', attachment: { ...a, state: 'cancelled' } as ChatAttachment });
+}
+
+function plural(n: number, one: string, few: string, many: string) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  return m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many;
+}
+
+/** "Удали все события на понедельник" → confirmation card listing what will go. */
+function bulkDeleteAsk(a: Analysis): AssistantReply {
+  const p = planner();
+  const range = a.range ?? (a.date ? { from: a.date, to: a.date, label: '' } : undefined);
+  const wantEvents = a.targetKind !== 'task';
+  const wantTasks = a.targetKind !== 'event';
+  const events: { id: string; date?: DateKey }[] = [];
+  if (wantEvents) {
+    for (const e of p.events) {
+      if (!range) events.push({ id: e.id });
+      else for (const d of occurrencesBetween(e, range.from, range.to)) events.push({ id: e.id, date: d });
+    }
+  }
+  const tasks = wantTasks ? p.tasks.filter((t) => !range || (t.date && t.date >= range.from && t.date <= range.to)).map((t) => t.id) : [];
+  const where = range ? (range.label || (range.from === range.to ? `на ${when(range.from)}` : '')) : '';
+  if (!events.length && !tasks.length) return { text: `Удалять нечего${where ? ` ${where}` : ''}.` };
+  const parts = [
+    events.length && `${events.length} ${plural(events.length, 'событие', 'события', 'событий')}`,
+    tasks.length && `${tasks.length} ${plural(tasks.length, 'задачу', 'задачи', 'задач')}`,
+  ].filter(Boolean);
+  const label = `${parts.join(' и ')}${where ? ` ${where}` : ''}`;
+  return { text: `Удалить ${label}?`, attachment: { type: 'confirm', events, tasks, label } };
+}
+
+export function answerConfirm(messageId: string) {
+  const msg = chat().messages.find((m) => m.id === messageId);
+  if (!msg || msg.attachment?.type !== 'confirm' || msg.attachment.state) return;
+  const { events, tasks, label } = msg.attachment;
+  const p = planner();
+  const entries: import('@/store/useChatStore').UndoEntry[] = [];
+  // Occurrences of repeating events are skipped; whole events are removed.
+  const byId = new Map<string, DateKey[]>();
+  for (const e of events) if (e.date) byId.set(e.id, [...(byId.get(e.id) ?? []), e.date]);
+  for (const { id, date } of events) {
+    const ev = p.events.find((x) => x.id === id);
+    if (!ev) continue;
+    if (date && ev.repeat) {
+      if (!byId.has(id)) continue;
+      entries.push({ op: 'updated-event', before: ev });
+      p.updateEvent(id, { repeat: { ...ev.repeat, exceptions: [...(ev.repeat.exceptions ?? []), ...byId.get(id)!] } });
+      byId.delete(id);
+    } else {
+      const removed = p.deleteEvent(id);
+      if (removed) entries.push({ op: 'deleted-event', event: removed });
+    }
+  }
+  for (const id of tasks) {
+    const removed = p.deleteTask(id);
+    if (removed) entries.push({ op: 'deleted-task', task: removed });
+  }
+  chat().pushUndo({ op: 'batch', entries });
+  chat().update(messageId, { text: `Удалил ${label}.`, attachment: { type: 'undo' } });
 }
 
 export function undoLast(): string {
@@ -390,14 +511,27 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
     }
     case 'delete':
     case 'move': {
-      if (a.intent === 'move' && !a.date && !a.start) {
-        return { text: `На когда перенести «${a.title}»? Скажите, например: «перенеси ${lower(a.title)} на пятницу в 16».` };
-      }
+      if (a.intent === 'delete' && a.bulk) return bulkDeleteAsk(a);
+      const kinds: ('event' | 'task')[] = a.targetKind === 'task' ? ['task'] : a.targetKind === 'event' ? ['event'] : ['event', 'task'];
       const lookDate = a.intent === 'move' ? a.sourceDate : a.date;
-      const found = findCandidates(a.title, lookDate, ['event', 'task']);
-      if (!found.length) return { text: `Не нашёл «${a.title}»${lookDate ? ` ${when(lookDate)}` : ''}.` };
       const target = { date: a.intent === 'move' ? a.date : undefined, start: a.start, end: a.end, duration: a.duration, all: a.all };
-      if (found.length === 1) return a.intent === 'delete' ? doDelete(found[0], a.all) : doMove(found[0], target);
+
+      // Nothing specific named ("удали", "перенеси задачу") → pick from what's coming up.
+      if (!a.title) {
+        const list = upcoming(kinds, lookDate);
+        if (!list.length) return { text: lookDate ? `На ${when(lookDate)} ничего нет.` : 'Пока нечего — список пуст.' };
+        return {
+          text: `${a.targetKind === 'task' ? 'Какую задачу' : a.targetKind === 'event' ? 'Какое событие' : 'Что'} ${a.intent === 'delete' ? 'удалить' : 'перенести'}?`,
+          attachment: { type: 'choose', action: a.intent, candidates: list, target },
+        };
+      }
+
+      const found = findCandidates(a.title, lookDate, kinds);
+      if (!found.length) return { text: `Не нашёл «${a.title}»${lookDate ? ` ${when(lookDate)}` : ''}.` };
+      if (found.length === 1) {
+        if (a.intent === 'delete') return doDelete(found[0], a.all);
+        return target.date || target.start ? doMove(found[0], target) : moveAsk(found[0]);
+      }
       return {
         text: a.intent === 'delete' ? 'Нашёл несколько. Что удалить?' : 'Нашёл несколько. Что перенести?',
         attachment: { type: 'choose', action: a.intent, candidates: found, target },

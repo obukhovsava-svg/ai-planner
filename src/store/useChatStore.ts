@@ -43,7 +43,11 @@ export type ChatAttachment =
       target?: { date?: DateKey; start?: TimeStr; end?: TimeStr; duration?: number; all?: boolean };
       state?: 'done' | 'cancelled';
     }
-  | { type: 'undo'; state?: 'done' };
+  | { type: 'undo'; state?: 'done' }
+  /** Bulk delete waiting for "Удалить / Отмена". Events with `date` lose only that occurrence. */
+  | { type: 'confirm'; events: { id: string; date?: DateKey }[]; tasks: string[]; label: string; state?: 'done' | 'cancelled' }
+  /** Move without a new time: ask the day, then the time. */
+  | { type: 'move-ask'; candidate: Candidate; step: 'date' | 'time'; date?: DateKey; state?: 'done' | 'cancelled' };
 
 export interface ChatMessage {
   id: string;

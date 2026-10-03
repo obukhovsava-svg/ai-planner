@@ -72,7 +72,7 @@ const ACTION_SCHEMA = {
   additionalProperties: false,
   required: [
     'intent', 'title', 'date', 'start', 'end', 'duration', 'repeat', 'needsStart', 'kindWord',
-    'eventHint', 'taskHint', 'priority', 'category', 'range', 'sourceDate', 'all',
+    'eventHint', 'taskHint', 'priority', 'category', 'range', 'sourceDate', 'all', 'targetKind', 'bulk',
   ],
   properties: {
     intent: { type: 'string', enum: ['create', 'agenda', 'delete', 'move', 'complete', 'undo', 'help', 'smalltalk'] },
@@ -113,7 +113,9 @@ const ACTION_SCHEMA = {
       description: 'agenda only',
     },
     sourceDate: nullable('string', { description: 'move: the date the thing is moved FROM ("со среды")' }),
-    all: { type: 'boolean', description: 'delete: whole series ("все тренировки")' },
+    all: { type: 'boolean', description: 'delete: whole series of one repeating thing ("все тренировки")' },
+    targetKind: nullable('string', { enum: ['event', 'task', 'any', null], description: 'delete/move: which kind is meant ("удали событие" → event, "все задачи" → task, "все дела" → any)' }),
+    bulk: { type: 'boolean', description: 'delete EVERYTHING of targetKind in date/range ("удали все события на понедельник", "удали все задачи", "очисти всё на завтра")' },
   },
 } as const;
 
@@ -142,6 +144,9 @@ function systemPrompt(today: string, weekday: string, time: string): string {
 - title: коротко, с заглавной буквы, в именительном падеже («встречу с Анной» → «Встреча с Анной»), без дат, времени и слов «поставь/добавь/напомни».
 - move («перенеси X на …»): title = что ищем, date/start/end = новое время, sourceDate = откуда («со среды»).
 - delete («удали/отмени X»), complete («я сделал X», «отметь X выполненной»): title = что ищем, date — если указан день.
+- Массовое удаление («удали все события на понедельник», «удали все задачи», «очисти всё на завтра», «удали все дела на неделе»): intent delete, bulk true, title "", targetKind event/task/any, date или range.
+- Если не названо, что именно удалить/перенести («удали», «перенеси задачу», «удали событие»): title "", targetKind по слову — приложение само покажет список на выбор.
+- Если при переносе не сказано, на когда («перенеси встречу с Анной»): date и start null — приложение спросит.
 - agenda («что у меня завтра / на неделе / на выходных»): range с from/to.
 - undo («отмени последнее»), help («что ты умеешь»), smalltalk (приветствие, спасибо) — reply с коротким дружелюбным ответом.
 - Если смысл неясен — actions пустой, reply: короткий уточняющий вопрос по-русски.

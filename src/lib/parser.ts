@@ -41,6 +41,10 @@ export interface Analysis {
   sourceDate?: DateKey;
   /** delete: "все тренировки" / "всю серию". */
   all: boolean;
+  /** delete/move: what kind of item is meant ("удали событие", "все задачи"). */
+  targetKind?: 'event' | 'task' | 'any';
+  /** delete: everything of `targetKind` in `range`/`date` ("удали все события на понедельник"). */
+  bulk: boolean;
 }
 
 // Unicode-aware word boundaries (JS \b only understands ASCII).
@@ -373,14 +377,21 @@ const SMALLTALK_RE = rx(
   `^\\s*(?:привет|здравствуй\\p{L}*|добр\\p{L}+\\s+(?:утро|день|вечер)|спасибо|благодарю|ок|окей|хорошо|понял\\p{L}*|ясно|пока|супер|отлично|класс|круто)${E}`,
 );
 const UNDO_RE = rx(`^\\s*(?:отмени|отменить|верни|вернуть|откати)(?:\\s+(?:последн\\p{L}*(?:\\s+действие)?|это|что\\s+сделал|как\\s+было|назад))?\\s*$`);
-const DELETE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:удали|удалить|убери|убрать|отмени|отменить|сотри|вычеркни)${E}\\s+`);
-const MOVE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:перенеси|перенести|передвинь|сдвинь|перемести|переставь)${E}\\s+`);
+const DELETE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:удали|удалить|убери|убрать|отмени|отменить|сотри|вычеркни|очисти|очистить)${E}(?:\\s+|\\s*$)`);
+const MOVE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:перенеси|перенести|передвинь|сдвинь|перемести|переставь)${E}(?:\\s+|\\s*$)`);
 const COMPLETE_RE = rx(
   `^\\s*(?:(?:отметь|отметить)\\s+(.+?)\\s+(?:как\\s+)?(?:выполненн\\p{L}*|сделанн\\p{L}*|готов\\p{L}*)|(?:я\\s+)?(?:сделал|сделала|выполнил|выполнила|закончил|закончила|купил|купила)\\s+(.+)|(.+?)\\s+(?:готово|сделано|выполнено))\\s*$`,
 );
 
 function baseAnalysis(intent: Intent, title = ''): Analysis {
-  return { intent, title, needsStart: false, eventHint: false, taskHint: false, priority: 'medium', category: 'other', all: false };
+  return { intent, title, needsStart: false, eventHint: false, taskHint: false, priority: 'medium', category: 'other', all: false, bulk: false };
+}
+
+/** "на неделе", "на выходных", or a single date; undefined when nothing is said. */
+function optionalRange(ctx: Ctx): Analysis['range'] {
+  const before = ctx.text;
+  const r = agendaRange(ctx);
+  return ctx.text === before ? undefined : r;
 }
 
 function agendaRange(ctx: Ctx): Analysis['range'] {
@@ -415,6 +426,29 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
   if (DELETE_RE.test(t) || MOVE_RE.test(t)) {
     const intent: Intent = MOVE_RE.test(t) ? 'move' : 'delete';
     take(ctx, intent === 'move' ? MOVE_RE : DELETE_RE);
+
+    // "все события / все задачи / все дела", "всё на завтра", "очисти календарь" → bulk delete.
+    let targetKind: Analysis['targetKind'];
+    let bulk = false;
+    const bulkKind = take(ctx, rx(`${B}(?:все|всё|всю)\\s+(?:мои\\s+)?(событи\\p{L}*|встреч\\p{L}*|мероприяти\\p{L}*|задач\\p{L}*|дела|планы|записи|расписание|календарь)${E}`));
+    if (bulkKind) {
+      bulk = intent === 'delete';
+      targetKind = /задач/iu.test(bulkKind[1]) ? 'task' : /дела|планы|записи/iu.test(bulkKind[1]) ? 'any' : 'event';
+    } else if (intent === 'delete' && take(ctx, rx(`^\\s*(?:всё|все)(?=\\s+(?:на|в|во|за|сегодня|завтра|послезавтра)${E}|\\s*$)`))) {
+      bulk = true;
+      targetKind = 'any';
+    } else if (intent === 'delete' && take(ctx, rx(`^\\s*(?:календарь|расписание)${E}`))) {
+      bulk = true;
+      targetKind = 'event';
+    } else {
+      // "удали событие", "перенеси задачу" — no specific item named.
+      const generic = take(ctx, rx(`^\\s*(?:это\\s+|одно\\s+|какое-нибудь\\s+|какую-нибудь\\s+)?(событие|задачу|задача|дело|запись)${E}`));
+      if (generic) targetKind = /задач/iu.test(generic[1]) ? 'task' : generic[1].toLowerCase().startsWith('событ') ? 'event' : 'any';
+    }
+    if (bulk) {
+      const range = optionalRange(ctx);
+      return { ...baseAnalysis('delete'), bulk, targetKind, range, date: range?.from === range?.to ? range?.from : undefined };
+    }
     const all = Boolean(take(ctx, rx(`${B}(?:все|всё|всю\\s+серию|все\\s+повторы|совсем|полностью)${E}`)));
     // "со среды на пятницу" — the first date is the occurrence being moved.
     let sourceDate: DateKey | undefined;
@@ -429,7 +463,7 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
     const duration = parseDuration(ctx);
     const time = parseTime(ctx, true);
     const date = parseDate(ctx) ?? time.date;
-    return { ...baseAnalysis(intent, cleanTitle(ctx.text)), date, start: time.start, end: time.end, duration, sourceDate, all };
+    return { ...baseAnalysis(intent, cleanTitle(ctx.text)), date, start: time.start, end: time.end, duration, sourceDate, all, targetKind };
   }
 
   // ---- create ----
@@ -479,6 +513,7 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
     priority,
     category: rep.rota ? 'work' : category,
     all: false,
+    bulk: false,
   };
 }
 
