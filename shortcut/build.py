@@ -5,10 +5,10 @@ Builds the iPhone Shortcut "Планер" (unsigned plist) — sign with:
 Actions:
   1. Dictate text (Russian, stops after a pause)
   2. POST {"text": <dictated text>} to the user's personal link
-     The server answers {"text": "...", "undo": "<one-time undo link>"}.
+     The server answers {"text": "...", "confirm": "<one-time link>"}.
   3. Sure → a compact result banner ("Готово ✅ …"), no notification.
-     Guessed something ("… Всё верно?") → a menu «Готово» / «Отмена»; «Отмена» opens the undo link
-     in the background and the server rolls the request back.
+     Guessed something ("… Всё верно?") → nothing is saved yet; a menu «Готово» / «Отмена».
+     «Готово» opens the confirm link in the background (the server saves it); «Отмена» saves nothing.
 On import the user is asked once for their personal link (Assistant → «Кнопка на iPhone»).
 """
 import plistlib, uuid, pathlib
@@ -18,8 +18,8 @@ POST = str(uuid.uuid4()).upper()
 IF_GROUP = str(uuid.uuid4()).upper()
 MENU_GROUP = str(uuid.uuid4()).upper()
 KEY_TEXT = str(uuid.uuid4()).upper()
-KEY_UNDO = str(uuid.uuid4()).upper()
-UNDO_UUID = str(uuid.uuid4()).upper()
+KEY_CONFIRM = str(uuid.uuid4()).upper()
+CONFIRM_UUID = str(uuid.uuid4()).upper()
 TEXT_UUID = str(uuid.uuid4()).upper()
 
 def out_of(uuid_, name):
@@ -157,18 +157,22 @@ workflow = {
             "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
             "WFWorkflowActionParameters": {"GroupingIdentifier": MENU_GROUP, "WFControlFlowMode": 1, "WFMenuItemTitle": "Готово"},
         },
+        dict_value(KEY_CONFIRM, "confirm"),
+        {
+            "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
+            "WFWorkflowActionParameters": {"UUID": CONFIRM_UUID, "WFURL": token_of(KEY_CONFIRM, "Значение словаря"), "WFHTTPMethod": "GET", "ShowHeaders": False},
+        },
+        {
+            "WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
+            "WFWorkflowActionParameters": {"UUID": str(uuid.uuid4()).upper(), "Text": token_of(CONFIRM_UUID, "Содержимое URL")},
+        },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",
             "WFWorkflowActionParameters": {"GroupingIdentifier": MENU_GROUP, "WFControlFlowMode": 1, "WFMenuItemTitle": "Отмена"},
         },
-        dict_value(KEY_UNDO, "undo"),
-        {
-            "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
-            "WFWorkflowActionParameters": {"UUID": UNDO_UUID, "WFURL": token_of(KEY_UNDO, "Значение словаря"), "WFHTTPMethod": "GET", "ShowHeaders": False},
-        },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
-            "WFWorkflowActionParameters": {"UUID": str(uuid.uuid4()).upper(), "Text": token_of(UNDO_UUID, "Содержимое URL")},
+            "WFWorkflowActionParameters": {"UUID": str(uuid.uuid4()).upper(), "Text": text_token("Отменено — ничего не добавлено")},
         },
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.choosefrommenu",

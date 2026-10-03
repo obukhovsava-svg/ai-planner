@@ -72,31 +72,6 @@ export interface ExecResult {
   unresolved: any[];
   /** Something was filled in by guess (end time, task instead of event…) — ask "всё верно?". */
   unsure: boolean;
-  /** Item states before this run (null = created now) — lets the Shortcut's «Отмена» roll it back. */
-  undo: UndoOp[];
-}
-
-export interface UndoOp {
-  kind: 'event' | 'task';
-  id: string;
-  before: CalendarEvent | Task | null;
-}
-
-/** Rolls back one Shortcut run; returns the patched doc. */
-export function applyUndo(input: PlannerDoc, ops: UndoOp[], now: number): PlannerDoc {
-  const doc: PlannerDoc = { tasks: [...input.tasks], events: [...input.events], deleted: { ...input.deleted } };
-  for (const op of ops) {
-    if (op.kind === 'event') doc.events = doc.events.filter((e) => e.id !== op.id);
-    else doc.tasks = doc.tasks.filter((t) => t.id !== op.id);
-    if (!op.before) {
-      doc.deleted[op.id] = now;
-      continue;
-    }
-    delete doc.deleted[op.id];
-    if (op.kind === 'event') doc.events.push({ ...(op.before as CalendarEvent), updatedAt: now });
-    else doc.tasks.unshift({ ...(op.before as Task), updatedAt: now });
-  }
-  return doc;
 }
 
 export function execute(input: PlannerDoc, actions: any[], ctx: { today: string; now: number; newId(): string }): ExecResult {
@@ -104,25 +79,16 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
   const lines: string[] = [];
   const unresolved: any[] = [];
   let unsure = false;
-  const undo = new Map<string, UndoOp>();
-  const snap = (kind: 'event' | 'task', id: string, created = false) => {
-    if (undo.has(id)) return;
-    const before = created ? null : ((kind === 'event' ? input.events : input.tasks) as (CalendarEvent | Task)[]).find((x) => x.id === id) ?? null;
-    undo.set(id, { kind, id, before });
-  };
   const { today, now } = ctx;
   const str = (v: unknown, re: RegExp) => (typeof v === 'string' && re.test(v) ? v : undefined);
 
   const touchEvent = (id: string, patch: Partial<CalendarEvent>) => {
-    snap('event', id);
     doc.events = doc.events.map((e) => (e.id === id ? { ...e, ...patch, updatedAt: now } : e));
   };
   const touchTask = (id: string, patch: Partial<Task>) => {
-    snap('task', id);
     doc.tasks = doc.tasks.map((t) => (t.id === id ? { ...t, ...patch, updatedAt: now } : t));
   };
   const remove = (hit: Hit) => {
-    snap(hit.kind, hit.item.id);
     if (hit.kind === 'event') doc.events = doc.events.filter((e) => e.id !== hit.item.id);
     else doc.tasks = doc.tasks.filter((t) => t.id !== hit.item.id);
     doc.deleted[hit.item.id] = now;
@@ -183,7 +149,6 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
             updatedAt: now,
           };
           doc.events.push(ev);
-          snap('event', ev.id, true);
           const lower = ev.title.toLowerCase();
           const noun = /встреч/.test(lower) ? 'встречу' : /смен/.test(lower) ? 'смену' : /тренир/.test(lower) ? 'тренировку' : /созвон/.test(lower) ? 'созвон' : 'событие';
           lines.push(`записал ${noun} «${ev.title}» — ${when(d)}, ${start}–${e}${ev.repeat ? ', с повтором' : ''}${ev.remind ? ', напомню' : ''}`);
@@ -202,7 +167,6 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
             updatedAt: now,
           };
           doc.tasks.unshift(task);
-          snap('task', task.id, true);
           const noun = /домашк|дз|домашн|урок/.test(task.title.toLowerCase()) ? 'домашку' : 'задачу';
           const w = when(task.date, task.time);
           lines.push(`записал ${noun} «${task.title}»${w ? ` — ${w}` : ''}${remind ? ', напомню' : ''}`);
@@ -259,7 +223,6 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
           touchEvent(ev.id, { repeat: { ...ev.repeat, exceptions: [...(ev.repeat.exceptions ?? []), hit.date] } });
           const id = ctx.newId();
           doc.events.push({ id, title: ev.title, date: d, start: s, end: e, color: ev.color, createdAt: now, updatedAt: now });
-          snap('event', id, true);
         } else touchEvent(ev.id, { date: d, start: s, end: e });
         lines.push(`перенёс «${ev.title}» на ${when(d)}, ${s}–${e}`);
         break;
@@ -281,5 +244,5 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
         unresolved.push(a);
     }
   }
-  return { doc, lines, unresolved, unsure, undo: [...undo.values()] };
+  return { doc, lines, unresolved, unsure };
 }
