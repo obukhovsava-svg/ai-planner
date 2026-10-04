@@ -564,8 +564,7 @@ function answerPending(text: string): AssistantReply | null {
     chat().update(pending.id, { attachment: { ...pending.attachment, state: 'answered' } });
     return proceed({ ...pending.attachment.draft, ...fill });
   }
-  // Not an answer — drop the question silently and handle as a new request.
-  chat().update(pending.id, { attachment: { ...pending.attachment, state: 'cancelled' } });
+  // Not an answer — a new request; the question stays open until it is answered.
   return null;
 }
 

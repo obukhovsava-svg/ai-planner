@@ -26,9 +26,17 @@ const isDone = (m: ChatMessage) =>
 /** On phones the on-screen keyboard needs the room — the orb steps aside while typing. */
 const TOUCH = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
+/** One request with its answers. */
+interface Exchange {
+  id: string;
+  messages: ChatMessage[];
+  open: boolean;
+}
+
 /**
- * Chat without history: the big voice orb is always there; above it only the current
- * exchange (your request + the answer). Completed actions dissolve after a few seconds.
+ * Chat without history: the big voice orb is always there; below it the current exchange and
+ * every question still waiting for an answer (e.g. several from the iPhone command).
+ * Completed actions dissolve after a few seconds.
  */
 export function AssistantTab() {
   const messages = useChatStore((s) => s.messages);
@@ -41,39 +49,29 @@ export function AssistantTab() {
   const showToast = useUIStore((s) => s.showToast);
   const scroller = useRef<HTMLDivElement>(null);
 
-  // The current exchange = the last user message and everything after it.
-  const exchange = useMemo(() => {
-    const i = messages.findLastIndex((m) => m.role === 'user');
-    return i < 0 ? [] : messages.slice(i);
+  const exchanges = useMemo(() => {
+    const out: Exchange[] = [];
+    for (const m of messages) {
+      if (m.role === 'user') out.push({ id: m.id, messages: [m], open: false });
+      else out.at(-1)?.messages.push(m);
+    }
+    for (const e of out) e.open = e.messages.some(isOpen);
+    return out;
   }, [messages]);
-  const exchangeId = exchange[0]?.id;
+  const lastId = exchanges.at(-1)?.id;
 
-  // Opening the tab shows a clean screen — unless a question is still waiting for an answer.
-  const [hiddenId, setHiddenId] = useState<string | undefined>(() => (exchange.some(isOpen) ? undefined : exchangeId));
-  const [leaving, setLeaving] = useState(false);
-  const visible = Boolean(exchangeId) && exchangeId !== hiddenId;
-
-  const replies = exchange.slice(1);
-  const settled = !thinking && replies.length > 0 && !replies.some(isOpen) && replies.some(isDone);
-
-  useEffect(() => {
-    if (!visible || !settled) return;
-    const t1 = window.setTimeout(() => setLeaving(true), DISMISS_AFTER);
-    const t2 = window.setTimeout(() => {
-      setHiddenId(exchangeId);
-      setLeaving(false);
-    }, DISMISS_AFTER + FADE_MS);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, [visible, settled, exchangeId, replies.length]);
+  // Opening the tab shows a clean screen — except questions still waiting for an answer.
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set(exchanges.filter((e) => !e.open).map((e) => e.id)));
+  const hide = (id: string) => setHidden((h) => new Set(h).add(id));
+  const shown = exchanges.filter((e) => !hidden.has(e.id));
+  const visible = shown.length > 0;
 
   const submit = async (raw: string) => {
     const text = raw.trim();
     if (!text || thinking) return;
     setInput('');
-    setLeaving(false);
+    // A new request clears finished answers (agenda, text); open questions stay.
+    setHidden((h) => new Set([...h, ...exchanges.filter((e) => !e.open).map((e) => e.id)]));
     push({ role: 'user', text });
     setThinking(true);
     try {
@@ -124,57 +122,54 @@ export function AssistantTab() {
         }
       />
 
-      {/* Welcome or current exchange, with the voice orb. Idle: the orb sits in the middle of the
-          screen; with an exchange on screen the spacer below collapses and everything settles down. */}
-      <div ref={scroller} className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
-        <div className="flex min-h-full flex-col">
-          <div className="flex-1" />
+      {/* Idle: welcome + orb in the middle. With a conversation the orb moves to the top
+          and the messages scroll below it. */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="transition-[flex-grow] duration-700 ease-spring" style={{ flexGrow: showHero ? 1 : 0 }} />
 
-          {showHero ? (
-            <div key="hero" className="animate-fade-in pb-2 text-center">
-              <h2 className="text-[28px] font-bold leading-tight">Чем могу помочь?</h2>
-              <p className="mt-2 text-[17px] leading-snug text-muted">
-                Скажите или напишите — я добавлю
-                <br />
-                событие или задачу и уточню детали.
-              </p>
-            </div>
-          ) : (
-            <div
-              key={exchangeId ?? 'pending'}
-              className="flex flex-col gap-3 py-3 transition-[opacity,transform,filter] ease-spring"
-              style={{
-                transitionDuration: `${FADE_MS}ms`,
-                opacity: leaving ? 0 : 1,
-                transform: leaving ? 'translateY(-12px) scale(0.98)' : 'none',
-                filter: leaving ? 'blur(4px)' : 'none',
-              }}
-            >
-              {visible && exchange.map((m) => <ChatBubble key={m.id} message={m} />)}
-              {thinking && <Thinking />}
-            </div>
-          )}
+        <Collapse open={showHero}>
+          <div className="animate-fade-in px-4 pb-2 text-center">
+            <h2 className="text-[28px] font-bold leading-tight">Чем могу помочь?</h2>
+            <p className="mt-2 text-[17px] leading-snug text-muted">
+              Скажите или напишите — я добавлю
+              <br />
+              событие или задачу и уточню детали.
+            </p>
+          </div>
+        </Collapse>
 
-          {/* voice orb — steps aside while the keyboard is up */}
-          <Collapse open={!typing}>
-            <div className="flex flex-col items-center gap-1 pt-1">
-              <VoiceOrb size={104} listening={listening} onPress={toggleMic} />
-              <div className="flex min-h-6 items-center px-6 text-center">
-                {listening ? (
-                  <p key="interim" className={`animate-fade-in max-w-full truncate text-[17px] ${speech.interim ? 'text-fg' : 'text-shimmer'}`}>
-                    {speech.interim || 'Слушаю…'}
-                  </p>
-                ) : speech.error ? (
-                  <p className="text-[15px] text-red">{speech.error}</p>
-                ) : (
-                  <p className="text-[13px] text-muted">{speech.supported ? 'Коснитесь, чтобы говорить' : 'Голос недоступен · демо-режим'}</p>
-                )}
-              </div>
+        {/* voice orb — steps aside while the keyboard is up */}
+        <Collapse open={!typing}>
+          <div className="flex shrink-0 flex-col items-center gap-1 pt-1">
+            <VoiceOrb size={showHero ? 104 : 84} listening={listening} onPress={toggleMic} />
+            <div className="flex min-h-6 items-center px-6 text-center">
+              {listening ? (
+                <p key="interim" className={`animate-fade-in max-w-full truncate text-[17px] ${speech.interim ? 'text-fg' : 'text-shimmer'}`}>
+                  {speech.interim || 'Слушаю…'}
+                </p>
+              ) : speech.error ? (
+                <p className="text-[15px] text-red">{speech.error}</p>
+              ) : (
+                <p className="text-[13px] text-muted">{speech.supported ? 'Коснитесь, чтобы говорить' : 'Голос недоступен · демо-режим'}</p>
+              )}
             </div>
-          </Collapse>
+          </div>
+        </Collapse>
 
-          <div className="transition-[flex-grow] duration-700 ease-spring" style={{ flexGrow: showHero ? 1 : 0 }} />
+        <div
+          ref={scroller}
+          className="no-scrollbar min-h-0 overflow-y-auto px-4 transition-[flex-grow] duration-700 ease-spring"
+          style={{ flexGrow: showHero ? 0 : 1, flexBasis: 0 }}
+        >
+          <div className="flex flex-col gap-3 py-3">
+            {shown.map((e) => (
+              <ExchangeView key={e.id} exchange={e} settled={!e.open && (e.id !== lastId || !thinking)} onGone={() => hide(e.id)} />
+            ))}
+            {thinking && <Thinking />}
+          </div>
         </div>
+
+        <div className="transition-[flex-grow] duration-700 ease-spring" style={{ flexGrow: showHero ? 1 : 0 }} />
       </div>
 
       {/* text field — steps aside while listening */}
@@ -215,6 +210,39 @@ export function AssistantTab() {
         </div>
       </div>
       <ShortcutSheet open={shortcutOpen} onClose={() => setShortcutOpen(false)} />
+    </div>
+  );
+}
+
+/** One exchange; a finished action dissolves after a few seconds, open questions stay. */
+function ExchangeView({ exchange, settled, onGone }: { exchange: Exchange; settled: boolean; onGone(): void }) {
+  const [leaving, setLeaving] = useState(false);
+  const replies = exchange.messages.slice(1);
+  const done = settled && replies.length > 0 && replies.some(isDone);
+  useEffect(() => {
+    if (!done) return;
+    const t1 = window.setTimeout(() => setLeaving(true), DISMISS_AFTER);
+    const t2 = window.setTimeout(onGone, DISMISS_AFTER + FADE_MS);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      setLeaving(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, replies.length]);
+  return (
+    <div
+      className="animate-fade-in flex flex-col gap-3 transition-[opacity,transform,filter] ease-spring"
+      style={{
+        transitionDuration: `${FADE_MS}ms`,
+        opacity: leaving ? 0 : 1,
+        transform: leaving ? 'translateY(-12px) scale(0.98)' : 'none',
+        filter: leaving ? 'blur(4px)' : 'none',
+      }}
+    >
+      {exchange.messages.map((m) => (
+        <ChatBubble key={m.id} message={m} />
+      ))}
     </div>
   );
 }

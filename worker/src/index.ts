@@ -533,12 +533,12 @@ export default {
           .run();
       }
       const body = lines.join('; ');
-      const pending = !actions || unresolved?.length ? 'Нужно уточнение — откройте планер, вопрос ждёт в ассистенте.' : '';
+      const pending = !actions || unresolved?.length ? 'Нужно уточнение — вопрос ждёт в ассистенте.' : '';
       const answer = lines.length
         ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.${pending ? ` ${pending}` : ''}`
         : r.ok && r.data.reply && !unresolved?.length
           ? String(r.data.reply)
-          : `Нужно уточнение — откройте планер, вопрос ждёт в ассистенте.`;
+          : `Нужно уточнение — вопрос ждёт в ассистенте.`;
       return plain(answer);
     }
 
