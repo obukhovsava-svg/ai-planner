@@ -9,7 +9,7 @@ import { AI_URL } from '@/config';
 import { getInitData } from './telegram';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { addDays, fromKey, todayKey } from './date';
-import { occurrencesBetween } from './recurrence';
+import { occurrencesBetween, sanitizeRepeat } from './recurrence';
 
 const TIMEOUT_MS = 12_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -59,18 +59,7 @@ function contextItems(): string {
 const str = (v: unknown, re?: RegExp) => (typeof v === 'string' && (!re || re.test(v)) ? v : undefined);
 const int = (v: unknown, min: number, max: number) => (Number.isInteger(v) && (v as number) >= min && (v as number) <= max ? (v as number) : undefined);
 
-function toRepeat(r: any): Repeat | undefined {
-  if (!r || !['day', 'week', 'month', 'year'].includes(r.freq)) return undefined;
-  const rep: Repeat = { freq: r.freq, interval: int(r.interval, 1, 52) ?? 1 };
-  const days = Array.isArray(r.byWeekday) ? [...new Set(r.byWeekday.filter((d: unknown) => int(d, 0, 6) !== undefined))].sort() : [];
-  if (rep.freq === 'week' && days.length) rep.byWeekday = days as number[];
-  const on = int(r.cycle?.on, 1, 14);
-  const off = int(r.cycle?.off, 1, 14);
-  if (rep.freq === 'day' && on && off) rep.cycle = { on, off };
-  const until = str(r.until, DATE);
-  if (until) rep.until = until;
-  return rep;
-}
+const toRepeat = (r: any): Repeat | undefined => sanitizeRepeat(r);
 
 function toAnalysis(x: any): Analysis | null {
   if (!x || !INTENTS.includes(x.intent)) return null;
@@ -91,6 +80,7 @@ function toAnalysis(x: any): Analysis | null {
     category: ['work', 'personal', 'health', 'study', 'other'].includes(x.category) ? x.category : 'other',
     range: x.intent === 'agenda' ? (range ?? { from: todayKey(), to: todayKey(), label: '' }) : range,
     sourceDate: str(x.sourceDate, DATE),
+    shift: x.intent === 'move' && Number.isInteger(x.shift) && x.shift !== 0 && Math.abs(x.shift) <= 60 * 24 * 60 ? x.shift : undefined,
     all: Boolean(x.all),
     targetKind: ['event', 'task', 'any'].includes(x.targetKind) ? x.targetKind : undefined,
     bulk: x.intent === 'delete' && Boolean(x.bulk),

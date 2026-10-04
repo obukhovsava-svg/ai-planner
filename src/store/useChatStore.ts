@@ -42,7 +42,7 @@ export type ChatAttachment =
       action: 'delete' | 'move' | 'complete' | 'remind';
       candidates: Candidate[];
       /** move: where to; delete: whether to drop the whole series. */
-      target?: { date?: DateKey; start?: TimeStr; end?: TimeStr; duration?: number; all?: boolean; offset?: number; cancel?: boolean };
+      target?: { date?: DateKey; start?: TimeStr; end?: TimeStr; duration?: number; shift?: number; all?: boolean; offset?: number; cancel?: boolean };
       state?: 'done' | 'cancelled';
     }
   | { type: 'undo'; state?: 'done' }

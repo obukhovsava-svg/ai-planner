@@ -91,7 +91,7 @@ const ACTION_SCHEMA = {
   additionalProperties: false,
   required: [
     'intent', 'title', 'date', 'start', 'end', 'duration', 'repeat', 'needsStart', 'kindWord',
-    'eventHint', 'taskHint', 'priority', 'category', 'range', 'sourceDate', 'all', 'targetKind', 'bulk',
+    'eventHint', 'taskHint', 'priority', 'category', 'range', 'sourceDate', 'shift', 'all', 'targetKind', 'bulk',
     'remind', 'remindOffset', 'remindCancel',
   ],
   properties: {
@@ -104,7 +104,7 @@ const ACTION_SCHEMA = {
     repeat: {
       type: ['object', 'null'],
       additionalProperties: false,
-      required: ['freq', 'interval', 'byWeekday', 'cycle', 'until'],
+      required: ['freq', 'interval', 'byWeekday', 'cycle', 'until', 'nth'],
       properties: {
         freq: { type: 'string', enum: ['day', 'week', 'month', 'year'] },
         interval: { type: 'integer' },
@@ -117,6 +117,9 @@ const ACTION_SCHEMA = {
           description: 'shift rota: freq=day, e.g. 2/2 → {on:2, off:2}; "сутки через трое" → {on:1, off:3}',
         },
         until: nullable('string', { description: 'YYYY-MM-DD last day, if said' }),
+        nth: nullable('integer', {
+          description: 'freq month only: N-th weekday of the month with ONE byWeekday ("каждый второй вторник" → nth 2, byWeekday [1]; "последняя пятница" → nth -1, [4]); without byWeekday nth -1 = last day of month',
+        }),
       },
     },
     needsStart: { type: 'boolean', description: 'true if a shift rota was given without the first day' },
@@ -133,6 +136,7 @@ const ACTION_SCHEMA = {
       description: 'agenda only',
     },
     sourceDate: nullable('string', { description: 'move: the date the thing is moved FROM ("со среды")' }),
+    shift: nullable('integer', { description: 'move: relative shift in minutes ("на час позже" → 60, "на 30 минут раньше" → -30, "на день позже" → 1440)' }),
     all: { type: 'boolean', description: 'delete: whole series of one repeating thing ("все тренировки")' },
     targetKind: nullable('string', { enum: ['event', 'task', 'any', null], description: 'delete/move: which kind is meant ("удали событие" → event, "все задачи" → task, "все дела" → any)' }),
     remind: { type: 'boolean', description: 'create: the new item should get a reminder ("напомни купить хлеб в 10")' },
@@ -162,10 +166,17 @@ function systemPrompt(today: string, weekday: string, time: string): string {
 - Относительные даты («завтра», «в пятницу», «через неделю», «15-го») переводи в YYYY-MM-DD относительно сегодняшней даты. «В пятницу» = ближайшая будущая пятница.
 - Время в 24-часовом формате. «В 3» про встречу днём = 15:00; «в 9 утра» = 09:00; «вечером» без числа = 19:00.
 - «с 9 до 21» → start 09:00, end 21:00. «на час» → duration 60.
+- Разговорное время: «полвосьмого» = 07:30 (вечера → 19:30), «в половине десятого» = 09:30, «без пятнадцати семь» = 06:45, «четверть восьмого» = 07:15, «в обед» = 13:00, «до вечера» = 18:00, «на 3 часа дня» = 15:00 (время, не длительность).
+- «на выходных» = ближайшая суббота; «в конце месяца» = последний день месяца; «в начале ноября» = 1 ноября; «в среду на следующей неделе» = среда следующей недели.
+- «отпуск с 1 по 10 ноября» → date 1-е, repeat {freq day, interval 1, until 10-е}, start 00:00, end 23:59. «весь день», дни рождения и праздники без времени → 00:00–23:59.
+- «каждое 5 число» / «5 числа каждого месяца» → freq month, date = ближайшее 5-е.
+- «каждый второй вторник» → freq month, nth 2, byWeekday [1], date = ближайший такой вторник; «последняя пятница месяца» → nth -1, [4]; «последний день месяца» → nth -1, byWeekday null.
+- cycle только для смен (freq day), в остальных случаях cycle null. date повторяющегося события — первый реальный день повтора.
+- «записаться к врачу» — это задача (taskHint), а «к врачу в 9:40» — событие.
 - Повторы: «каждый понедельник» → freq week, interval 1 (date = ближайший понедельник, можно сегодня); «по вторникам и четвергам» → byWeekday [1,3]; «по будням» → [0,1,2,3,4]; «каждые 2 недели» → interval 2; «ежедневно» → day.
 - Графики смен: «2/2», «2 через 2», «график 2 на 2» → freq day, interval 1, cycle {on:2, off:2}; «сутки через трое» → cycle {on:1, off:3}, start 08:00, end 23:59; «5/2» → week, byWeekday [0..4]. Если не сказано, с какого дня начинается график — date null и needsStart true.
 - title: коротко, с заглавной буквы, в именительном падеже («встречу с Анной» → «Встреча с Анной»), без дат, времени и слов «поставь/добавь/напомни».
-- move («перенеси X на …»): title = что ищем, date/start/end = новое время, sourceDate = откуда («со среды»).
+- move («перенеси X на …»): title = что ищем, date/start/end = новое время, sourceDate = откуда («со среды», «завтрашнюю» → завтра). «с 10 вечера на 8 вечера до 10» → start 20:00, end 22:00. «на час позже» → shift 60, «на 30 минут раньше» → shift -30, date/start null.
 - delete («удали/отмени X»), complete («я сделал X», «отметь X выполненной»): title = что ищем, date — если указан день.
 - Массовое удаление («удали все события на понедельник», «удали все задачи», «очисти всё на завтра», «удали все дела на неделе»): intent delete, bulk true, title "", targetKind event/task/any, date или range.
 - Если не названо, что именно удалить/перенести («удали», «перенеси задачу», «удали событие»): title "", targetKind по слову — приложение само покажет список на выбор.

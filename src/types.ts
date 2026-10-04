@@ -49,6 +49,11 @@ export interface Repeat {
   byWeekday?: number[];
   /** freq 'day': shift rota — `on` working days, then `off` days off (2/2, 1/3…). */
   cycle?: { on: number; off: number };
+  /**
+   * freq 'month': the N-th weekday of the month (with one `byWeekday`): 2 = "каждый второй вторник",
+   * −1 = "последняя пятница"; without a weekday −1 = the last day of the month.
+   */
+  nth?: number;
 }
 
 export interface CalendarEvent {

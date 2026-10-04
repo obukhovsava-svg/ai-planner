@@ -14,6 +14,7 @@
  */
 import type { Category, DateKey, Priority, Repeat, TimeStr } from '@/types';
 import { addDays, minutesToTime, startOfWeek, timeToMinutes, toKey, weekdayMon } from './date';
+import { nthOfMonth } from './recurrence';
 
 export type Intent = 'create' | 'agenda' | 'delete' | 'move' | 'complete' | 'remind' | 'undo' | 'help' | 'smalltalk';
 
@@ -39,6 +40,8 @@ export interface Analysis {
   range?: { from: DateKey; to: DateKey; label: string };
   /** move: "со среды" — the occurrence being moved. */
   sourceDate?: DateKey;
+  /** move: "на час позже" (+60) / "на 30 минут раньше" (−30), "на день позже" (+1440). */
+  shift?: number;
   /** delete: "все тренировки" / "всю серию". */
   all: boolean;
   /** delete/move: what kind of item is meant ("удали событие", "все задачи"). */
@@ -62,7 +65,25 @@ const NUMBER_WORDS: Record<string, number> = {
   один: 1, одну: 1, одного: 1, два: 2, две: 2, двух: 2, двое: 2, три: 3, трёх: 3, трех: 3, трое: 3,
   четыре: 4, четырёх: 4, четырех: 4, четверо: 4, пять: 5, пяти: 5, шесть: 6, шести: 6,
   семь: 7, семи: 7, восемь: 8, восьми: 8, девять: 9, девяти: 9, десять: 10, десяти: 10,
-  одиннадцать: 11, одиннадцати: 11, двенадцать: 12, двенадцати: 12,
+  одиннадцать: 11, одиннадцати: 11, двенадцать: 12, двенадцати: 12, пятнадцать: 15, пятнадцати: 15,
+  двадцать: 20, двадцати: 20, тридцать: 30, тридцати: 30, сорок: 40, сорока: 40,
+};
+
+/** "полвосьмого", "в половине десятого", "четверть восьмого": the hour is the next one. */
+const ORD_GEN: Record<string, number> = {
+  первого: 1, второго: 2, третьего: 3, четвёртого: 4, четвертого: 4, пятого: 5, шестого: 6, седьмого: 7,
+  восьмого: 8, девятого: 9, десятого: 10, одиннадцатого: 11, двенадцатого: 12,
+};
+const ORD_GEN_RE = Object.keys(ORD_GEN).join('|');
+
+/** Spoken imperatives → the to-do form ("купи хлеб" → "купить хлеб"). */
+const IMPERATIVE: Record<string, string> = {
+  купи: 'купить', позвони: 'позвонить', перезвони: 'перезвонить', напиши: 'написать', оплати: 'оплатить', заплати: 'заплатить',
+  забери: 'забрать', отправь: 'отправить', закажи: 'заказать', подготовь: 'подготовить', проверь: 'проверить', запишись: 'записаться',
+  сходи: 'сходить', приготовь: 'приготовить', прочитай: 'прочитать', прочти: 'прочитать', выучи: 'выучить', отнеси: 'отнести',
+  принеси: 'принести', возьми: 'взять', спроси: 'спросить', узнай: 'узнать', найди: 'найти', почини: 'починить', постирай: 'постирать',
+  помой: 'помыть', вынеси: 'вынести', ответь: 'ответить', скинь: 'скинуть', распечатай: 'распечатать', сдай: 'сдать', погуляй: 'погулять',
+  съезди: 'съездить', отвези: 'отвезти', встреть: 'встретить', поздравь: 'поздравить', поменяй: 'поменять', продли: 'продлить',
 };
 
 const MONTHS: Record<string, number> = {
@@ -74,13 +95,14 @@ const WEEKDAYS: [RegExp, number][] = [
   [/^(понедельник|пн)/, 0], [/^(вторник|вт)/, 1], [/^(сред|ср)/, 2], [/^(четверг|чт)/, 3],
   [/^(пятниц|пт)/, 4], [/^(суббот|сб)/, 5], [/^(воскресень|вс)/, 6],
 ];
+const monthOf = (word: string) => MONTHS[Object.keys(MONTHS).find((k) => word.toLowerCase().startsWith(k))!];
 const weekdayOf = (word: string) => WEEKDAYS.find(([re]) => re.test(word.toLowerCase()))?.[1];
 
 const WD_WORD = '(?:понедельник|вторник|сред|четверг|пятниц|суббот|воскресень)\\p{L}*';
 const WD_ANY = `(?:${WD_WORD}|пн|вт|ср|чт|пт|сб|вс)`;
 
 const EVENT_WORDS =
-  /встреч|встрет|созвон|звонок|совещани|митинг|планёрк|планерк|обед|ужин|завтрак|тренировк|при[её]м|урок|лекци|занят|презентаци|собеседовани|консультаци|вебинар|концерт|кино|театр|свидани|день рождени|праздник|вечеринк|смен|дежурств|вахт|сутки|пар[аыу](?!\p{L})|экзамен|матч|игр[аы]|репетици|массаж|стрижк|маникюр/iu;
+  /(?:^|\s)к\s+(?:врачу|доктору|стоматологу|терапевту|парикмахеру|мастеру)|приём\s+у|прием\s+у|встреч|встрет|созвон|звонок|совещани|митинг|планёрк|планерк|обед|ужин|завтрак|тренировк|при[её]м|урок|лекци|занят|презентаци|собеседовани|консультаци|вебинар|концерт|кино|театр|свидани|день рождени|праздник|вечеринк|смен|дежурств|вахт|сутки|пар[аыу](?!\p{L})|экзамен|матч|игр[аы]|репетици|массаж|стрижк|маникюр/iu;
 const TASK_WORDS =
   /задач|напомн|купить|сделать|надо|нужно|не забыть|список|позвонить|написать|отправить|оплатить|заплатить|забрать|отнести|подготовить|проверить|заказать|записаться|прочитать|выучить|убрать|постирать|починить/iu;
 
@@ -100,6 +122,8 @@ const NOUN_FIX: Record<string, string> = {
   планёрке: 'планёрка', планерке: 'планерка', планёрки: 'планёрка', смене: 'смена', лекции: 'лекция',
   презентации: 'презентация', консультации: 'консультация', пробежке: 'пробежка', уборке: 'уборка',
   паре: 'пара', созвоне: 'созвон', созвона: 'созвон', обеде: 'обед', обеда: 'обед', ужине: 'ужин', ужина: 'ужин',
+  врачу: 'врач', доктору: 'доктор', стоматологу: 'стоматолог', терапевту: 'терапевт', парикмахеру: 'парикмахер', мастеру: 'мастер',
+  стоматолога: 'стоматолог', врача: 'врач', стрижку: 'стрижка', йогу: 'йога', работу: 'работа',
   отчёте: 'отчёт', отчете: 'отчет', отчёта: 'отчёт', дне: 'день', дня: 'день', приёме: 'приём', приеме: 'прием',
 };
 
@@ -121,9 +145,22 @@ function normalize(input: string): string {
   // Case is preserved (names in titles); every matcher below is case-insensitive.
   let t = ` ${input.replace(/[«»"!?;]/g, ' ')} `;
   t = t.replace(rx(`${B}в час(?=\\s+(дня|ночи))`), 'в 1');
+  // "полвосьмого", "в половине десятого" → 7:30 / 9:30; "четверть восьмого" → 7:15
+  t = t.replace(rx(`${B}(?:в\\s+)?(?:пол-?|половин[аеуы]\\s+)(${ORD_GEN_RE})${E}`), (_, w) => ` в ${(ORD_GEN[w.toLowerCase()] + 11) % 12 || 12}:30 `);
+  t = t.replace(rx(`${B}(?:в\\s+)?четверть\\s+(${ORD_GEN_RE})${E}`), (_, w) => ` в ${(ORD_GEN[w.toLowerCase()] + 11) % 12 || 12}:15 `);
   for (const [word, n] of Object.entries(NUMBER_WORDS)) {
     t = t.replace(new RegExp(`${B}${word}${E}`, 'giu'), String(n));
   }
+  // "без пятнадцати 7", "без четверти 9", "без 10 минут 8" → 6:45, 8:45, 7:50
+  t = t.replace(rx(`${B}(?:в\\s+)?без\\s+(четверти|\\d{1,2})(?:\\s+минут\\p{L}*)?\\s+(\\d{1,2})${E}`), (_, m, h) => {
+    const min = m.toLowerCase() === 'четверти' ? 15 : Number(m);
+    const hour = Number(h) - 1;
+    return min > 0 && min < 60 && hour >= 0 ? ` в ${hour || 12}:${String(60 - min).padStart(2, '0')} ` : _;
+  });
+  // "на 3 часа дня", "на 8 вечера" — a time, not a duration
+  t = t.replace(rx(`${B}на\\s+(\\d{1,2}(?::\\d{2})?)\\s*(?:час(?:а|ов)?\\s+)?(утра|дня|вечера|ночи)${E}`), ' в $1 $2 ');
+  // "купи" → "купить"
+  t = t.replace(/[\p{L}]+/gu, (w) => IMPERATIVE[w.toLowerCase()] ?? w);
   return t.replace(/\s+/g, ' ');
 }
 
@@ -165,10 +202,12 @@ function parseDuration(ctx: Ctx, bare = false): number | undefined {
 
 function parseTime(ctx: Ctx, isEvent: boolean): { start?: TimeStr; end?: TimeStr; date?: DateKey } {
   // "через 2 часа", "через 30 минут" — relative to now
-  const rel = take(ctx, rx(`${B}через\\s+(\\d+)?\\s*(час(?:а|ов)?|минут[уы]?)${E}`));
+  const rel = take(ctx, rx(`${B}через\\s+(?:(\\d+)\\s*)?(час(?:а|ов)?|минут[уы]?|полчаса|полтора\\s+часа)${E}`));
   if (rel) {
     const n = rel[1] ? Number(rel[1]) : 1;
-    const target = new Date(ctx.now.getTime() + (rel[2].startsWith('час') ? n * 60 : n) * 60_000);
+    const unit = rel[2].toLowerCase();
+    const mins = unit === 'полчаса' ? 30 : unit.startsWith('полтора') ? 90 : unit.startsWith('час') ? n * 60 : n;
+    const target = new Date(ctx.now.getTime() + mins * 60_000);
     return { date: toKey(target), start: hhmm(target.getHours(), target.getMinutes()) };
   }
 
@@ -184,6 +223,11 @@ function parseTime(ctx: Ctx, isEvent: boolean): { start?: TimeStr; end?: TimeStr
   }
 
   if (take(ctx, rx(`${B}(?:в|к)?\\s*полдень${E}`))) return { start: '12:00' };
+  // "в обед", "к обеду", "в обеденный перерыв"
+  if (take(ctx, rx(`${B}(?:в|к|во\\s+время)\\s+(?:обед|обеду|обеденный\\s+перерыв|обеда)${E}`))) return { start: '13:00' };
+  // "до вечера", "к вечеру" — a deadline later today; "до обеда" — before lunch
+  if (take(ctx, rx(`${B}(?:до|к)\\s+(?:вечера|вечеру)${E}`))) return { start: '18:00' };
+  if (take(ctx, rx(`${B}до\\s+обеда${E}`))) return { start: '12:00' };
   if (take(ctx, rx(`${B}(?:в|к)?\\s*полночь${E}`))) return { start: '00:00' };
 
   let start: TimeStr | undefined;
@@ -247,7 +291,45 @@ function parseDate(ctx: Ctx): DateKey | undefined {
     return addDays(today, n);
   }
 
-  if (take(ctx, rx(`${B}(?:на\\s+)?следующей\\s+неделе${E}`))) return addDays(startOfWeek(today), 7);
+  // "в среду на следующей неделе", "на следующей неделе в пятницу"
+  const nextWeek = rx(`${B}(?:на\\s+)?следующей\\s+неделе${E}`);
+  if (nextWeek.test(ctx.text)) {
+    const wdIn = ctx.text.match(rx(`${B}(?:(?:в|во|на)\\s+)?(${WD_WORD})${E}`));
+    take(ctx, nextWeek);
+    if (wdIn && weekdayOf(wdIn[1]) !== undefined) {
+      take(ctx, rx(wdIn[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      return addDays(startOfWeek(today), 7 + weekdayOf(wdIn[1])!);
+    }
+    return addDays(startOfWeek(today), 7);
+  }
+
+  // weekends
+  const sat = addDays(startOfWeek(today), 5);
+  if (take(ctx, rx(`${B}(?:на|в)\\s+следующи[хе]\\s+выходны[хе]${E}`))) return addDays(sat, 7);
+  if (take(ctx, rx(`${B}(?:на\\s+(?:этих\\s+)?выходных|в\\s+(?:эти\\s+)?выходные|на\\s+выходные)${E}`))) return today >= sat ? today : sat;
+
+  // "в конце / начале / середине месяца|ноября|недели", "до конца месяца", "в течение недели"
+  const monthEdge = take(
+    ctx,
+    rx(`${B}(?:в|до|к)\\s+(конц[ае]|начал[ае]|середин[еуы])\\s+(?:(этого|следующего)\\s+)?(месяца|недели|январ|феврал|март|апрел|ма[яй]|июн|июл|август|сентябр|октябр|ноябр|декабр)\\p{L}*${E}`),
+  );
+  if (monthEdge) {
+    const edge = monthEdge[1].toLowerCase();
+    const unit = monthEdge[3].toLowerCase();
+    if (unit.startsWith('недел')) {
+      const fri = addDays(startOfWeek(today), monthEdge[2]?.toLowerCase() === 'следующего' ? 11 : 4);
+      return edge.startsWith('нач') ? addDays(startOfWeek(today), 7) : fri < today ? addDays(fri, 7) : fri;
+    }
+    let y = ctx.now.getFullYear();
+    const m = unit.startsWith('месяц') ? ctx.now.getMonth() + (monthEdge[2]?.toLowerCase() === 'следующего' ? 1 : 0) : monthOf(unit);
+    if (!unit.startsWith('месяц') && m < ctx.now.getMonth()) y += 1;
+    const day = edge.startsWith('нач') ? 1 : edge.startsWith('сер') ? 15 : new Date(y, m + 1, 0).getDate();
+    let d = toKey(new Date(y, m, day));
+    if (d < today) d = today;
+    return d;
+  }
+  if (take(ctx, rx(`${B}(?:в\\s+течение|за)\\s+(?:этой\\s+)?недели${E}`))) return addDays(today, 6);
+  if (take(ctx, rx(`${B}(?:до\\s+конца|к\\s+концу)\\s+(?:этой\\s+)?недели${E}`))) return addDays(startOfWeek(today), 6);
 
   // "в пятницу", "в следующий вторник", "с понедельника", "начиная со среды"
   const wd = take(
@@ -307,6 +389,8 @@ interface RepeatInfo {
   firstDate?: DateKey;
   rota?: boolean;
   allDay?: boolean;
+  /** "с 1 по 10 ноября" — a multi-day stretch (all day, every day). */
+  span?: boolean;
 }
 
 /**
@@ -314,6 +398,51 @@ interface RepeatInfo {
  * "по понедельникам и средам", rotas "график 2/2", "2 через 2", "сутки через трое", "5/2".
  */
 function parseRepeat(ctx: Ctx): RepeatInfo {
+  // "отпуск с 1 по 10 ноября", "командировка с 12 по 15 октября" — every day of the range, all day
+  const MON = '(январ|феврал|март|апрел|ма[яй]|июн|июл|август|сентябр|октябр|ноябр|декабр)\\p{L}*';
+  const span = take(ctx, rx(`${B}(?:с|со)\\s+(\\d{1,2})(?:-?го)?(?:\\s+${MON})?\\s+(?:по|до)\\s+(\\d{1,2})(?:-?е|-?го)?\\s+${MON}${E}`));
+  if (span) {
+    const m2 = monthOf(span[4]);
+    const m1 = span[2] ? monthOf(span[2]) : m2;
+    let y = ctx.now.getFullYear();
+    if (m2 < ctx.now.getMonth()) y += 1;
+    const from = toKey(new Date(m1 > m2 ? y - 1 : y, m1, Number(span[1])));
+    const to = toKey(new Date(y, m2, Number(span[3])));
+    if (to >= from) return { repeat: { freq: 'day', interval: 1, until: to }, firstDate: from, allDay: true, span: true };
+  }
+
+  // "каждое 1 число", "каждого 5-го числа", "5 числа каждого месяца"
+  const monthly = take(ctx, rx(`${B}(?:(?:каждое|каждого|ежемесячно)\\s+(\\d{1,2})(?:-?е|-?го)?(?:\\s+числ\\p{L}*)?|(\\d{1,2})(?:-?го)?\\s+числа\\s+каждого\\s+месяца)${E}`));
+  if (monthly) {
+    const day = Number(monthly[1] ?? monthly[2]);
+    let d = new Date(ctx.now.getFullYear(), ctx.now.getMonth(), day);
+    if (toKey(d) < toKey(ctx.now)) d = new Date(ctx.now.getFullYear(), ctx.now.getMonth() + 1, day);
+    if (day >= 1 && day <= 31) return { repeat: { freq: 'month', interval: 1 }, firstDate: toKey(d) };
+  }
+
+  // "каждый второй вторник", "каждую последнюю пятницу месяца", "в последний день каждого месяца"
+  const NTH: Record<string, number> = { перв: 1, втор: 2, трет: 3, четв: 4, пят: 5, послед: -1 };
+  const nthOf = (w: string) => NTH[Object.keys(NTH).find((k) => w.toLowerCase().startsWith(k))!];
+  const firstNth = (nth: number, wd?: number) => {
+    const today = toKey(ctx.now);
+    for (let k = 0; k < 14; k++) {
+      const d = nthOfMonth(ctx.now.getFullYear(), ctx.now.getMonth() + k, nth, wd);
+      if (d && d >= today) return d;
+    }
+    return undefined;
+  };
+  const nthWd = take(
+    ctx,
+    rx(`${B}(?:каждый|каждую|каждое|по|в)\\s+(перв|втор|трет|четв[её]рт|последн)\\p{L}*\\s+(${WD_WORD})(?:\\s+(?:каждого\\s+)?месяца)?${E}`),
+  );
+  if (nthWd) {
+    const nth = nthOf(nthWd[1]);
+    const wd = weekdayOf(nthWd[2])!;
+    return { repeat: { freq: 'month', interval: 1, nth, byWeekday: [wd] }, firstDate: firstNth(nth, wd) };
+  }
+  if (take(ctx, rx(`${B}(?:(?:каждый|в)\\s+последний\\s+день\\s+(?:каждого\\s+)?месяца|последнего\\s+числа\\s+каждого\\s+месяца|в\\s+конце\\s+каждого\\s+месяца)${E}`)))
+    return { repeat: { freq: 'month', interval: 1, nth: -1 }, firstDate: firstNth(-1) };
+
   const shiftContext = /смен|график|дежур|вахт|сутк|работ/iu.test(ctx.text);
 
   // Rotas.
@@ -347,9 +476,9 @@ function parseRepeat(ctx: Ctx): RepeatInfo {
   if (nDays) return { repeat: { freq: 'day', interval: Number(nDays[1]) } };
 
   // Weekdays list: "каждый понедельник и среду", "по вторникам и четвергам", "по пн, ср, пт".
-  const list = take(ctx, rx(`${B}(?:(?:каждые|раз\\s+в)\\s+(\\d+)\\s+недел\\p{L}*\\s+)?(?:каждый|каждую|каждое|по)\\s+(${WD_ANY}(?:\\s*(?:,|и)\\s*${WD_ANY})*)${E}`));
+  const list = take(ctx, rx(`${B}(?:(?:каждые|раз\\s+в)\\s+(\\d+)\\s+недел\\p{L}*\\s+)?(?:каждый|каждую|каждое|по)\\s+(${WD_ANY}(?:(?:\\s*,\\s*|\\s+и\\s+|\\s+)${WD_ANY})*)${E}`));
   if (list) {
-    const days = [...new Set(list[2].split(/\s*(?:,|\s+и\s+)\s*/u).map(weekdayOf).filter((d): d is number => d !== undefined))].sort();
+    const days = [...new Set(list[2].split(/\s*,\s*|\s+и\s+|\s+/u).map(weekdayOf).filter((d): d is number => d !== undefined))].sort();
     const interval = list[1] ? Number(list[1]) : 1;
     if (days.length) {
       const firstDate = nextWeekday(ctx.now, days);
@@ -409,7 +538,7 @@ function parseRemindOffset(ctx: Ctx): number | undefined {
 }
 
 const AGENDA_RE = rx(
-  `^\\s*(?:а\\s+)?(?:что|какие|какой|покажи|расскажи|какое|есть\\s+ли)${E}.*(?:план|дел|задач|событи|расписани|у\\s+меня|запланирован|встреч)`,
+  `^\\s*(?:а\\s+)?(?:(?:что|какие|какой|покажи|расскажи|какое|есть\\s+ли)${E}.*(?:план|дел|задач|событи|расписани|у\\s+меня|запланирован|встреч)|что\\s+(?:на|в|во)\\s+(?:выходн|завтра|сегодня|послезавтра|неделе|эт\\p{L}+\\s+неделе|следующ|понедельник|вторник|среду|четверг|пятниц|суббот|воскресень|\\d))`,
 );
 const HELP_RE = rx(`^\\s*(?:что\\s+ты\\s+умеешь|что\\s+умеешь|помощь|help|помоги|как\\s+(?:тобой\\s+)?пользоваться|что\\s+ты\\s+можешь)`);
 const SMALLTALK_RE = rx(
@@ -419,7 +548,7 @@ const UNDO_RE = rx(`^\\s*(?:отмени|отменить|верни|верну�
 const DELETE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:удали|удалить|убери|убрать|отмени|отменить|сотри|вычеркни|очисти|очистить)${E}(?:\\s+|\\s*$)`);
 const MOVE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:перенеси|перенести|передвинь|сдвинь|перемести|переставь)${E}(?:\\s+|\\s*$)`);
 const COMPLETE_RE = rx(
-  `^\\s*(?:(?:отметь|отметить)\\s+(.+?)\\s+(?:как\\s+)?(?:выполненн\\p{L}*|сделанн\\p{L}*|готов\\p{L}*)|(?:я\\s+)?(?:сделал|сделала|выполнил|выполнила|закончил|закончила|купил|купила)\\s+(.+)|(.+?)\\s+(?:готово|сделано|выполнено))\\s*$`,
+  `^\\s*(?:(?:отметь|отметить)\\s+(.+?)\\s+(?:как\\s+)?(?:выполненн\\p{L}*|сделанн\\p{L}*|готов\\p{L}*)|(?:я\\s+)?(?:сделал|сделала|выполнил|выполнила|закончил|закончила|купил|купила)\\s+(.+)|(.+?)\\s+(?:готово|сделано|выполнено)|(?:готово|сделано|выполнено)\\s*[:,—-]?\\s+(.+))\\s*$`,
 );
 
 function baseAnalysis(intent: Intent, title = ''): Analysis {
@@ -440,7 +569,8 @@ function agendaRange(ctx: Ctx): Analysis['range'] {
     const mon = addDays(startOfWeek(today), 7);
     return { from: mon, to: addDays(mon, 6), label: 'на следующей неделе' };
   }
-  if (take(ctx, rx(`${B}(?:на\\s+(?:этой\\s+)?неделе|до\\s+конца\\s+недели)${E}`))) return { from: today, to: sunday, label: 'на этой неделе' };
+  if (take(ctx, rx(`${B}(?:на\\s+(?:этой\\s+)?неделе|до\\s+конца\\s+недели|на\\s+эту\\s+неделю)${E}`))) return { from: today, to: sunday, label: 'на этой неделе' };
+  if (take(ctx, rx(`${B}(?:на\\s+неделю|на\\s+7\\s+дней|на\\s+ближайшие\\s+дни)${E}`))) return { from: today, to: addDays(today, 6), label: 'на неделю' };
   if (take(ctx, rx(`${B}(?:на\\s+выходных|в\\s+выходные|на\\s+выходные)${E}`))) {
     const sat = addDays(startOfWeek(today), 5);
     const from = today > sat ? today : sat;
@@ -492,7 +622,7 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
   }
 
   const done = t.match(COMPLETE_RE);
-  if (done) return baseAnalysis('complete', cleanTitle(done[1] ?? done[2] ?? done[3] ?? ''));
+  if (done) return baseAnalysis('complete', cleanTitle(done[1] ?? done[2] ?? done[3] ?? done[4] ?? ''));
 
   if (DELETE_RE.test(t) || MOVE_RE.test(t)) {
     const intent: Intent = MOVE_RE.test(t) ? 'move' : 'delete';
@@ -540,12 +670,28 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
         take(ctx, rx(src[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
       }
       // "с 10 вечера на 8 вечера до 10", "с 15 на 16": the first time is the old one
-      const st = take(ctx, rx(`${B}(?:с|со)\\s+${CLOCK}${notDate}(?:\\s*час(?:а|ов)?)?${PART}(?=\\s+на\\s+\\d)`));
+      const st = take(ctx, rx(`${B}(?:с|со)\\s+${CLOCK}${notDate}(?:\\s*час(?:а|ов)?)?${PART}(?=\\s+(?:на|в)\\s+\\d)`));
       if (st) {
         srcPM = applyDaypart(Number(st[1]), st[4], true) >= 12;
         // the new time: "на 8 вечера" → "в 8 вечера"
         ctx.text = ctx.text.replace(rx(`${B}на\\s+(?=${CLOCK}${notDate})`), 'в ');
       }
+    }
+    let shift: number | undefined;
+    if (intent === 'move') {
+      // "на час позже", "на 30 минут раньше", "на полчаса вперёд", "на 2 дня позже"
+      const sh = take(
+        ctx,
+        rx(`${B}(?:на\\s+)?(?:(\\d+(?:[.,]5)?)\\s*)?(полчаса|полтора\\s+часа|час\\p{L}*|ч|минут\\p{L}*|мин|день|дня|дней|недел\\p{L}*)\\s+(позже|попозже|вперёд|вперед|раньше|пораньше|назад)${E}`),
+      );
+      if (sh) {
+        const n = sh[1] ? Number(sh[1].replace(',', '.')) : 1;
+        const u = sh[2].toLowerCase();
+        const mins = u === 'полчаса' ? 30 : u.startsWith('полтора') ? 90 : u.startsWith('мин') ? n : u.startsWith('ч') ? n * 60 : u.startsWith('недел') ? n * 10080 : n * 1440;
+        shift = Math.round(/раньше|пораньше|назад/iu.test(sh[3]) ? -mins : mins);
+      }
+      // "передвинь ужин на 21" — a bare hour
+      ctx.text = ctx.text.replace(rx(`${B}на\\s+(?=\\d{1,2}${notDate}(?:\\s|$))`), 'в ');
     }
     const duration = parseDuration(ctx);
     const time = parseTime(ctx, true);
@@ -555,7 +701,7 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
       if (time.end && timeToMinutes(time.end) < timeToMinutes(time.start)) time.end = minutesToTime(Math.min(timeToMinutes(time.end) + 12 * 60, 23 * 60 + 59));
     }
     const date = parseDate(ctx) ?? time.date;
-    return { ...baseAnalysis(intent, cleanTitle(ctx.text)), date, start: time.start, end: time.end, duration, sourceDate, all, targetKind };
+    return { ...baseAnalysis(intent, cleanTitle(ctx.text)), date, start: time.start, end: time.end, duration, sourceDate, shift, all, targetKind };
   }
 
   // ---- create ----
@@ -566,7 +712,8 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
       : undefined;
   const priority: Priority = /срочн|важн|asap|критичн/iu.test(t) ? 'high' : /не\s+срочно|когда-нибудь|потом/iu.test(t) ? 'low' : 'medium';
   const category = CATEGORY_RULES.find(([re]) => re.test(t))?.[1] ?? 'other';
-  const eventHint = EVENT_WORDS.test(t);
+  // "записаться к врачу / на стрижку" is a to-do, not the appointment itself
+  const eventHint = EVENT_WORDS.test(t) && !rx(`${B}записат\\p{L}*\\s+(?:к|на)${E}`).test(t);
   const taskHint = TASK_WORDS.test(t);
 
   const rep = parseRepeat(ctx);
@@ -580,7 +727,13 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
 
   let { start, end } = time;
   if (rep.allDay && !start) {
-    start = '08:00';
+    start = rep.span ? '00:00' : '08:00';
+    end = '23:59';
+  }
+  // "весь день", "на целый день"; birthdays, holidays, vacations with a day but no time
+  const wholeDay = take(ctx, rx(`${B}(?:на\\s+)?(?:весь|целый)\\s+день${E}`));
+  if (!start && (wholeDay || (date && /день\s+рождени|годовщин|праздник|отпуск|выходной|командировк/iu.test(t)))) {
+    start = '00:00';
     end = '23:59';
   }
   if (!end && start && duration) end = minutesToTime(timeToMinutes(start) + duration);
@@ -621,7 +774,7 @@ export function parseQuick(input: string, now: Date = new Date()) {
 
 /** Date / time words left in a title mean the rules missed something. */
 const LEFTOVER =
-  /\d|понедельник|вторник|сред[ауы]|четверг|пятниц|суббот|воскресень|январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр|утр[аом]|вечер|ночь|ночи|днём|днем|через|кажд|ежедн|еженед|неделе|недели|месяц|завтра|сегодня|послезавтра|полдень|полночь|числ|час[аов]?(?![\p{L}])/iu;
+  /\d(?![\d.:]*\s+(?!час|мин|числ|утр|вечер|дня|ночи|недел|месяц|январ|феврал|март|апрел|ма[яй]|июн|июл|август|сентябр|октябр|ноябр|декабр)\p{L})|понедельник|вторник|сред[ауы]|четверг|пятниц|суббот|воскресень|январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр|утр[аом]|вечер|ночь|ночи|днём|днем|через|кажд|ежедн|еженед|неделе|недели|месяц|завтра|сегодня|послезавтра|полдень|полночь|числ|час[аов]?(?![\p{L}])/iu;
 
 /**
  * Is the offline analysis trustworthy enough to act on without the model?

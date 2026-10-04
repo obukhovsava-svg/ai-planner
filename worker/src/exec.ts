@@ -7,7 +7,7 @@
 import type { CalendarEvent, Task } from '../../src/types';
 import type { PlannerDoc } from '../../src/lib/merge';
 import { addDays, minutesToTime, timeToMinutes } from '../../src/lib/date';
-import { nextOccurrence, occurrencesBetween, occursOn } from '../../src/lib/recurrence';
+import { nextOccurrence, occurrencesBetween, occursOn, sanitizeRepeat } from '../../src/lib/recurrence';
 
 const COLOR = { work: 'blue', personal: 'violet', health: 'red', study: 'amber', other: 'green' } as const;
 const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -134,7 +134,10 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
           break;
         }
         if (isEvent && start) {
-          const d = date ?? today;
+          const repeat = sanitizeRepeat(a.repeat);
+          let d = date ?? today;
+          // A repeating event starts on its first real occurrence ("каждый второй вторник" said on a Sunday).
+          if (repeat) d = nextOccurrence({ id: '', title: '', date: d, start, end: start, color: 'blue', repeat, createdAt: 0 }, d) ?? d;
           const e = end ?? minutesToTime(timeToMinutes(start) + (Number.isInteger(a.duration) ? a.duration : 60));
           const ev: CalendarEvent = {
             id: ctx.newId(),
@@ -143,7 +146,7 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
             start,
             end: e,
             color: COLOR[category as keyof typeof COLOR],
-            repeat: a.repeat ?? undefined,
+            repeat,
             remind: a.remind ? { offset: typeof a.remindOffset === 'number' ? a.remindOffset : 30 } : undefined,
             createdAt: now,
             updatedAt: now,
@@ -204,21 +207,33 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
       }
       case 'move': {
         const src = str(a.sourceDate, DATE);
-        const hit = title && (date || start) ? findOne(doc, title, src, today, kinds) : null;
+        const shift = Number.isInteger(a.shift) && a.shift !== 0 ? (a.shift as number) : 0;
+        const hit = title && (date || start || shift) ? findOne(doc, title, src, today, kinds) : null;
         if (!hit) {
           unresolved.push(a);
           break;
         }
+        // "на час позже": the same thing, moved by `shift` minutes (across midnight if needed)
+        const moveBy = (d0: string, t0: string | undefined) => {
+          if (!t0) return { d: addDays(d0, Math.round(shift / 1440)), t: undefined };
+          const total = timeToMinutes(t0) + shift;
+          const days = Math.floor(total / 1440);
+          return { d: addDays(d0, days), t: minutesToTime(total - days * 1440) };
+        };
         if (hit.kind === 'task') {
-          touchTask(hit.item.id, { date: date ?? hit.item.date, time: start ?? hit.item.time });
-          lines.push(`перенёс «${hit.item.title}» на ${when(date ?? hit.item.date, start ?? hit.item.time)}`);
+          const m = shift ? moveBy(hit.item.date ?? today, hit.item.time) : null;
+          const nd = m ? m.d : (date ?? hit.item.date);
+          const nt = m ? m.t : (start ?? hit.item.time);
+          touchTask(hit.item.id, { date: nd, time: nt });
+          lines.push(`перенёс «${hit.item.title}» на ${when(nd, nt)}`);
           break;
         }
         const ev = hit.item;
         const len = timeToMinutes(ev.end) - timeToMinutes(ev.start);
-        const s = start ?? ev.start;
-        const e = end ?? minutesToTime(timeToMinutes(s) + len);
-        const d = date ?? hit.date ?? ev.date;
+        const m = shift ? moveBy(hit.date ?? ev.date, ev.start) : null;
+        const s = m?.t ?? start ?? ev.start;
+        const e = m ? minutesToTime(Math.min(timeToMinutes(s) + len, 23 * 60 + 59)) : (end ?? minutesToTime(timeToMinutes(s) + len));
+        const d = m?.d ?? date ?? hit.date ?? ev.date;
         if (ev.repeat && hit.date) {
           touchEvent(ev.id, { repeat: { ...ev.repeat, exceptions: [...(ev.repeat.exceptions ?? []), hit.date] } });
           doc.events.push({ id: ctx.newId(), title: ev.title, date: d, start: s, end: e, color: ev.color, createdAt: now, updatedAt: now });

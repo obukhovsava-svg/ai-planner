@@ -135,7 +135,9 @@ function commit(d: Draft): AssistantReply {
   const start = d.start!;
   const end = d.end ?? minutesToTime(timeToMinutes(start) + (d.duration ?? 60));
   const remind = d.remindOffset !== undefined ? { offset: d.remindOffset } : undefined;
-  const event = p.addEvent({ title: d.title, date: d.date!, start, end, color: CATEGORY_TO_COLOR[d.category], repeat: d.repeat, remind });
+  // A repeating event starts on its first real occurrence.
+  const date = d.repeat ? (nextOccurrence({ id: '', title: '', date: d.date!, start, end, color: 'blue', repeat: d.repeat, createdAt: 0 }, d.date!) ?? d.date!) : d.date!;
+  const event = p.addEvent({ title: d.title, date, start, end, color: CATEGORY_TO_COLOR[d.category], repeat: d.repeat, remind });
   chat().pushUndo({ op: 'created-event', id: event.id });
   return {
     text: remind
@@ -253,18 +255,35 @@ function doDelete(c: Candidate, all: boolean): AssistantReply {
   return { text: ev.repeat ? `Удалил все повторы «${c.title}».` : `Удалил ${candLabel(c)}.`, attachment: { type: 'undo' } };
 }
 
-type MoveTarget = { date?: DateKey; start?: string; end?: string; duration?: number };
+/** `shift`: minutes later (+) / earlier (−) — "на час позже". */
+type MoveTarget = { date?: DateKey; start?: string; end?: string; duration?: number; shift?: number };
+
+/** Date + time moved by `shift` minutes. */
+function shifted(date: DateKey, time: string | undefined, shift: number): { date: DateKey; time?: string } {
+  if (!time) return { date: addDays(date, Math.round(shift / 1440)) };
+  const total = timeToMinutes(time) + shift;
+  const days = Math.floor(total / 1440);
+  return { date: addDays(date, days), time: minutesToTime(total - days * 1440) };
+}
 
 function doMove(c: Candidate, to: MoveTarget): AssistantReply {
   const p = planner();
   if (c.kind === 'task') {
     const before = p.tasks.find((t) => t.id === c.id)!;
+    if (to.shift) {
+      const s = shifted(before.date ?? todayKey(), before.time, to.shift);
+      to = { date: s.date, start: s.time };
+    }
     chat().pushUndo({ op: 'updated-task', before });
     p.updateTask(c.id, { date: to.date ?? before.date, time: to.start ?? before.time });
     return { text: `Перенёс задачу «${c.title}» на ${when(to.date ?? before.date)}${to.start ? `, ${to.start}` : ''}.`, attachment: { type: 'undo' } };
   }
   const ev = p.events.find((e) => e.id === c.id)!;
   const len = timeToMinutes(ev.end) - timeToMinutes(ev.start);
+  if (to.shift) {
+    const s = shifted(c.date ?? ev.date, ev.start, to.shift);
+    to = { date: s.date, start: s.time };
+  }
   const start = to.start ?? ev.start;
   const end = to.end ?? minutesToTime(timeToMinutes(start) + (to.duration ?? len));
   const date = to.date ?? c.date ?? ev.date;
@@ -306,7 +325,7 @@ export function answerChoose(messageId: string, candidate: Candidate) {
       : action === 'delete'
       ? doDelete(candidate, Boolean(target?.all))
       : action === 'move'
-        ? target?.date || target?.start
+        ? target?.date || target?.start || target?.shift
           ? doMove(candidate, target)
           : moveAsk(candidate)
         : doComplete(candidate);
@@ -611,7 +630,7 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
       if (a.intent === 'delete' && a.bulk) return bulkDeleteAsk(a);
       const kinds: ('event' | 'task')[] = a.targetKind === 'task' ? ['task'] : a.targetKind === 'event' ? ['event'] : ['event', 'task'];
       const lookDate = a.intent === 'move' ? a.sourceDate : a.date;
-      const target = { date: a.intent === 'move' ? a.date : undefined, start: a.start, end: a.end, duration: a.duration, all: a.all };
+      const target = { date: a.intent === 'move' ? a.date : undefined, start: a.start, end: a.end, duration: a.duration, shift: a.shift, all: a.all };
 
       // Nothing specific named ("удали", "перенеси задачу") → pick from what's coming up.
       if (!a.title) {
@@ -627,7 +646,7 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
       if (!found.length) return { text: `Не нашёл «${a.title}»${lookDate ? ` ${when(lookDate)}` : ''}.` };
       if (found.length === 1) {
         if (a.intent === 'delete') return doDelete(found[0], a.all);
-        return target.date || target.start ? doMove(found[0], target) : moveAsk(found[0]);
+        return target.date || target.start || target.shift ? doMove(found[0], target) : moveAsk(found[0]);
       }
       return {
         text: a.intent === 'delete' ? 'Нашёл несколько. Что удалить?' : 'Нашёл несколько. Что перенести?',
