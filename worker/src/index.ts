@@ -92,7 +92,7 @@ const ACTION_SCHEMA = {
   required: [
     'intent', 'title', 'date', 'start', 'end', 'duration', 'repeat', 'needsStart', 'kindWord',
     'eventHint', 'taskHint', 'priority', 'category', 'range', 'sourceDate', 'shift', 'all', 'targetKind', 'bulk',
-    'remind', 'remindOffset', 'remindCancel',
+    'remind', 'remindOffset', 'remindCancel', 'remindAt',
   ],
   properties: {
     intent: { type: 'string', enum: ['create', 'agenda', 'delete', 'move', 'complete', 'remind', 'undo', 'help', 'smalltalk'] },
@@ -142,6 +142,7 @@ const ACTION_SCHEMA = {
     remind: { type: 'boolean', description: 'create: the new item should get a reminder ("напомни купить хлеб в 10")' },
     remindOffset: nullable('integer', { description: 'minutes before ("за час" → 60, "за день" → 1440); 0 = at the time; null if not said' }),
     remindCancel: { type: 'boolean', description: 'remind: switch a reminder OFF ("убери напоминание о …")' },
+    remindAt: nullable('string', { description: 'remind: exact moment YYYY-MM-DDTHH:MM when a time is said WITHOUT "за …" ("напомни о созвоне в 16:55", "напомни про созвон через 5 минут")' }),
     bulk: { type: 'boolean', description: 'delete EVERYTHING of targetKind in date/range ("удали все события на понедельник", "удали все задачи", "очисти всё на завтра")' },
   },
 } as const;
@@ -182,6 +183,8 @@ function systemPrompt(today: string, weekday: string, time: string): string {
 - Если не названо, что именно удалить/перенести («удали», «перенеси задачу», «удали событие»): title "", targetKind по слову — приложение само покажет список на выбор.
 - Если при переносе не сказано, на когда («перенеси встречу с Анной»): date и start null — приложение спросит.
 - Напоминания о СУЩЕСТВУЮЩЕМ деле («напомни о встрече с Анной за час», «напомни за 15 минут до тренировки», «напоминай за день до каждой смены», «поставь напоминание на обед»): intent remind, title = что ищем (в именительном падеже), remindOffset если сказано за сколько, иначе null.
+- «напомни о созвоне в 16:55», «напомни про созвон через 5 минут» (время без «за …») → intent remind, remindAt = этот момент (YYYY-MM-DDTHH:MM), start null. «напомни о встрече завтра в 12 за 15 минут» → remindOffset 15, start 12:00 (время самой встречи).
+- «созвон в 17, напомни за 5 минут», «встреча в 15 с напоминанием за час», «предупреди меня за 10 минут до созвона», «за 5 минут напомни о созвоне» — это тоже напоминания.
 - Выключить напоминание («убери/отключи напоминание о тренировке», «не напоминай о планёрке»): intent remind, remindCancel true.
 - Новое дело с напоминанием («напомни купить хлеб завтра в 10», «напомни через 2 часа выключить духовку», «напомни позвонить маме»): intent create, remind true, remindOffset 0 если просят напомнить в указанное время; taskHint true.
 - Если непонятно, существующее это дело или новое, — используй intent remind: приложение само создаст дело, если не найдёт.

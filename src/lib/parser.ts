@@ -54,6 +54,8 @@ export interface Analysis {
   remindOffset?: number;
   /** remind: "убери напоминание о …". */
   remindCancel?: boolean;
+  /** remind: the exact moment, "YYYY-MM-DDTHH:MM" ("напомни о созвоне в 16:55", "… через 5 минут"). */
+  remindAt?: string;
 }
 
 // Unicode-aware word boundaries (JS \b only understands ASCII).
@@ -124,6 +126,8 @@ const NOUN_FIX: Record<string, string> = {
   паре: 'пара', созвоне: 'созвон', созвона: 'созвон', обеде: 'обед', обеда: 'обед', ужине: 'ужин', ужина: 'ужин',
   врачу: 'врач', доктору: 'доктор', стоматологу: 'стоматолог', терапевту: 'терапевт', парикмахеру: 'парикмахер', мастеру: 'мастер',
   стоматолога: 'стоматолог', врача: 'врач', стрижку: 'стрижка', йогу: 'йога', работу: 'работа',
+  стоматологе: 'стоматолог', враче: 'врач', совещания: 'совещание', совещании: 'совещание', собрании: 'собрание', собрания: 'собрание',
+  вебинаре: 'вебинар', вебинара: 'вебинар', экзамене: 'экзамен', экзамена: 'экзамен', уроке: 'урок', урока: 'урок', 
   отчёте: 'отчёт', отчете: 'отчет', отчёта: 'отчёт', дне: 'день', дня: 'день', приёме: 'приём', приеме: 'прием',
 };
 
@@ -523,7 +527,7 @@ const REMIND_CANCEL_RE = rx(
   `^\\s*(?:пожалуйста\\s+)?(?:убери|удали|отмени|выключи|отключи|сними|не\\s+напоминай)(?:\\s+(?:все\\s+)?напоминани\\p{L}*)?${E}`,
 );
 const REMIND_RE = rx(
-  `^\\s*(?:пожалуйста\\s+)?(?:напомни(?:те)?|напомнить|напоминай(?:те)?|(?:поставь|поставить|создай|добавь|включи|сделай)\\s+напоминани\\p{L}*)${E}\\s*(?:мне\\s+)?(?:пожалуйста\\s+)?`,
+  `^\\s*(?:пожалуйста\\s+)?(?:напомни(?:те)?|напомнить|напоминай(?:те)?|(?:поставь|поставить|создай|добавь|включи|сделай)\\s+напоминани\\p{L}*)${E}\\s*,?\\s*(?:мне\\s+)?(?:пожалуйста\\s+)?`,
 );
 
 /** "за час", "за 15 минут", "за полчаса", "за сутки", "за 2 дня" → minutes. */
@@ -580,8 +584,25 @@ function agendaRange(ctx: Ctx): Analysis['range'] {
   return { from: d, to: d, label: '' };
 }
 
+/**
+ * Reminder phrasing → "напомни …" at the front: "предупреди меня", "не забудь напомнить",
+ * "за 5 минут напомни о созвоне", "созвон в 17 напомни за 5 минут", "… с напоминанием за 10 минут".
+ */
+function reminderFirst(t: string): string {
+  t = t.replace(rx(`^\\s*(?:пожалуйста\\s+)?(?:предупреди(?:те)?(?:\\s+меня)?|не\\s+забудь(?:те)?\\s+(?:мне\\s+)?напомнить|не\\s+дай\\s+(?:мне\\s+)?забыть)${E}`), ' напомни ');
+  t = t.replace(rx(`${B}(поставь|поставить|создай|добавь|включи|сделай)\\s+напоминалк\\p{L}*${E}`), '$1 напоминание');
+  if (/^\s*(?:пожалуйста\s+)?(?:напомни|напоминай|напомнить|не\s+напоминай|(?:поставь|поставить|создай|добавь|включи|сделай|убери|удали|отмени|выключи|отключи|сними)\s+(?:все\s+)?напоминани)/iu.test(t)) return t;
+  // "… с напоминанием за 10 минут", "… и напомни за час" — a new thing with a reminder
+  const tail = t.match(rx(`(?:,\\s*)?(?:${B}(?:с|и|а)\\s+)?(?:напоминани\\p{L}*|напомни(?:те)?(?:\\s+мне)?)((?:\\s+(?:за\\s+\\S+(?:\\s+(?:минут\\p{L}*|мин|час\\p{L}*|ч|дн\\p{L}*|день|сут\\p{L}*|недел\\p{L}*))?|заранее|вовремя))?)\\s*$`));
+  if (tail && tail.index! > 0) return ` напомни ${t.slice(0, tail.index)} ${tail[1]} `;
+  // "за 5 минут напомни о созвоне"
+  const mid = t.match(rx(`^(.*?)${B}(напомни(?:те)?(?:\\s+мне)?)${E}(.*)$`));
+  if (mid && mid[1].trim()) return ` напомни ${mid[1]} ${mid[3]} `;
+  return t;
+}
+
 export function analyze(input: string, now: Date = new Date()): Analysis {
-  const ctx: Ctx = { text: normalize(input.trim()), now };
+  const ctx: Ctx = { text: reminderFirst(normalize(input.trim())), now };
   const t = ctx.text;
 
   if (HELP_RE.test(t)) return baseAnalysis('help');
@@ -594,7 +615,11 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
   const cancelRemind = REMIND_CANCEL_RE.test(t) && /напомин/iu.test(t);
   if (cancelRemind || REMIND_RE.test(t)) {
     take(ctx, cancelRemind ? REMIND_CANCEL_RE : REMIND_RE);
-    const offset = cancelRemind ? undefined : parseRemindOffset(ctx);
+    const early = take(ctx, rx(`${B}заранее${E}`));
+    const onTime = take(ctx, rx(`${B}вовремя${E}`));
+    const offset = cancelRemind ? undefined : (parseRemindOffset(ctx) ?? (onTime ? 0 : early ? 30 : undefined));
+    // "напомни, что завтра в 10 встреча с юристом" — the thing itself, with a reminder
+    ctx.text = ctx.text.replace(rx(`^\\s*,?\\s*(?:о\\s+том,?\\s+)?что${E}`), ' ');
     const about = rx(
       `^\\s*(?:о|об|обо|про|насч[её]т|для|до|на(?=\\s+(?!\\d|завтра|сегодня|послезавтра|понедельник|вторник|среду|четверг|пятниц|суббот|воскресень|следующ|эт[уо]|выходн|неделе|полчаса|час|сутки)))\\s+(?!\\d)`,
     );
@@ -603,11 +628,15 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
       take(ctx, rx(`${B}(?:каждой|каждого|каждую|каждый|всех|все|моей|моего|мою|моём|моем)${E}`));
       const duration = parseDuration(ctx);
       const time = parseTime(ctx, true);
-      const date = parseDate(ctx) ?? time.date;
+      const explicit = parseDate(ctx);
+      const date = explicit ?? time.date;
+      // No "за …" but a time: that's when to remind ("о созвоне в 16:55", "про созвон через 5 минут").
+      const remindAt = !cancelRemind && offset === undefined && time.start ? `${date ?? toKey(now)}T${time.start}` : undefined;
       return {
         ...baseAnalysis('remind', cleanTitle(ctx.text)),
-        date,
-        start: time.start,
+        date: remindAt ? explicit : date,
+        remindAt,
+        start: remindAt ? undefined : time.start,
         end: time.end ?? (time.start && duration ? minutesToTime(timeToMinutes(time.start) + duration) : undefined),
         duration,
         remindOffset: offset,
@@ -785,7 +814,7 @@ export function isConfident(a: Analysis, text: string): boolean {
   const t = text.toLowerCase();
   if (/[;\n]/.test(text)) return false;
   // "… и напомни …", "… а ещё купи …" — several requests in one sentence.
-  if (/\s(?:и|а\s+также|а\s+ещё|а\s+еще|потом|ещё|еще)\s+(?:напомни|купи|добавь|поставь|запиши|удали|перенеси|создай|сделай|отметь)/u.test(t)) return false;
+  if (/\s(?:и|а\s+также|а\s+ещё|а\s+еще|потом|ещё|еще)\s+(?:напомни(?!(?:\s+мне)?(?:\s+(?:за\s+\S+(?:\s+\S+)?|заранее|вовремя))?\s*$)|купи|добавь|поставь|запиши|удали|перенеси|создай|сделай|отметь)/u.test(t)) return false;
   switch (a.intent) {
     case 'help':
     case 'undo':
@@ -812,7 +841,7 @@ export function isConfident(a: Analysis, text: string): boolean {
  */
 export function splitRequests(text: string): string[] {
   return text
-    .split(/\n+|;\s*|\.\s+(?=[А-ЯЁA-Z])|,?\s+(?:и|а\s+также|а\s+ещё|а\s+еще|потом|ещё|еще)\s+(?=(?:напомни|купи|добавь|поставь|запиши|удали|перенеси|создай|сделай|отметь|запланируй)(?![\p{L}]))/iu)
+    .split(/\n+|;\s*|\.\s+(?=[А-ЯЁA-Z])|,?\s+(?:и|а\s+также|а\s+ещё|а\s+еще|потом|ещё|еще)\s+(?=(?:напомни(?!(?:\s+мне)?(?:\s+(?:за\s+\S+(?:\s+\S+)?|заранее|вовремя))?\s*$)|купи|добавь|поставь|запиши|удали|перенеси|создай|сделай|отметь|запланируй)(?![\p{L}]))/iu)
     .map((s) => s.trim())
     .filter(Boolean);
 }

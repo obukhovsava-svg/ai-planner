@@ -477,6 +477,15 @@ function remindDone(c: Candidate, r: Reminder): AssistantReply {
   return { text, attachment: { type: 'undo' } };
 }
 
+/** "напомни о созвоне в 16:55": tasks keep the exact moment; events get "N minutes before". */
+function remindAtMoment(c: Candidate, at: string): AssistantReply {
+  const item = itemOf(c) as { start?: string; time?: string } | undefined;
+  const time = c.kind === 'event' ? item?.start : undefined;
+  if (c.kind === 'task' || !c.date || !time) return remindDone(c, { at });
+  const before = Math.round((new Date(`${c.date}T${time}`).getTime() - new Date(at).getTime()) / 60_000);
+  return before >= 0 ? remindDone(c, { offset: before }) : remindOrAsk(c);
+}
+
 /** Reminder known → set it; otherwise ask how long before (or when, for undated tasks). */
 function remindOrAsk(c: Candidate, offset?: number): AssistantReply {
   const item = itemOf(c);
@@ -610,6 +619,12 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
         if (!found.length) return { text: a.title ? `У «${a.title}» нет напоминания.` : 'Напоминаний нет.' };
         if (found.length === 1) return doUnremind(found[0]);
         return { text: 'Для чего выключить напоминание?', attachment: { type: 'choose', action: 'remind', candidates: found, target: { cancel: true } } };
+      }
+      if (a.remindAt) {
+        const [d, t] = a.remindAt.split('T');
+        // Nothing like that yet → a to-do at that moment, with the reminder.
+        if (!found.length) return proceed(draftFrom({ ...a, intent: 'create', date: d, start: t, remind: true, remindOffset: 0, kindWord: 'task' }));
+        if (found.length === 1) return remindAtMoment(found[0], a.remindAt);
       }
       // Nothing like that yet → create it, with the reminder.
       if (!found.length) return proceed(draftFrom({ ...a, intent: 'create', remind: true }));

@@ -87,6 +87,7 @@ function toAnalysis(x: any): Analysis | null {
     remind: x.intent === 'create' && Boolean(x.remind),
     remindOffset: int(x.remindOffset, 0, 60 * 24 * 60),
     remindCancel: x.intent === 'remind' && Boolean(x.remindCancel),
+    remindAt: x.intent === 'remind' && typeof x.remindAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(x.remindAt) ? x.remindAt : undefined,
   };
 }
 

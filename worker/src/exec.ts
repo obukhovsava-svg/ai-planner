@@ -108,6 +108,17 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
             if (a.remindCancel) {
               hit.kind === 'event' ? touchEvent(hit.item.id, { remind: undefined }) : touchTask(hit.item.id, { remind: undefined });
               lines.push(`выключил напоминание для «${hit.item.title}»`);
+            } else if (typeof a.remindAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(a.remindAt)) {
+              // "напомни о созвоне в 16:55": tasks keep the moment, events get "N minutes before"
+              const at: string = a.remindAt;
+              const before = hit.kind === 'event' && hit.date ? Math.round((Date.parse(`${hit.date}T${hit.item.start}Z`) - Date.parse(`${at}Z`)) / 60_000) : -1;
+              if (hit.kind === 'task') touchTask(hit.item.id, { remind: { at } });
+              else if (before >= 0) touchEvent(hit.item.id, { remind: { offset: before } });
+              else {
+                unresolved.push(a);
+                break;
+              }
+              lines.push(`напомню о «${hit.item.title}» ${dayText(at.slice(0, 10), today)} в ${at.slice(11)}`);
             } else if (hit.kind === 'task' && !hit.item.date) {
               unresolved.push(a); // needs a moment to remind at
             } else {
@@ -121,8 +132,10 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
             unresolved.push(a);
             break;
           }
-          // Nothing like it yet → create it with the reminder.
-          a = { ...a, remind: true };
+          // Nothing like it yet → create it with the reminder (at the said moment, if any).
+          a = typeof a.remindAt === 'string' && a.remindAt.includes('T')
+            ? { ...a, remind: true, remindOffset: 0, kindWord: 'task', date: a.remindAt.slice(0, 10), start: a.remindAt.slice(11) }
+            : { ...a, remind: true };
         }
         const isEvent =
           a.kindWord === 'event' ||
