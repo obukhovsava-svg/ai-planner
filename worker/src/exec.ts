@@ -94,8 +94,8 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
 
   for (let a of actions) {
     const title = String(a.title ?? '').trim();
-    const date = str(a.date, DATE);
-    const start = str(a.start, TIME);
+    let date = str(a.date, DATE);
+    let start = str(a.start, TIME);
     const end = str(a.end, TIME);
     const kinds: ('event' | 'task')[] = a.targetKind === 'task' ? ['task'] : a.targetKind === 'event' ? ['event'] : ['event', 'task'];
 
@@ -136,6 +136,8 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
           a = typeof a.remindAt === 'string' && a.remindAt.includes('T')
             ? { ...a, remind: true, remindOffset: 0, kindWord: 'task', date: a.remindAt.slice(0, 10), start: a.remindAt.slice(11) }
             : { ...a, remind: true };
+          date = str(a.date, DATE);
+          start = str(a.start, TIME);
         }
         const isEvent =
           a.kindWord === 'event' ||
