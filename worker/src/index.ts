@@ -353,38 +353,6 @@ function rulesFirst(text: string, tz: number): LlmResult | null {
   return { ok: true, data: { actions: analyses as any[], reply: null } };
 }
 
-const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-const INF: Record<string, string> = { записал: 'записать', удалил: 'удалить', убрал: 'убрать', перенёс: 'перенести', отметил: 'отметить', выключил: 'выключить', напомню: 'напомнить' };
-/** "записал встречу …" → "записать встречу …" (a question before saving). */
-const toInfinitive = (line: string) => line.replace(/^(\S+)/u, (w) => INF[w] ?? w);
-
-/** Saves the Shortcut's request on the server copy; what needs a choice goes to the app. */
-async function commitShortcut(env: Env, user: string, text: string, actions: any[], tz: number): Promise<string> {
-  const now = localNow(tz);
-  const stored = await loadDoc(env, user);
-  const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
-  const changed = JSON.stringify(res.doc) !== JSON.stringify(stored.doc);
-  if (changed) await saveDoc(env, user, res.doc, stored.tz ?? tz);
-  if (res.unresolved.length) {
-    await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
-      .bind(user, text, JSON.stringify(res.unresolved), Date.now())
-      .run();
-  }
-  const body = res.lines.join('; ');
-  const rest = res.unresolved.length ? ' Остальное уточню в планере.' : '';
-  if (!body) return 'Уточню в планере, когда откроете.';
-  return changed ? `Готово ✅ ${cap(body)}.${rest}` : `${cap(body)}${/[.:]$/.test(body) ? '' : '.'}${rest}`;
-}
-
-let pendingTableReady = false;
-async function ensurePendingTable(env: Env) {
-  if (pendingTableReady) return;
-  await env.DB.prepare(
-    'CREATE TABLE IF NOT EXISTS shortcut_pending (user_id TEXT PRIMARY KEY, token TEXT NOT NULL, text TEXT NOT NULL, actions TEXT NOT NULL, created_at INTEGER NOT NULL)',
-  ).run();
-  pendingTableReady = true;
-}
-
 async function shortcutUser(env: Env, key: string) {
   if (!key || key.length < 20) return null;
   const { results } = await env.DB.prepare('SELECT user_id, tz FROM users WHERE token = ?1').bind(key).all<{ user_id: string; tz: number }>();
@@ -525,7 +493,7 @@ export default {
       return json({ doc: merged }, 200, headers);
     }
 
-    // iPhone Shortcut: dictated text → executed on the server copy; a guess → «Всё верно?»: nothing is saved until «Готово».
+    // iPhone Shortcut: dictated text → model → queued for the app; the bot confirms.
     if (request.method === 'POST' && url.pathname === '/shortcut') {
       const u = await shortcutUser(env, url.searchParams.get('key') ?? (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, ''));
       const plain = (t: string, status = 200) => new Response(t, { status, headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' } });
@@ -533,68 +501,45 @@ export default {
       if (rateLimited(`s:${u.user_id}`)) return plain('Слишком много запросов, подождите минуту.', 429);
       const raw = await request.text();
       let text = raw;
-      let v2 = false;
       try {
         const j = JSON.parse(raw);
-        v2 = String(j.v ?? '') === '2';
         text = String(j.text ?? j.Text ?? Object.values(j)[0] ?? '');
       } catch {
         const form = new URLSearchParams(raw);
         if (form.get('text')) text = form.get('text')!;
       }
-
       text = text.slice(0, MAX_TEXT).trim();
       if (!text) return plain('Не расслышал — попробуйте ещё раз.', 400);
 
+      // The Shortcut waits for the result and shows it as an iPhone notification.
       const now = localNow(u.tz ?? 0);
       // Simple phrases: offline rules, instantly. Otherwise the model.
       const r = rulesFirst(text, u.tz ?? 0) ?? (await llm(env, text, now.today, now.weekday, now.time, ''));
-      let actions: any[] = r.ok ? (r.data.actions ?? []) : [];
-      const reply = r.ok && r.data.reply ? String(r.data.reply) : '';
-      let unsure = false;
-      // Not understood at all → just keep it as a task (and ask "всё верно?").
-      if (!actions.length && !reply) {
-        actions = [{ intent: 'create', title: text.charAt(0).toUpperCase() + text.slice(1), kindWord: 'task' }];
-        unsure = true;
-      }
+      const actions = r.ok ? (r.data.actions ?? []) : null;
 
-      // Sure → saved right away. A guess → nothing is saved until «Готово» (one-time confirm link).
-      const doc = actions.length ? await loadDoc(env, u.user_id) : null;
-      const preview = doc ? execute(doc.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() }) : null;
-      unsure ||= Boolean(preview && (preview.unsure || preview.unresolved.length));
-      // The v2 Shortcut always asks «Готово / Отмена» before anything changes; only lookups answer straight away.
-      const changes = Boolean(doc && preview && (preview.unresolved.length || JSON.stringify(preview.doc) !== JSON.stringify(doc.doc)));
-      if (v2 && changes) unsure = true;
-      if (!unsure) {
-        const out = preview ? await commitShortcut(env, u.user_id, text, actions, u.tz ?? 0) : reply;
-        return v2 ? json({ text: out, confirm: '' }, 200, headers) : plain(out);
+      // Run it on the server copy right away; only what needs the user goes to the app.
+      let lines: string[] = [];
+      let unresolved: any[] | null = actions;
+      if (actions?.length) {
+        const stored = await loadDoc(env, u.user_id);
+        const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
+        lines = res.lines;
+        unresolved = res.unresolved;
+        if (res.lines.length) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
       }
-      await ensurePendingTable(env);
-      const token = randomToken();
-      await env.DB.prepare(
-        'INSERT INTO shortcut_pending (user_id, token, text, actions, created_at) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (user_id) DO UPDATE SET token = ?2, text = ?3, actions = ?4, created_at = ?5',
-      )
-        .bind(u.user_id, token, text, JSON.stringify(actions), Date.now())
-        .run();
-      const plan = preview!.lines.map(toInfinitive).join('; ');
-      const ask = `${plan ? `${cap(plan)}${preview!.unresolved.length ? '; остальное уточню в планере' : ''}.` : 'Уточню в планере, когда откроете.'} Всё верно?`;
-      // "Всё верно?" makes the Shortcut show «Готово» / «Отмена»; «Готово» opens the confirm link.
-      return v2 ? json({ text: ask, confirm: `${url.origin}/shortcut/confirm?t=${token}` }, 200, headers) : plain(ask);
-    }
-
-    // «Готово» in the Shortcut's menu: now actually save the request (one-time link).
-    if (url.pathname === '/shortcut/confirm') {
-      const plain = (t: string, status = 200) => new Response(t, { status, headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' } });
-      const token = url.searchParams.get('t') ?? '';
-      if (token.length < 20) return plain('Ссылка устарела — продиктуйте ещё раз.');
-      await ensurePendingTable(env);
-      const { results } = await env.DB.prepare('SELECT p.user_id, p.text, p.actions, p.created_at, u.tz FROM shortcut_pending p LEFT JOIN users u ON u.user_id = p.user_id WHERE p.token = ?1')
-        .bind(token)
-        .all<{ user_id: string; text: string; actions: string; created_at: number; tz: number | null }>();
-      const p = results[0];
-      await env.DB.prepare('DELETE FROM shortcut_pending WHERE token = ?1').bind(token).run();
-      if (!p || Date.now() - p.created_at > 30 * 60_000) return plain('Ссылка устарела — продиктуйте ещё раз.');
-      return plain(await commitShortcut(env, p.user_id, p.text, JSON.parse(p.actions), p.tz ?? 0));
+      if (!actions || unresolved?.length) {
+        await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
+          .bind(u.user_id, text, actions ? JSON.stringify(unresolved) : null, Date.now())
+          .run();
+      }
+      const body = lines.join('; ');
+      const pending = !actions || unresolved?.length ? 'Нужно уточнение — откройте планер, вопрос ждёт в ассистенте.' : '';
+      const answer = lines.length
+        ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.${pending ? ` ${pending}` : ''}`
+        : r.ok && r.data.reply && !unresolved?.length
+          ? String(r.data.reply)
+          : `Нужно уточнение — откройте планер, вопрос ждёт в ассистенте.`;
+      return plain(answer);
     }
 
     // Personal key for the Shortcut (issued to the signed-in Mini App user).

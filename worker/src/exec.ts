@@ -70,15 +70,12 @@ export interface ExecResult {
   lines: string[];
   /** Actions the app's assistant has to finish (with the user). */
   unresolved: any[];
-  /** Something was filled in by guess (end time, task instead of event…) — ask "всё верно?". */
-  unsure: boolean;
 }
 
 export function execute(input: PlannerDoc, actions: any[], ctx: { today: string; now: number; newId(): string }): ExecResult {
   const doc: PlannerDoc = { tasks: [...input.tasks], events: [...input.events], deleted: { ...input.deleted } };
   const lines: string[] = [];
   const unresolved: any[] = [];
-  let unsure = false;
   const { today, now } = ctx;
   const str = (v: unknown, re: RegExp) => (typeof v === 'string' && re.test(v) ? v : undefined);
 
@@ -131,8 +128,11 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
           a.kindWord === 'event' ||
           (a.kindWord !== 'task' && (Boolean(a.repeat) || (a.eventHint && !(a.taskHint && !a.eventHint)) || Boolean(date && start && end) || (Boolean(start) && !a.taskHint)));
         const category = (['work', 'personal', 'health', 'study', 'other'] as const).includes(a.category) ? a.category : 'other';
-        // Looks like an event but no time was said → saved as a task; no end said → 1 hour. Both are guesses.
-        if ((isEvent && !start) || (isEvent && start && !end && !Number.isInteger(a.duration)) || (isEvent && !date && !a.repeat)) unsure = true;
+        // An event needs a day, a start and an end (or a duration). Missing → the app asks.
+        if (isEvent && (!start || (!date && !a.repeat) || (!end && !Number.isInteger(a.duration)) || a.needsStart)) {
+          unresolved.push(a);
+          break;
+        }
         if (isEvent && start) {
           const d = date ?? today;
           const e = end ?? minutesToTime(timeToMinutes(start) + (Number.isInteger(a.duration) ? a.duration : 60));
@@ -221,8 +221,7 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
         const d = date ?? hit.date ?? ev.date;
         if (ev.repeat && hit.date) {
           touchEvent(ev.id, { repeat: { ...ev.repeat, exceptions: [...(ev.repeat.exceptions ?? []), hit.date] } });
-          const id = ctx.newId();
-          doc.events.push({ id, title: ev.title, date: d, start: s, end: e, color: ev.color, createdAt: now, updatedAt: now });
+          doc.events.push({ id: ctx.newId(), title: ev.title, date: d, start: s, end: e, color: ev.color, createdAt: now, updatedAt: now });
         } else touchEvent(ev.id, { date: d, start: s, end: e });
         lines.push(`перенёс «${ev.title}» на ${when(d)}, ${s}–${e}`);
         break;
@@ -244,5 +243,5 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
         unresolved.push(a);
     }
   }
-  return { doc, lines, unresolved, unsure };
+  return { doc, lines, unresolved };
 }

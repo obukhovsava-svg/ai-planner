@@ -642,30 +642,11 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
   }
 }
 
-/**
- * Applies commands dictated via the iPhone Shortcut (already confirmed by the bot):
- * nothing is asked — reasonable defaults fill the gaps (1 h duration, today, 09:00…).
- */
+/** Requests from the iPhone Shortcut that the server couldn't finish alone (missing details, choices). */
 export async function applyQueued(text: string, actions: Analysis[] | null): Promise<AssistantReply[]> {
+  // The server already did everything it could; what's left needs the user — ask as usual.
   if (!actions) return handleUtterance(text);
-  return actions.map((a) => {
-    if (a.intent !== 'create') return act(a, text);
-    const d = draftFrom(a);
-    if (!d.kind) d.kind = d.start ? 'event' : 'task';
-    if (d.needsStart) {
-      d.date ??= todayKey();
-      d.needsStart = false;
-    }
-    if (d.kind === 'event') {
-      if (!d.start) d.kind = 'task';
-      else {
-        d.date ??= todayKey();
-        if (!d.end && !d.duration) d.duration = 60;
-      }
-    }
-    if (d.kind === 'task' && d.remindOffset !== undefined && !d.date) d.date = todayKey();
-    return commit(d);
-  });
+  return actions.map((a) => act(a, text));
 }
 
 /**
