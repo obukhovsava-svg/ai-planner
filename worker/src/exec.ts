@@ -8,6 +8,7 @@ import type { CalendarEvent, Task } from '../../src/types';
 import type { PlannerDoc } from '../../src/lib/merge';
 import { addDays, minutesToTime, timeToMinutes } from '../../src/lib/date';
 import { nextOccurrence, occurrencesBetween, occursOn, sanitizeRepeat } from '../../src/lib/recurrence';
+import { matchScore } from '../../src/lib/match';
 
 const COLOR = { work: 'blue', personal: 'violet', health: 'red', study: 'amber', other: 'green' } as const;
 const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -22,21 +23,8 @@ export function dayText(key: string, today: string): string {
   return `${WD[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS_GEN[d.getUTCMonth()]}`;
 }
 
-/* fuzzy title matching ("встречу" ≈ "встреча") */
-const STOP = new Set(['событи', 'задач', 'мою', 'мой', 'мне', 'для', 'это', 'все', 'всё']);
-const stems = (text: string) =>
-  text
-    .toLowerCase()
-    .split(/[^\p{L}\d]+/u)
-    .filter((w) => w.length >= 3)
-    .map((w) => w.slice(0, Math.min(5, Math.max(3, w.length - 1))))
-    .filter((w) => !STOP.has(w));
-function score(query: string, title: string) {
-  const q = stems(query);
-  if (!q.length) return 0;
-  const t = stems(title);
-  return q.filter((s) => t.some((w) => w.startsWith(s) || s.startsWith(w))).length / q.length;
-}
+/* fuzzy title matching across word forms ("учёбу" ≈ «Учеба») */
+const score = matchScore;
 
 type Hit = { kind: 'event'; item: CalendarEvent; date?: string } | { kind: 'task'; item: Task; date?: string };
 

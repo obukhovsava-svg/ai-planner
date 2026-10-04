@@ -554,6 +554,14 @@ function parseRepeat(ctx: Ctx): RepeatInfo {
   return {};
 }
 
+/** "учебу" → "учеба", "зарядку" → "зарядка", "неделю" → "неделя" (feminine accusative of the first word). */
+const NOT_ACCUSATIVE = new Set(['меню', 'рагу', 'кенгуру', 'интервью', 'барбекю', 'кешью', 'гуру', 'табу', 'какаду', 'бижу', 'парвеню', 'дежавю']);
+function toNominative(word: string): string {
+  const w = word.toLowerCase();
+  if (w.length < 4 || NOT_ACCUSATIVE.has(w) || !/[^аеёиоуыэюя][ую]$/u.test(w)) return word;
+  return word.slice(0, -1) + (w.endsWith('у') ? 'а' : 'я');
+}
+
 function cleanTitle(text: string): string {
   let t = text
     .replace(
@@ -573,7 +581,7 @@ function cleanTitle(text: string): string {
   for (let i = 0; i < 4; i++) t = t.replace(dangling, '').trim();
 
   t = t.replace(/^[\s,.;:—–-]+|[\s,.;:—–-]+$/gu, '');
-  t = t.replace(/^\p{L}+/u, (w) => NOUN_FIX[w.toLowerCase()] ?? w);
+  t = t.replace(/^\p{L}+/u, (w) => NOUN_FIX[w.toLowerCase()] ?? toNominative(w));
   return t ? t[0].toUpperCase() + t.slice(1) : '';
 }
 

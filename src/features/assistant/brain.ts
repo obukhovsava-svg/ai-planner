@@ -15,6 +15,7 @@ import { analyze, guardNoteMode, isConfident, normalizeAnswer, parseDurationText
 import { aiAnalyze } from '@/lib/ai';
 import { addDays, humanDate, minutesToTime, timeToMinutes, todayKey } from '@/lib/date';
 import { CATEGORY_TO_COLOR } from '@/lib/meta';
+import { matchScore } from '@/lib/match';
 import { nextOccurrence, occurrencesBetween, occursOn, repeatLabel } from '@/lib/recurrence';
 import { offsetLabel } from '@/lib/reminders';
 import type { Reminder } from '@/types';
@@ -40,22 +41,8 @@ function durationLabel(min: number): string {
   return Number.isInteger(h) ? `${h} ч` : `${h.toString().replace('.', ',')} ч`;
 }
 
-/** Stems for fuzzy matching ("встречу" ≈ "встреча", "тренировки" ≈ "тренировка"). */
-const STOP = new Set(['событи', 'задач', 'мою', 'мой', 'мне', 'для', 'это', 'все', 'всё', 'все']);
-function stems(text: string): string[] {
-  return text
-    .toLowerCase()
-    .split(/[^\p{L}\d]+/u)
-    .filter((w) => w.length >= 3)
-    .map((w) => w.slice(0, Math.min(5, Math.max(3, w.length - 1))))
-    .filter((w) => !STOP.has(w));
-}
-function score(query: string, title: string): number {
-  const q = stems(query);
-  if (!q.length) return 0;
-  const t = stems(title);
-  return q.filter((s) => t.some((w) => w.startsWith(s) || s.startsWith(w))).length / q.length;
-}
+/** Fuzzy matching across word forms ("учёбу" ≈ «Учеба») — see lib/match.ts. */
+const score = matchScore;
 
 /* ------------------------------------------------------------------ create */
 
