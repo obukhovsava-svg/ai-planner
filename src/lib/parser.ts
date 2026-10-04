@@ -145,6 +145,8 @@ const hhmm = (h: number, m = 0): TimeStr | undefined =>
 
 const PART = '(?:\\s*(утра|дня|вечера|ночи))?';
 const CLOCK = '(\\d{1,2})(?:[:.](\\d{2})|\\s(\\d{2})(?!\\d))?';
+/** Not a clock time: "5 числа", "10-е", "3 октября", "2 недели"… */
+const notDate = '(?!\\s*(?:-?го\\s+|-?е\\s+)?(?:числ|январ|феврал|март|апрел|ма[яй]|июн|июл|август|сентябр|октябр|ноябр|декабр|недел|минут)|-?(?:го|е)(?![\\p{L}\\d]))';
 
 export function parseDurationText(text: string): number | undefined {
   const ctx: Ctx = { text: normalize(text), now: new Date() };
@@ -190,7 +192,6 @@ function parseTime(ctx: Ctx, isEvent: boolean): { start?: TimeStr; end?: TimeStr
   if (onClock) start = hhmm(Number(onClock[1]), Number(onClock[2]));
 
   // "в 15:00", "к 9 утра", "в 7 часов вечера", "в 15 30" (but not "к 5 числа")
-  const notDate = '(?!\\s*(?:-?го\\s+)?(?:числа|январ|феврал|март|апрел|ма[яй]|июн|июл|август|сентябр|октябр|ноябр|декабр|недел|минут))';
   if (!start) {
     const single = take(ctx, rx(`${B}(?:в|к)\\s+${CLOCK}${notDate}(?:\\s*час(?:а|ов)?)?${PART}${E}`));
     if (single) {
@@ -282,7 +283,7 @@ function parseDate(ctx: Ctx): DateKey | undefined {
     }
   }
 
-  const dayOnly = take(ctx, rx(`${B}(?:${from}\\s+)?(\\d{1,2})(?:-?го)?\\s+числа${E}`));
+  const dayOnly = take(ctx, rx(`${B}(?:${from}\\s+|к\\s+)?(\\d{1,2})(?:(?:-?го|-?е)?\\s+(?:числа|число)|-?(?:го|е))${E}`));
   if (dayOnly) {
     const day = Number(dayOnly[1]);
     let d = new Date(ctx.now.getFullYear(), ctx.now.getMonth(), day);
@@ -522,16 +523,37 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
     const all = Boolean(take(ctx, rx(`${B}(?:все|всё|всю\\s+серию|все\\s+повторы|совсем|полностью)${E}`)));
     // "со среды на пятницу" — the first date is the occurrence being moved.
     let sourceDate: DateKey | undefined;
+    let srcPM = false;
     if (intent === 'move') {
-      const src = ctx.text.match(rx(`${B}(?:с|со)\\s+(?:понедельника|вторника|среды|четверга|пятницы|субботы|воскресенья|завтра|сегодня|\\d{1,2}\\s+\\p{L}+)`));
+      // "завтрашнюю тренировку", "сегодняшнюю встречу"
+      const adj = take(ctx, rx(`${B}(сегодняшн|завтрашн|послезавтрашн)\\p{L}*${E}`));
+      if (adj) sourceDate = addDays(toKey(now), adj[1].startsWith('сегодн') ? 0 : adj[1].startsWith('завтр') ? 1 : 2);
+      // "с завтра на 10 число", "со среды на пятницу", "с 5 октября на 7"
+      const src = ctx.text.match(
+        rx(
+          `${B}(?:с|со)\\s+(?:понедельника|вторника|среды|четверга|пятницы|субботы|воскресенья|послезавтра|завтра|сегодня|\\d{1,2}(?:-?го)?\\s+(?:числа|январ\\p{L}*|феврал\\p{L}*|март\\p{L}*|апрел\\p{L}*|ма[яй]|июн\\p{L}*|июл\\p{L}*|август\\p{L}*|сентябр\\p{L}*|октябр\\p{L}*|ноябр\\p{L}*|декабр\\p{L}*)|\\d{1,2}-?(?:го|е)|\\d{1,2}[./]\\d{1,2})${E}`,
+        ),
+      );
       if (src) {
         const sub: Ctx = { text: ` ${src[0].replace(/^(со|с)\s+/iu, 'на ')} `, now };
-        sourceDate = parseDate(sub);
+        sourceDate = parseDate(sub) ?? sourceDate;
         take(ctx, rx(src[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      }
+      // "с 10 вечера на 8 вечера до 10", "с 15 на 16": the first time is the old one
+      const st = take(ctx, rx(`${B}(?:с|со)\\s+${CLOCK}${notDate}(?:\\s*час(?:а|ов)?)?${PART}(?=\\s+на\\s+\\d)`));
+      if (st) {
+        srcPM = applyDaypart(Number(st[1]), st[4], true) >= 12;
+        // the new time: "на 8 вечера" → "в 8 вечера"
+        ctx.text = ctx.text.replace(rx(`${B}на\\s+(?=${CLOCK}${notDate})`), 'в ');
       }
     }
     const duration = parseDuration(ctx);
     const time = parseTime(ctx, true);
+    // "с 10 вечера на 8" — the new time stays in the evening
+    if (srcPM && time.start && timeToMinutes(time.start) < 12 * 60 && !/утра/iu.test(t)) {
+      time.start = minutesToTime(timeToMinutes(time.start) + 12 * 60);
+      if (time.end && timeToMinutes(time.end) < timeToMinutes(time.start)) time.end = minutesToTime(Math.min(timeToMinutes(time.end) + 12 * 60, 23 * 60 + 59));
+    }
     const date = parseDate(ctx) ?? time.date;
     return { ...baseAnalysis(intent, cleanTitle(ctx.text)), date, start: time.start, end: time.end, duration, sourceDate, all, targetKind };
   }
@@ -597,6 +619,10 @@ export function parseQuick(input: string, now: Date = new Date()) {
   return { title: a.title, date: a.date, start: a.start, priority: a.priority, category: a.category };
 }
 
+/** Date / time words left in a title mean the rules missed something. */
+const LEFTOVER =
+  /\d|понедельник|вторник|сред[ауы]|четверг|пятниц|суббот|воскресень|январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр|утр[аом]|вечер|ночь|ночи|днём|днем|через|кажд|ежедн|еженед|неделе|недели|месяц|завтра|сегодня|послезавтра|полдень|полночь|числ|час[аов]?(?![\p{L}])/iu;
+
 /**
  * Is the offline analysis trustworthy enough to act on without the model?
  * Used by the app and the server: confident phrases are handled instantly and for free;
@@ -613,17 +639,16 @@ export function isConfident(a: Analysis, text: string): boolean {
     case 'smalltalk':
     case 'agenda':
       return true;
-    case 'delete':
     case 'move':
+      return Boolean(a.title || a.targetKind) && !LEFTOVER.test(a.title);
+    case 'delete':
     case 'complete':
     case 'remind':
       return Boolean(a.title || a.bulk || a.targetKind) && !/\d{3,}/.test(a.title);
     case 'create': {
       if (!a.title || a.title.split(/\s+/).length > 6) return false;
       // Date / time words left in the title mean the rules missed something.
-      return !/\d|понедельник|вторник|сред[ауы]|четверг|пятниц|суббот|воскресень|январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр|утр[аом]|вечер|ночь|ночи|днём|днем|через|кажд|ежедн|еженед|неделе|недели|месяц|завтра|сегодня|послезавтра|полдень|полночь|час[аов]?(?![\p{L}])/iu.test(
-        a.title,
-      );
+      return !LEFTOVER.test(a.title);
     }
   }
 }
