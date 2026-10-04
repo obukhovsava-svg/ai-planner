@@ -75,9 +75,25 @@ const NUMBER_WORDS: Record<string, number> = {
   один: 1, одну: 1, одного: 1, два: 2, две: 2, двух: 2, двое: 2, три: 3, трёх: 3, трех: 3, трое: 3,
   четыре: 4, четырёх: 4, четырех: 4, четверо: 4, пять: 5, пяти: 5, шесть: 6, шести: 6,
   семь: 7, семи: 7, восемь: 8, восьми: 8, девять: 9, девяти: 9, десять: 10, десяти: 10,
-  одиннадцать: 11, одиннадцати: 11, двенадцать: 12, двенадцати: 12, пятнадцать: 15, пятнадцати: 15,
-  двадцать: 20, двадцати: 20, тридцать: 30, тридцати: 30, сорок: 40, сорока: 40,
+  одиннадцать: 11, одиннадцати: 11, двенадцать: 12, двенадцати: 12, тринадцать: 13, тринадцати: 13,
+  четырнадцать: 14, четырнадцати: 14, пятнадцать: 15, пятнадцати: 15, шестнадцать: 16, шестнадцати: 16,
+  семнадцать: 17, семнадцати: 17, восемнадцать: 18, восемнадцати: 18, девятнадцать: 19, девятнадцати: 19,
+  двадцать: 20, двадцати: 20, тридцать: 30, тридцати: 30, сорок: 40, сорока: 40, пятьдесят: 50, пятидесяти: 50,
 };
+
+/** Day ordinals for dates: "пятнадцатого", "двадцать пятого октября". */
+const DAY_ORD: Record<string, number> = {
+  первого: 1, второго: 2, третьего: 3, четвёртого: 4, четвертого: 4, пятого: 5, шестого: 6, седьмого: 7, восьмого: 8,
+  девятого: 9, десятого: 10, одиннадцатого: 11, двенадцатого: 12, тринадцатого: 13, четырнадцатого: 14, пятнадцатого: 15,
+  шестнадцатого: 16, семнадцатого: 17, восемнадцатого: 18, девятнадцатого: 19, двадцатого: 20, тридцатого: 30,
+};
+const DAY_ORD_RE = Object.keys(DAY_ORD).join('|');
+
+/** Spoken fillers at the start: "слушай", "ну короче", "эээ", "можешь", "хочу"… */
+const FILLER_RE = new RegExp(
+  `^\\s*(?:(?:слушай|слушайте|смотри|так|значит|вот|ну|короче|эм+|э+|ээ+|а+|ок|окей|okay|ok|хорошо|давай|давайте|алло|будь\\s+добр|будь\\s+любезен|пожалуйста|можешь|можете|можешь\\s+ли|не\\s+мог(?:ла)?\\s+бы\\s+ты|сможешь|хочу|хотел(?:а)?\\s+бы|я\\s+хочу|мне\\s+бы|бот|ассистент|планер|планировщик)(?![\\p{L}\\d])[\\s,.!:—-]*)+`,
+  'iu',
+);
 
 /** "полвосьмого", "в половине десятого", "четверть восьмого": the hour is the next one. */
 const ORD_GEN: Record<string, number> = {
@@ -157,7 +173,11 @@ function take(ctx: Ctx, re: RegExp): RegExpMatchArray | null {
 
 function normalize(input: string): string {
   // Case is preserved (names in titles); every matcher below is case-insensitive.
-  let t = ` ${input.replace(/[«»"!?;]/g, ' ')} `;
+  // Dictation adds a full stop at the end; "7.30" and "20.10" stay intact.
+  let t = ` ${input.replace(/[«»"!?;]/g, ' ').replace(/\.(?=\s|$)/g, ' ')} `;
+  for (let i = 0; i < 3; i++) t = t.replace(FILLER_RE, ' ');
+  // "двадцать пятого октября", "пятнадцатого" → "25-го", "15-го"
+  t = t.replace(rx(`${B}(двадцать|тридцать)\\s+(${DAY_ORD_RE})${E}`), (_, tens, w) => ` ${(tens.toLowerCase() === 'двадцать' ? 20 : 30) + DAY_ORD[w.toLowerCase()]}-го `);
   t = t.replace(rx(`${B}в час(?=\\s+(дня|ночи))`), 'в 1');
   // "полвосьмого", "в половине десятого" → 7:30 / 9:30; "четверть восьмого" → 7:15
   t = t.replace(rx(`${B}(?:в\\s+)?(?:пол-?|половин[аеуы]\\s+)(${ORD_GEN_RE})${E}`), (_, w) => ` в ${(ORD_GEN[w.toLowerCase()] + 11) % 12 || 12}:30 `);
@@ -165,6 +185,10 @@ function normalize(input: string): string {
   for (const [word, n] of Object.entries(NUMBER_WORDS)) {
     t = t.replace(new RegExp(`${B}${word}${E}`, 'giu'), String(n));
   }
+  t = t.replace(rx(`${B}(${DAY_ORD_RE})${E}`), (_, w) => ` ${DAY_ORD[w.toLowerCase()]}-го `);
+  // "семнадцать ноль ноль" → 17:00, "девять ноль пять" → 9:05, "двадцать пять" → 25
+  t = t.replace(/(\d{1,2})\s+ноль\s+ноль(?![\p{L}\d])/giu, '$1:00').replace(/(\d{1,2})\s+ноль\s+(\d)(?![\p{L}\d])/giu, '$1:0$2');
+  t = t.replace(/(?<![\d:.])(20|30|40|50)\s+([1-9])(?![\d:.]|\s*(?:-?го|числа|час|мин))/gu, (_, a, b) => String(Number(a) + Number(b)));
   // "без пятнадцати 7", "без четверти 9", "без 10 минут 8" → 6:45, 8:45, 7:50
   t = t.replace(rx(`${B}(?:в\\s+)?без\\s+(четверти|\\d{1,2})(?:\\s+минут\\p{L}*)?\\s+(\\d{1,2})${E}`), (_, m, h) => {
     const min = m.toLowerCase() === 'четверти' ? 15 : Number(m);
@@ -202,6 +226,24 @@ const notDate = '(?!\\s*(?:-?го\\s+|-?е\\s+)?(?:числ|январ|февр�
 export function parseDurationText(text: string): number | undefined {
   const ctx: Ctx = { text: normalize(text), now: new Date() };
   return parseDuration(ctx, true);
+}
+
+/** A typed / spoken answer, cleaned like a request: "До семи." → "до 7", "Ну давай в шесть вечера" → "в 6 вечера". */
+export function normalizeAnswer(text: string): string {
+  return normalize(text)
+    .replace(/(?<![\p{L}])(?:давай(?:те)?|лучше|тогда|ну|пусть|пожалуй|наверное|наверно|можно|наверн\p{L}*)(?![\p{L}])/giu, ' ')
+    .replace(/[\s,.!?…]+$/u, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** "за 10 минут", "10 минут", "час", "за день", "вовремя" → minutes before. */
+export function parseOffsetText(text: string): number | undefined {
+  const t = normalizeAnswer(text).toLowerCase();
+  if (/^(?:вовремя|в\s+момент|в\s+самое\s+время|ровно|в\s+начале|когда\s+начн\p{L}*)$/u.test(t)) return 0;
+  const ctx: Ctx = { text: ` ${/^за\s/u.test(t) ? t : `за ${t.replace(/^на\s+/u, '')}`} `, now: new Date() };
+  const off = parseRemindOffset(ctx);
+  return off !== undefined && !ctx.text.trim() ? off : undefined;
 }
 
 function parseDuration(ctx: Ctx, bare = false): number | undefined {
@@ -519,6 +561,7 @@ function cleanTitle(text: string): string {
       ' ',
     )
     .replace(rx(`^\\s*(?:мне\\s+)?(?:нужно|надо|не\\s+забыть|не\\s+забудь)${E}`), ' ')
+    .replace(rx(`^\\s*(?:о\\s+том,?\\s+)?что${E}`), ' ')
     .replace(rx(`${B}(?:в\\s+)?(?:календарь|задачи|список\\s+задач|расписание)${E}`), ' ')
     .replace(rx(`${B}(?:новую\\s+|новое\\s+)?(?:задачу|задача|событие)${E}\\s*:?`), ' ')
     .replace(rx(`${B}(?:срочно|срочная|срочную|важно|важная|важную|пожалуйста|начиная|график\\p{L}*|по\\s+графику)${E}`), ' ')
@@ -529,6 +572,7 @@ function cleanTitle(text: string): string {
   const dangling = rx(`^(?:на|в|во|к|с|со|до|о|об|про|что|и|по)${E}\\s*|\\s*${B}(?:на|в|во|к|с|со|до|и|о|об|про|по|,)$`);
   for (let i = 0; i < 4; i++) t = t.replace(dangling, '').trim();
 
+  t = t.replace(/^[\s,.;:—–-]+|[\s,.;:—–-]+$/gu, '');
   t = t.replace(/^\p{L}+/u, (w) => NOUN_FIX[w.toLowerCase()] ?? w);
   return t ? t[0].toUpperCase() + t.slice(1) : '';
 }
@@ -641,11 +685,17 @@ function agendaRange(ctx: Ctx): Analysis['range'] {
  * "за 5 минут напомни о созвоне", "созвон в 17 напомни за 5 минут", "… с напоминанием за 10 минут".
  */
 function reminderFirst(t: string): string {
+  // "напоминание: оплатить интернет завтра", "напоминалка завтра в 10 …"
+  t = t.replace(rx(`^\\s*(?:напоминание|напоминалка|напоминалку|напоминалочка)\\s*[:—-]?\\s+(?!(?:о|об|про|для|на|с)\\s)`), ' напомни ');
   t = t.replace(rx(`^\\s*(?:пожалуйста\\s+)?(?:предупреди(?:те)?(?:\\s+меня)?|не\\s+забудь(?:те)?\\s+(?:мне\\s+)?напомнить|не\\s+дай\\s+(?:мне\\s+)?забыть)${E}`), ' напомни ');
   t = t.replace(rx(`${B}(поставь|поставить|создай|добавь|включи|сделай)\\s+напоминалк\\p{L}*${E}`), '$1 напоминание');
   if (/^\s*(?:пожалуйста\s+)?(?:напомни|напоминай|напомнить|не\s+напоминай|(?:поставь|поставить|создай|добавь|включи|сделай|убери|удали|отмени|выключи|отключи|сними)\s+(?:все\s+)?напоминани)/iu.test(t)) return t;
   // "… с напоминанием за 10 минут", "… и напомни за час" — a new thing with a reminder
-  const tail = t.match(rx(`(?:,\\s*)?(?:${B}(?:с|и|а)\\s+)?(?:напоминани\\p{L}*|напомни(?:те)?(?:\\s+мне)?)((?:\\s+(?:за\\s+\\S+(?:\\s+(?:минут\\p{L}*|мин|час\\p{L}*|ч|дн\\p{L}*|день|сут\\p{L}*|недел\\p{L}*))?|заранее|вовремя))?)\\s*$`));
+  const tail = t.match(
+    rx(
+      `(?:,\\s*)?(?:${B}(?:с|и|а)\\s+)?(?:(?:поставь|поставить|сделай|добавь|включи)\\s+)?(?:напоминани\\p{L}*|напомни(?:те)?(?:\\s+мне)?)((?:\\s+(?:за\\s+\\S+(?:\\s+(?:минут\\p{L}*|мин|час\\p{L}*|ч|дн\\p{L}*|день|сут\\p{L}*|недел\\p{L}*))?|заранее|вовремя|в\\s+\\d{1,2}(?:[:.]\\d{2})?(?:\\s+(?:утра|дня|вечера|ночи))?|утром|днём|днем|вечером|ночью|через\\s+\\S+(?:\\s+(?:минут\\p{L}*|час\\p{L}*))?))*)\\s*$`,
+    ),
+  );
   if (tail && tail.index! > 0) return ` напомни ${t.slice(0, tail.index)} ${tail[1]} `;
   // "за 5 минут напомни о созвоне"
   const mid = t.match(rx(`^(.*?)${B}(напомни(?:те)?(?:\\s+мне)?)${E}(.*)$`));
@@ -700,6 +750,7 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
       const remindAt = !cancelRemind && offset === undefined && time.start ? `${date ?? toKey(now)}T${time.start}` : undefined;
       return {
         ...baseAnalysis('remind', cleanTitle(ctx.text)),
+        all: cancelRemind && rx(`${B}(?:все|всех|всё)\\s+напоминани`).test(t),
         date: remindAt ? explicit : date,
         remindAt,
         start: remindAt ? undefined : time.start,
@@ -713,7 +764,9 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
     }
     const inner = analyze(ctx.text, now);
     if (inner.intent !== 'create') return inner;
-    return { ...inner, remind: true, remindOffset: offset, taskHint: inner.eventHint ? inner.taskHint : true };
+    // "напомни через 5 минут" — nothing named, but a moment: a plain reminder
+    const title = inner.title || (inner.date || inner.start ? 'Напоминание' : '');
+    return { ...inner, title, remind: true, remindOffset: offset, taskHint: inner.eventHint ? inner.taskHint : true };
   }
 
   const done = t.match(COMPLETE_RE);
@@ -892,10 +945,9 @@ export function guardNoteMode<T extends { intent: string; noteMode?: string }>(a
  * the rest (several requests at once, leftovers the rules didn't understand) go to the model.
  */
 export function isConfident(a: Analysis, text: string): boolean {
-  const t = text.toLowerCase();
   if (/[;\n]/.test(text)) return false;
   // "… и напомни …", "… а ещё купи …" — several requests in one sentence.
-  if (/\s(?:и|а\s+также|а\s+ещё|а\s+еще|потом|ещё|еще)\s+(?:напомни(?!(?:\s+мне)?(?:\s+(?:за\s+\S+(?:\s+\S+)?|заранее|вовремя))?\s*$)|купи|добавь|поставь|запиши|удали|перенеси|создай|сделай|отметь)/u.test(t)) return false;
+  if (splitRequests(text).length > 1) return false;
   switch (a.intent) {
     case 'help':
     case 'undo':
@@ -907,9 +959,10 @@ export function isConfident(a: Analysis, text: string): boolean {
     case 'note':
       // Without a separator the target and the text are mixed — the model splits them better.
       return Boolean(a.title) && (a.noteMode === 'read' || a.noteMode === 'clear' || Boolean(a.note)) && a.title.split(/\s+/).length <= 5;
+    case 'remind':
+      return Boolean(a.title || a.remindCancel) && !/\d{3,}/.test(a.title);
     case 'delete':
     case 'complete':
-    case 'remind':
       return Boolean(a.title || a.bulk || a.targetKind) && !/\d{3,}/.test(a.title);
     case 'create': {
       if (!a.title || a.title.split(/\s+/).length > 6) return false;
@@ -923,9 +976,35 @@ export function isConfident(a: Analysis, text: string): boolean {
  * Splits a message into separate requests: ";", new lines, sentences, and
  * "… и напомни …", "… а ещё купи …", "… потом перенеси …".
  */
+const REMIND_ONLY_RE =
+  /^(?:и\s+|а\s+)?(?:напомни(?:те)?|(?:поставь|поставить|сделай|добавь|включи)\s+напоминани\p{L}*)(?:\s+мне)?(?:\s+пожалуйста)?((?:\s+(?:за\s+\S+(?:\s+(?:минут\p{L}*|мин|час\p{L}*|ч|дн\p{L}*|день|сут\p{L}*|недел\p{L}*))?|заранее|вовремя|в\s+\d{1,2}(?:[:.]\d{2})?(?:\s+(?:утра|дня|вечера|ночи))?|утром|днём|днем|вечером|ночью|через\s+\S+(?:\s+(?:минут\p{L}*|час\p{L}*))?))*)\s*$/iu;
+const BARE_COMMAND_RE = /^(?:(?:создай|добавь|поставь|запиши|сделай|заведи)\s+(?:новую\s+)?(?:задачу|событие|напоминание|встречу)|напомни(?:те)?(?:\s+мне)?)$/iu;
+
 export function splitRequests(text: string): string[] {
+  // Dictation punctuation ("… и напомни в 18.") must not hide a reminder-only tail.
+  const parts = rawSplit(text).map((p) => p.replace(/[\s.!?,…]+$/u, '').trim()).filter(Boolean);
+  const out: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    // "… и напомни в 18", "… и поставь напоминание за 15 минут" — the reminder of the previous request
+    const rem = p.match(REMIND_ONLY_RE);
+    if (rem && out.length) {
+      out[out.length - 1] += ` с напоминанием${rem[1]}`;
+      continue;
+    }
+    // "создай задачу и напомни купить хлеб", "напомни и создай задачу …" — one request
+    if (BARE_COMMAND_RE.test(p.trim()) && i + 1 < parts.length) {
+      parts[i + 1] = `${p} ${parts[i + 1]}`;
+      continue;
+    }
+    out.push(p);
+  }
+  return out;
+}
+
+function rawSplit(text: string): string[] {
   return text
-    .split(/\n+|;\s*|\.\s+(?=[А-ЯЁA-Z])|,?\s+(?:и|а\s+также|а\s+ещё|а\s+еще|потом|ещё|еще)\s+(?=(?:напомни(?!(?:\s+мне)?(?:\s+(?:за\s+\S+(?:\s+\S+)?|заранее|вовремя))?\s*$)|купи|добавь|поставь|запиши|удали|перенеси|создай|сделай|отметь|запланируй)(?![\p{L}]))/iu)
+    .split(/\n+|;\s*|\.\s+(?=[А-ЯЁA-Z])|,?\s+(?:и|а\s+также|а\s+ещё|а\s+еще|потом|ещё|еще)\s+(?=(?:напомни|купи|добавь|поставь|запиши|удали|перенеси|создай|сделай|отметь|запланируй)(?![\p{L}]))|(?<=^\s*(?:напомни(?:те)?(?:\s+мне)?))\s+и\s+(?=(?:создай|добавь|поставь|запиши|сделай)(?![\p{L}]))/iu)
     .map((s) => s.trim())
     .filter(Boolean);
 }

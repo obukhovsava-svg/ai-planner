@@ -72,7 +72,7 @@ export interface ExecResult {
   unresolved: any[];
 }
 
-export function execute(input: PlannerDoc, actions: any[], ctx: { today: string; now: number; newId(): string }): ExecResult {
+export function execute(input: PlannerDoc, actions: any[], ctx: { today: string; now: number; nowMinutes?: number; newId(): string }): ExecResult {
   const doc: PlannerDoc = { tasks: [...input.tasks], events: [...input.events], deleted: { ...input.deleted } };
   const lines: string[] = [];
   const unresolved: any[] = [];
@@ -103,6 +103,15 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
       case 'create':
       case 'remind': {
         if (a.intent === 'remind') {
+          // "отключи все напоминания"
+          if (a.remindCancel && a.all && !title) {
+            const evs = doc.events.filter((e) => e.remind);
+            const tks = doc.tasks.filter((t) => t.remind && !t.done);
+            for (const e of evs) touchEvent(e.id, { remind: undefined });
+            for (const t of tks) touchTask(t.id, { remind: undefined });
+            lines.push(evs.length + tks.length ? `выключил все напоминания (${evs.length + tks.length})` : 'напоминаний нет');
+            break;
+          }
           const hit = title ? findOne(doc, title, date, today, kinds) : null;
           if (hit) {
             if (a.remindCancel) {
@@ -177,7 +186,8 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
             id: ctx.newId(),
             title: title || 'Задача',
             done: false,
-            date: date ?? (remind ? today : undefined),
+            // "напомни в 18": today, or tomorrow if that time has passed
+            date: date ?? (remind ? (start && ctx.nowMinutes !== undefined && timeToMinutes(start) <= ctx.nowMinutes ? addDays(today, 1) : today) : undefined),
             time: start,
             priority: (['low', 'medium', 'high'] as const).includes(a.priority) ? a.priority : 'medium',
             category,

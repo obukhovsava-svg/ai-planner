@@ -11,7 +11,7 @@
  * reachable, otherwise from the offline rules in lib/parser.ts — both produce `Analysis`.
  */
 import type { CalendarEvent, DateKey, Task } from '@/types';
-import { analyze, guardNoteMode, isConfident, parseDurationText, splitRequests, type Analysis } from '@/lib/parser';
+import { analyze, guardNoteMode, isConfident, normalizeAnswer, parseDurationText, parseOffsetText, splitRequests, type Analysis } from '@/lib/parser';
 import { aiAnalyze } from '@/lib/ai';
 import { addDays, humanDate, minutesToTime, timeToMinutes, todayKey } from '@/lib/date';
 import { CATEGORY_TO_COLOR } from '@/lib/meta';
@@ -69,10 +69,17 @@ function draftFrom(a: Analysis): Draft {
   else if (a.start) kind = undefined; // has a time but nothing says "event" — ask
   else kind = 'task';
 
+  // "напомни в 18" — today at 18:00, or tomorrow if that time has passed
+  let date = a.date;
+  if (!date && a.remind && a.start && kind === 'task') {
+    const now = new Date();
+    date = timeToMinutes(a.start) > now.getHours() * 60 + now.getMinutes() ? todayKey() : addDays(todayKey(), 1);
+  }
+
   return {
     title: a.title || (kind === 'task' ? 'Новая задача' : 'Новое событие'),
     kind,
-    date: a.date,
+    date,
     start: a.start,
     end: a.end,
     duration: a.duration,
@@ -171,21 +178,27 @@ export function cancelClarify(messageId: string) {
 }
 
 /** Typed answer to an open question: "в 15", "на час", "до 18", "завтра", "задачей", "отмена". */
-function fillFromText(text: string, ask: Ask): Partial<Draft> | 'cancel' | null {
-  const t = text.trim().toLowerCase();
-  if (/^(нет|отмена|отмени|не надо|не нужно|забудь)\b/u.test(t)) return 'cancel';
-  if (/^(задач|в задачи|задачей|как задачу)/u.test(t)) return { kind: 'task' };
-  if (/^(событи|в календарь|событием|как событие)/u.test(t)) return { kind: 'event' };
+function fillFromText(text: string, ask: Ask | 'move-date' | 'move-time', start?: string): Partial<Draft> | 'cancel' | null {
+  // Same cleaning as requests: dictation punctuation, number words, fillers ("ну давай до семи.")
+  const t = normalizeAnswer(text).toLowerCase();
+  if (/^(нет|отмена|отмени|отменить|не надо|не нужно|забудь|стоп|передумал\p{L}*)(?![\p{L}])/u.test(t)) return 'cancel';
+  if (/^(?:это\s+|как\s+|сделай\s+|в\s+)?(задач|задачей|задачу)/u.test(t)) return { kind: 'task' };
+  if (/^(?:это\s+|как\s+|сделай\s+|в\s+)?(событи|календарь|событием|встреч)/u.test(t)) return { kind: 'event' };
 
   const patch: Partial<Draft> = {};
-  const bare = t.match(/^(?:в\s+|к\s+|до\s+)?(\d{1,2})(?:[:.](\d{2}))?$/u);
+  const bare = t.match(/^(?:в\s+|к\s+|до\s+|на\s+)?(\d{1,2})(?:[:.\s](\d{2}))?(?:\s*час(?:а|ов)?)?(?:\s+(утра|дня|вечера|ночи))?$/u);
   if (bare) {
     let h = Number(bare[1]);
+    const part = bare[3];
+    if (part && /дня|вечера/u.test(part) && h < 12) h += 12;
     // "в 3" for an appointment means 15:00.
-    if (!bare[2] && h >= 1 && h <= 6) h += 12;
+    else if (!part && !bare[2] && h >= 1 && h <= 6) h += 12;
+    const isEnd = ask === 'end' || /^до/u.test(t);
+    // "до семи" after an 18:00 start is 19:00
+    if (isEnd && !part && start && h * 60 <= timeToMinutes(start) && h + 12 < 24) h += 12;
     if (h > 23) return null;
     const time = `${String(h).padStart(2, '0')}:${bare[2] ?? '00'}`;
-    if (ask === 'end' || /^до/u.test(t)) patch.end = time;
+    if (isEnd) patch.end = time;
     else patch.start = time;
     return patch;
   }
@@ -194,8 +207,8 @@ function fillFromText(text: string, ask: Ask): Partial<Draft> | 'cancel' | null 
 
   // Several requests in one message are never an answer.
   if (/[;\n]/u.test(text)) return null;
-  const a = analyze(text);
-  if (a.intent !== 'create') return null;
+  const a = analyze(t);
+  if (a.intent !== 'create' && !(a.intent === 'move' && ask.startsWith('move'))) return null;
   // Anything left besides date/time/filler words ("давай", "лучше") is a new request, not an answer.
   const rest = a.title.replace(/(?<![\p{L}])(давай(?:те)?|лучше|тогда|ну|ок|окей|можно|пусть|пожалуй|наверное|наверно|да|в|на|с|со)(?![\p{L}])/giu, '').trim();
   if (rest) return null;
@@ -566,8 +579,10 @@ export function undoLast(): string {
 function revert(entry: import('@/store/useChatStore').UndoEntry): string {
   const p = planner();
   switch (entry.op) {
-    case 'batch':
-      return [...entry.entries].reverse().map(revert)[entry.entries.length - 1];
+    case 'batch': {
+      const texts = [...entry.entries].reverse().map(revert);
+      return entry.entries.length > 1 ? `Вернул как было: ${entry.entries.length} шт.` : texts[0] ?? 'Готово.';
+    }
     case 'created-event':
       p.deleteEvent(entry.id);
       return 'Убрал только что созданное событие.';
@@ -623,8 +638,10 @@ function agenda(a: Analysis): AssistantReply {
 /** Typed answer to an open clarification question, if the text is one. */
 function answerPending(text: string): AssistantReply | null {
   const pending = [...chat().messages].reverse().find((m) => m.role === 'assistant' && m.attachment);
+  if (pending?.attachment?.type === 'move-ask' && !pending.attachment.state) return answerMoveText(pending.id, pending.attachment, text);
+  if (pending?.attachment?.type === 'remind-ask' && !pending.attachment.state) return answerRemindText(pending.id, pending.attachment, text);
   if (pending?.attachment?.type !== 'clarify' || pending.attachment.state) return null;
-  const fill = fillFromText(text, pending.attachment.ask);
+  const fill = fillFromText(text, pending.attachment.ask, pending.attachment.draft.start);
   if (fill === 'cancel') {
     cancelClarify(pending.id);
     return { text: 'Отменил.' };
@@ -635,6 +652,51 @@ function answerPending(text: string): AssistantReply | null {
     return proceed({ ...pending.attachment.draft, ...fill });
   }
   // Not an answer — a new request; the question stays open until it is answered.
+  return null;
+}
+
+/** A typed / spoken answer to "На какой день перенести …?" / "Во сколько …?". */
+function answerMoveText(id: string, a: Extract<ChatAttachment, { type: 'move-ask' }>, text: string): AssistantReply | null {
+  const fill = fillFromText(text, a.step === 'date' ? 'move-date' : 'move-time');
+  if (!fill) return null;
+  if (fill === 'cancel') {
+    chat().update(id, { attachment: { ...a, state: 'cancelled' } });
+    return { text: 'Отменил.' };
+  }
+  const c = a.candidate;
+  const date = fill.date ?? a.date;
+  if (a.step === 'date' && fill.date && !fill.start && !(c.kind === 'task' && !c.time)) {
+    chat().update(id, { attachment: { ...a, state: 'done' } });
+    return { text: `Во сколько ${when(fill.date)}?`, attachment: { type: 'move-ask', candidate: c, step: 'time', date: fill.date } };
+  }
+  if (!date && !fill.start) return null;
+  chat().update(id, { attachment: { ...a, state: 'done' } });
+  return doMove(c, { date: date ?? c.date, start: fill.start, end: fill.end });
+}
+
+/** A typed / spoken answer to "За сколько напомнить?" / "Когда напомнить?". */
+function answerRemindText(id: string, a: Extract<ChatAttachment, { type: 'remind-ask' }>, text: string): AssistantReply | null {
+  if (/^\s*(нет|отмена|отмени|не надо|не нужно)/iu.test(text)) {
+    chat().update(id, { attachment: { ...a, state: 'cancelled' } });
+    return { text: 'Отменил.' };
+  }
+  if (a.step === 'offset') {
+    const offset = parseOffsetText(text);
+    if (offset === undefined) return null;
+    chat().update(id, { attachment: { ...a, state: 'done' } });
+    return remindDone(a.candidate, { offset });
+  }
+  const fill = fillFromText(text, a.step === 'date' ? 'date' : 'time');
+  if (!fill || fill === 'cancel') return null;
+  const date = fill.date ?? a.date;
+  if (date && fill.start) {
+    chat().update(id, { attachment: { ...a, state: 'done' } });
+    return remindDone(a.candidate, { at: `${date}T${fill.start}` });
+  }
+  if (a.step === 'date' && fill.date) {
+    chat().update(id, { attachment: { ...a, state: 'done' } });
+    return { text: `Во сколько напомнить ${when(fill.date)}?`, attachment: { type: 'remind-ask', candidate: a.candidate, step: 'time', date: fill.date } };
+  }
   return null;
 }
 
@@ -656,6 +718,20 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
     case 'remind': {
       const kinds: ('event' | 'task')[] = a.eventHint && !a.taskHint ? ['event'] : ['event', 'task'];
       let found = a.title ? findCandidates(a.title, a.date, kinds) : upcoming(kinds, a.date);
+      // "отключи все напоминания" — everything, not just the next two weeks
+      if (a.remindCancel && a.all && !a.title) {
+        const p = planner();
+        const events = p.events.filter((e) => e.remind);
+        const tasks = p.tasks.filter((t) => t.remind && !t.done);
+        if (!events.length && !tasks.length) return { text: 'Напоминаний нет.' };
+        chat().pushUndo({
+          op: 'batch',
+          entries: [...events.map((e) => ({ op: 'updated-event', before: e }) as const), ...tasks.map((t) => ({ op: 'updated-task', before: t }) as const)],
+        });
+        for (const e of events) p.updateEvent(e.id, { remind: undefined });
+        for (const t of tasks) p.updateTask(t.id, { remind: undefined });
+        return { text: `Выключил все напоминания (${events.length + tasks.length}).`, attachment: { type: 'undo' } };
+      }
       if (a.remindCancel) {
         found = found.filter((c) => itemOf(c)?.remind);
         if (!found.length) return { text: a.title ? `У «${a.title}» нет напоминания.` : 'Напоминаний нет.' };
@@ -729,7 +805,13 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
       };
     }
     case 'create': {
-      if (!a.title && !a.date && !a.start && !a.repeat) return { text: aiReply ?? 'Не совсем понял. Скажите, например: «встреча завтра с 15 до 16» или «купить хлеб».' };
+      if (!a.title && !a.date && !a.start && !a.repeat) {
+        // Bare commands: "напомни", "создай задачу", "добавь событие"
+        if (a.remind) return { text: 'О чём и когда напомнить? Например: «напомни завтра в 9 позвонить в банк».' };
+        if (a.kindWord === 'task') return { text: 'Какую задачу добавить? Например: «задача купить хлеб на завтра».' };
+        if (a.kindWord === 'event') return { text: 'Что добавить в календарь? Например: «встреча с Анной завтра с 15 до 16».' };
+        return { text: aiReply ?? 'Не совсем понял. Скажите, например: «встреча завтра с 15 до 16» или «купить хлеб».' };
+      }
       return proceed(draftFrom(a));
     }
   }

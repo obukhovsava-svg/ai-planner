@@ -1,6 +1,7 @@
 import { mergeDocs, emptyDoc, type PlannerDoc } from '../../src/lib/merge';
 import { reminderInstances } from '../../src/lib/reminderCore';
 import { execute } from './exec';
+import { timeToMinutes } from '../../src/lib/date';
 import { analyze, guardNoteMode, isConfident, splitRequests } from '../../src/lib/parser';
 /**
  * AI brain for the planner Mini App (Cloudflare Worker).
@@ -541,7 +542,7 @@ export default {
       let unresolved: any[] | null = actions;
       if (actions?.length) {
         const stored = await loadDoc(env, u.user_id);
-        const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
+        const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), nowMinutes: timeToMinutes(now.time), newId: () => crypto.randomUUID() });
         lines = res.lines;
         unresolved = res.unresolved;
         changed = JSON.stringify(res.doc) !== JSON.stringify(stored.doc);
