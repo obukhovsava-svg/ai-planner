@@ -1,7 +1,7 @@
 import { mergeDocs, emptyDoc, type PlannerDoc } from '../../src/lib/merge';
 import { reminderInstances } from '../../src/lib/reminderCore';
 import { execute } from './exec';
-import { analyze, isConfident, splitRequests } from '../../src/lib/parser';
+import { analyze, guardNoteMode, isConfident, splitRequests } from '../../src/lib/parser';
 /**
  * AI brain for the planner Mini App (Cloudflare Worker).
  *
@@ -92,10 +92,10 @@ const ACTION_SCHEMA = {
   required: [
     'intent', 'title', 'date', 'start', 'end', 'duration', 'repeat', 'needsStart', 'kindWord',
     'eventHint', 'taskHint', 'priority', 'category', 'range', 'sourceDate', 'shift', 'all', 'targetKind', 'bulk',
-    'remind', 'remindOffset', 'remindCancel', 'remindAt',
+    'remind', 'remindOffset', 'remindCancel', 'remindAt', 'note', 'noteMode',
   ],
   properties: {
-    intent: { type: 'string', enum: ['create', 'agenda', 'delete', 'move', 'complete', 'remind', 'undo', 'help', 'smalltalk'] },
+    intent: { type: 'string', enum: ['create', 'agenda', 'delete', 'move', 'complete', 'remind', 'note', 'undo', 'help', 'smalltalk'] },
     title: { type: 'string', description: 'create: short title in nominative case. delete/move/complete: what to look for.' },
     date: nullable('string', { description: 'YYYY-MM-DD. For move: the NEW date.' }),
     start: nullable('string', { description: 'HH:MM, 24h' }),
@@ -142,6 +142,8 @@ const ACTION_SCHEMA = {
     remind: { type: 'boolean', description: 'create: the new item should get a reminder ("напомни купить хлеб в 10")' },
     remindOffset: nullable('integer', { description: 'minutes before ("за час" → 60, "за день" → 1440); 0 = at the time; null if not said' }),
     remindCancel: { type: 'boolean', description: 'remind: switch a reminder OFF ("убери напоминание о …")' },
+    note: nullable('string', { description: 'create: the new item\'s note ("заметка: взять документы"); note: the text to add / put into the existing item\'s note' }),
+    noteMode: nullable('string', { enum: ['append', 'replace', 'clear', 'read', null], description: 'note only: append (добавь/допиши), replace (замени), clear (очисти), read (что в заметке)' }),
     remindAt: nullable('string', { description: 'remind: exact moment YYYY-MM-DDTHH:MM when a time is said WITHOUT "за …" ("напомни о созвоне в 16:55", "напомни про созвон через 5 минут")' }),
     bulk: { type: 'boolean', description: 'delete EVERYTHING of targetKind in date/range ("удали все события на понедельник", "удали все задачи", "очисти всё на завтра")' },
   },
@@ -185,6 +187,8 @@ function systemPrompt(today: string, weekday: string, time: string): string {
 - Напоминания о СУЩЕСТВУЮЩЕМ деле («напомни о встрече с Анной за час», «напомни за 15 минут до тренировки», «напоминай за день до каждой смены», «поставь напоминание на обед»): intent remind, title = что ищем (в именительном падеже), remindOffset если сказано за сколько, иначе null.
 - «напомни о созвоне в 16:55», «напомни про созвон через 5 минут» (время без «за …») → intent remind, remindAt = этот момент (YYYY-MM-DDTHH:MM), start null. «напомни о встрече завтра в 12 за 15 минут» → remindOffset 15, start 12:00 (время самой встречи).
 - «созвон в 17, напомни за 5 минут», «встреча в 15 с напоминанием за час», «предупреди меня за 10 минут до созвона», «за 5 минут напомни о созвоне» — это тоже напоминания.
+- Заметки к существующему делу: «добавь в заметку к встрече с Анной взять документы», «допиши к созвону обсудить бюджет», «к тренировке запиши взять полотенце» → intent note, noteMode append, title = дело («Встреча с Анной», в именительном падеже), note = сам текст («Взять документы»). «замени заметку к созвону на …» → replace; «очисти/удали заметку к …» → clear; «что в заметке к …», «покажи заметку …» → read (note null).
+- Новое дело с заметкой: «встреча завтра с 15 до 16, заметка: взять документы» → intent create, note «Взять документы».
 - Выключить напоминание («убери/отключи напоминание о тренировке», «не напоминай о планёрке»): intent remind, remindCancel true.
 - Новое дело с напоминанием («напомни купить хлеб завтра в 10», «напомни через 2 часа выключить духовку», «напомни позвонить маме»): intent create, remind true, remindOffset 0 если просят напомнить в указанное время; taskHint true.
 - Если непонятно, существующее это дело или новое, — используй intent remind: приложение само создаст дело, если не найдёт.
@@ -529,9 +533,10 @@ export default {
       const now = localNow(u.tz ?? 0);
       // Simple phrases: offline rules, instantly. Otherwise the model.
       const r = rulesFirst(text, u.tz ?? 0) ?? (await llm(env, text, now.today, now.weekday, now.time, ''));
-      const actions = r.ok ? (r.data.actions ?? []) : null;
+      const actions = r.ok ? (r.data.actions ?? []).map((a: any) => guardNoteMode(a, text)) : null;
 
       // Run it on the server copy right away; only what needs the user goes to the app.
+      let changed = false;
       let lines: string[] = [];
       let unresolved: any[] | null = actions;
       if (actions?.length) {
@@ -539,7 +544,8 @@ export default {
         const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), newId: () => crypto.randomUUID() });
         lines = res.lines;
         unresolved = res.unresolved;
-        if (res.lines.length) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
+        changed = JSON.stringify(res.doc) !== JSON.stringify(stored.doc);
+        if (changed) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
       }
       if (!actions || unresolved?.length) {
         await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
@@ -548,8 +554,9 @@ export default {
       }
       const body = lines.join('; ');
       const pending = !actions || unresolved?.length ? 'Нужно уточнение — вопрос ждёт в ассистенте.' : '';
+      // "Готово ✅" only when something changed; answers to questions (schedule, a note) come as they are.
       const answer = lines.length
-        ? `Готово ✅ ${body.charAt(0).toUpperCase()}${body.slice(1)}.${pending ? ` ${pending}` : ''}`
+        ? `${changed ? 'Готово ✅ ' : ''}${body.charAt(0).toUpperCase()}${body.slice(1)}${/[.:]$/.test(body) ? '' : '.'}${pending ? ` ${pending}` : ''}`
         : r.ok && r.data.reply && !unresolved?.length
           ? String(r.data.reply)
           : `Нужно уточнение — вопрос ждёт в ассистенте.`;

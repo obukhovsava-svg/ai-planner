@@ -17,6 +17,7 @@ export interface Draft {
   category: Category;
   /** Created with "напомни …": minutes before (0 = at the time). */
   remindOffset?: number;
+  note?: string;
 }
 
 export type Ask = 'kind' | 'date' | 'time' | 'end' | 'start-day';
@@ -39,10 +40,21 @@ export type ChatAttachment =
   | { type: 'clarify'; draft: Draft; ask: Ask; state?: 'cancelled' | 'answered' }
   | {
       type: 'choose';
-      action: 'delete' | 'move' | 'complete' | 'remind';
+      action: 'delete' | 'move' | 'complete' | 'remind' | 'note';
       candidates: Candidate[];
       /** move: where to; delete: whether to drop the whole series. */
-      target?: { date?: DateKey; start?: TimeStr; end?: TimeStr; duration?: number; shift?: number; all?: boolean; offset?: number; cancel?: boolean };
+      target?: {
+        date?: DateKey;
+        start?: TimeStr;
+        end?: TimeStr;
+        duration?: number;
+        shift?: number;
+        all?: boolean;
+        offset?: number;
+        cancel?: boolean;
+        note?: string;
+        noteMode?: 'append' | 'replace' | 'clear' | 'read';
+      };
       state?: 'done' | 'cancelled';
     }
   | { type: 'undo'; state?: 'done' }

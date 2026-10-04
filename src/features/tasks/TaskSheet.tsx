@@ -58,6 +58,14 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
           <ChevronRight className="size-5 text-faint" />
         </button>
 
+        <textarea
+          rows={2}
+          className={`${fieldClass} resize-none`}
+          placeholder="Заметка"
+          value={form.note ?? ''}
+          onChange={(e) => set('note', e.target.value || undefined)}
+        />
+
         <RemindRow
           value={form.remind}
           onChange={(r) => setForm({ ...form, remind: r })}

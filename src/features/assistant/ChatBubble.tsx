@@ -536,6 +536,9 @@ function ItemCard({ message, a }: { message: ChatMessage; a: Extract<ChatAttachm
               {a.task.priority !== 'medium' && ` · ${PRIORITY_META[a.task.priority].label} приоритет`}
             </p>
           )}
+          {(isEvent ? a.event.note : a.task.note) && (
+            <p className="mt-1 line-clamp-3 whitespace-pre-line text-[14px] leading-snug text-muted">📝 {isEvent ? a.event.note : a.task.note}</p>
+          )}
         </div>
       </div>
       {a.undone ? (

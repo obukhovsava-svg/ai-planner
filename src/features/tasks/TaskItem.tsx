@@ -75,6 +75,7 @@ export function TaskItem({ task, showDate = true, onOpen }: TaskItemProps) {
           <p className={`mt-0.5 truncate text-[15px] transition-colors duration-300 ${task.done ? 'text-faint' : overdue ? 'text-red' : 'text-muted'}`}>
             {meta.join(' · ')}
           </p>
+          {task.note && !task.done && <p className="mt-0.5 line-clamp-2 whitespace-pre-line text-[14px] leading-snug text-faint">{task.note}</p>}
         </button>
 
         <span className="sep absolute bottom-0 left-[52px] right-0 h-[0.5px] bg-line" />

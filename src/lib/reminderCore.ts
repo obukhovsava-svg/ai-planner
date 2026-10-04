@@ -71,7 +71,7 @@ export function reminderInstances(events: CalendarEvent[], tasks: Task[], { now 
       out.push({
         rid: `e:${e.id}:${d}`,
         at,
-        text: `⏰ ${e.title}\n${dayLabel(d)}, ${e.start}–${e.end}${offset ? `\nНачало ${offsetLabel(offset).replace('за ', 'через ')}` : ''}`,
+        text: `⏰ ${e.title}\n${dayLabel(d)}, ${e.start}–${e.end}${offset ? `\nНачало ${offsetLabel(offset).replace('за ', 'через ')}` : ''}${e.note ? `\n📝 ${e.note}` : ''}`,
       });
     }
   }
@@ -89,7 +89,7 @@ export function reminderInstances(events: CalendarEvent[], tasks: Task[], { now 
     out.push({
       rid: `t:${t.id}`,
       at,
-      text: `⏰ ${t.title}${t.date ? `\nСрок: ${dayLabel(t.date)}${t.time ? `, ${t.time}` : ''}` : ''}`,
+      text: `⏰ ${t.title}${t.date ? `\nСрок: ${dayLabel(t.date)}${t.time ? `, ${t.time}` : ''}` : ''}${t.note ? `\n📝 ${t.note}` : ''}`,
     });
   }
   return out.sort((a, b) => a.at - b.at).slice(0, 300);

@@ -11,7 +11,7 @@
  * reachable, otherwise from the offline rules in lib/parser.ts — both produce `Analysis`.
  */
 import type { CalendarEvent, DateKey, Task } from '@/types';
-import { analyze, isConfident, parseDurationText, splitRequests, type Analysis } from '@/lib/parser';
+import { analyze, guardNoteMode, isConfident, parseDurationText, splitRequests, type Analysis } from '@/lib/parser';
 import { aiAnalyze } from '@/lib/ai';
 import { addDays, humanDate, minutesToTime, timeToMinutes, todayKey } from '@/lib/date';
 import { CATEGORY_TO_COLOR } from '@/lib/meta';
@@ -76,6 +76,7 @@ function draftFrom(a: Analysis): Draft {
     start: a.start,
     end: a.end,
     duration: a.duration,
+    note: a.note,
     repeat: a.repeat,
     needsStart: a.needsStart,
     priority: a.priority,
@@ -121,7 +122,7 @@ function commit(d: Draft): AssistantReply {
   const p = planner();
   if (d.kind === 'task') {
     const remind = d.remindOffset !== undefined ? { offset: d.remindOffset } : undefined;
-    const task = p.addTask({ title: d.title, date: d.date, time: d.start, priority: d.priority, category: d.category, remind });
+    const task = p.addTask({ title: d.title, date: d.date, time: d.start, priority: d.priority, category: d.category, remind, note: d.note });
     chat().pushUndo({ op: 'created-task', id: task.id });
     return {
       text: remind
@@ -137,7 +138,7 @@ function commit(d: Draft): AssistantReply {
   const remind = d.remindOffset !== undefined ? { offset: d.remindOffset } : undefined;
   // A repeating event starts on its first real occurrence.
   const date = d.repeat ? (nextOccurrence({ id: '', title: '', date: d.date!, start, end, color: 'blue', repeat: d.repeat, createdAt: 0 }, d.date!) ?? d.date!) : d.date!;
-  const event = p.addEvent({ title: d.title, date, start, end, color: CATEGORY_TO_COLOR[d.category], repeat: d.repeat, remind });
+  const event = p.addEvent({ title: d.title, date, start, end, color: CATEGORY_TO_COLOR[d.category], repeat: d.repeat, remind, note: d.note });
   chat().pushUndo({ op: 'created-event', id: event.id });
   return {
     text: remind
@@ -318,7 +319,9 @@ export function answerChoose(messageId: string, candidate: Candidate) {
   if (!msg || msg.attachment?.type !== 'choose' || msg.attachment.state) return;
   const { action, target } = msg.attachment;
   const reply =
-    action === 'remind'
+    action === 'note'
+      ? doNote(candidate, target?.noteMode ?? 'append', target?.note)
+      : action === 'remind'
       ? target?.cancel
         ? doUnremind(candidate)
         : remindOrAsk(candidate, target?.offset)
@@ -475,6 +478,45 @@ function remindDone(c: Candidate, r: Reminder): AssistantReply {
     ? `Напомню о «${c.title}» ${when(r.at.split('T')[0])} в ${r.at.split('T')[1]}.`
     : `Напомню о «${c.title}» ${offsetLabel(r.offset ?? 0)}${item?.repeat ? ' — перед каждым повтором' : c.date ? ` (${when(c.date)}${c.time ? ` в ${c.time}` : ''})` : ''}.`;
   return { text, attachment: { type: 'undo' } };
+}
+
+/* ------------------------------------------------------------------ notes */
+
+const noteOf = (c: Candidate) => (itemOf(c) as { note?: string } | undefined)?.note?.trim() || '';
+
+function doNote(c: Candidate, mode: 'append' | 'replace' | 'clear' | 'read', text?: string): AssistantReply {
+  const old = noteOf(c);
+  if (mode === 'read') return { text: old ? `Заметка к «${c.title}»:\n${old}` : `У «${c.title}» пока нет заметки.` };
+  const note = mode === 'clear' ? undefined : mode === 'replace' || !old ? text : `${old}\n${text}`;
+  if (mode === 'clear' && !old) return { text: `У «${c.title}» и так нет заметки.` };
+  const p = planner();
+  if (c.kind === 'event') {
+    chat().pushUndo({ op: 'updated-event', before: p.events.find((e) => e.id === c.id)! });
+    p.updateEvent(c.id, { note });
+  } else {
+    chat().pushUndo({ op: 'updated-task', before: p.tasks.find((t) => t.id === c.id)! });
+    p.updateTask(c.id, { note });
+  }
+  const reply =
+    mode === 'clear' ? `Очистил заметку к «${c.title}».` : mode === 'replace' ? `Заменил заметку к «${c.title}»:\n${note}` : old ? `Дописал к «${c.title}»:\n${note}` : `Добавил заметку к «${c.title}»:\n${note}`;
+  return { text: reply, attachment: { type: 'undo' } };
+}
+
+/**
+ * "допиши к встрече с Анной взять паспорт": which words name the item and which are the note?
+ * The longest leading part that still matches something wins.
+ */
+function splitTargetAndNote(words: string, kinds: ('event' | 'task')[], date?: DateKey): { found: Candidate[]; title: string; note: string } | null {
+  const parts = words.split(/\s+/);
+  for (let k = parts.length - 1; k >= 1; k--) {
+    const title = parts.slice(0, k).join(' ');
+    const found = findCandidates(title, date, kinds);
+    if (found.length && score(title, found[0].title) >= 0.99) {
+      const note = parts.slice(k).join(' ');
+      return { found, title, note: note.charAt(0).toUpperCase() + note.slice(1) };
+    }
+  }
+  return null;
 }
 
 /** "напомни о созвоне в 16:55": tasks keep the exact moment; events get "N minutes before". */
@@ -634,6 +676,24 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
         attachment: { type: 'choose', action: 'remind', candidates: found, target: { offset: a.remindOffset } },
       };
     }
+    case 'note': {
+      const kinds: ('event' | 'task')[] = a.targetKind === 'task' ? ['task'] : a.targetKind === 'event' ? ['event'] : ['event', 'task'];
+      const mode = a.noteMode ?? 'append';
+      let found = a.title ? findCandidates(a.title, a.date, kinds) : upcoming(kinds, a.date);
+      let text = a.note;
+      if ((mode === 'append' || mode === 'replace') && !text && a.title) {
+        const split = splitTargetAndNote(a.title, kinds, a.date);
+        if (!split || !split.note) return { text: 'Что записать в заметку и к какому делу? Например: «добавь в заметку к встрече с Анной: взять документы».' };
+        found = split.found;
+        text = split.note;
+      }
+      if (!found.length) return { text: `Не нашёл «${a.title}».` };
+      if (found.length === 1) return doNote(found[0], mode, text);
+      return {
+        text: mode === 'read' ? 'Чью заметку показать?' : 'К какому делу?',
+        attachment: { type: 'choose', action: 'note', candidates: found, target: { note: text, noteMode: mode } },
+      };
+    }
     case 'complete': {
       const found = findCandidates(a.title, undefined, ['task']).filter((c) => !planner().tasks.find((t) => t.id === c.id)?.done);
       if (!found.length) return { text: `Не нашёл открытую задачу «${a.title}».` };
@@ -705,7 +765,7 @@ export async function handleUtterance(text: string): Promise<AssistantReply[]> {
   const ai = await aiAnalyze(text);
   if (ai) {
     if (!ai.actions.length) return [{ text: ai.reply! }];
-    return ai.actions.map((a) => act(a, text, ai.reply));
+    return ai.actions.map((a) => act(guardNoteMode(a, text), text, ai.reply));
   }
 
   return splitRequests(text).map((part) => act(analyze(part), part));

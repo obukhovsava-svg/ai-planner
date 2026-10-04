@@ -16,7 +16,7 @@ import type { Category, DateKey, Priority, Repeat, TimeStr } from '@/types';
 import { addDays, minutesToTime, startOfWeek, timeToMinutes, toKey, weekdayMon } from './date';
 import { nthOfMonth } from './recurrence';
 
-export type Intent = 'create' | 'agenda' | 'delete' | 'move' | 'complete' | 'remind' | 'undo' | 'help' | 'smalltalk';
+export type Intent = 'create' | 'agenda' | 'delete' | 'move' | 'complete' | 'remind' | 'note' | 'undo' | 'help' | 'smalltalk';
 
 export interface Analysis {
   intent: Intent;
@@ -54,6 +54,14 @@ export interface Analysis {
   remindOffset?: number;
   /** remind: "убери напоминание о …". */
   remindCancel?: boolean;
+  /**
+   * create: the new item's note ("…, заметка: взять документы").
+   * note: the text to add / put; undefined when the target and the text weren't separable
+   * (then `title` holds both and the assistant splits them by what exists).
+   */
+  note?: string;
+  /** note: what to do with the item's note. */
+  noteMode?: 'append' | 'replace' | 'clear' | 'read';
   /** remind: the exact moment, "YYYY-MM-DDTHH:MM" ("напомни о созвоне в 16:55", "… через 5 минут"). */
   remindAt?: string;
 }
@@ -126,6 +134,8 @@ const NOUN_FIX: Record<string, string> = {
   паре: 'пара', созвоне: 'созвон', созвона: 'созвон', обеде: 'обед', обеда: 'обед', ужине: 'ужин', ужина: 'ужин',
   врачу: 'врач', доктору: 'доктор', стоматологу: 'стоматолог', терапевту: 'терапевт', парикмахеру: 'парикмахер', мастеру: 'мастер',
   стоматолога: 'стоматолог', врача: 'врач', стрижку: 'стрижка', йогу: 'йога', работу: 'работа',
+  созвону: 'созвон', обеду: 'обед', ужину: 'ужин', уроку: 'урок', экзамену: 'экзамен', собранию: 'собрание', совещанию: 'совещание',
+  вебинару: 'вебинар', массажу: 'массаж', концерту: 'концерт', приёму: 'приём', приему: 'прием', встречам: 'встреча',
   стоматологе: 'стоматолог', враче: 'врач', совещания: 'совещание', совещании: 'совещание', собрании: 'собрание', собрания: 'собрание',
   вебинаре: 'вебинар', вебинара: 'вебинар', экзамене: 'экзамен', экзамена: 'экзамен', уроке: 'урок', урока: 'урок', 
   отчёте: 'отчёт', отчете: 'отчет', отчёта: 'отчёт', дне: 'день', дня: 'день', приёме: 'приём', приеме: 'прием',
@@ -555,6 +565,48 @@ const COMPLETE_RE = rx(
   `^\\s*(?:(?:отметь|отметить)\\s+(.+?)\\s+(?:как\\s+)?(?:выполненн\\p{L}*|сделанн\\p{L}*|готов\\p{L}*)|(?:я\\s+)?(?:сделал|сделала|выполнил|выполнила|закончил|закончила|купил|купила)\\s+(.+)|(.+?)\\s+(?:готово|сделано|выполнено)|(?:готово|сделано|выполнено)\\s*[:,—-]?\\s+(.+))\\s*$`,
 );
 
+const NOTE_WORD = '(?:заметк\\p{L}*|примечани\\p{L}*|комментари\\p{L}*|описани\\p{L}*)';
+const NOTE_READ_RE = rx(`^\\s*(?:а\\s+)?(?:что|какая|какие|какой|покажи|прочитай|прочти|открой|напомни|скажи)${E}.*${B}${NOTE_WORD}${E}`);
+const NOTE_CLEAR_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:очисти|удали|убери|сотри|стери)\\s+(?:все\\s+|всю\\s+)?${NOTE_WORD}${E}`);
+const NOTE_REPLACE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:замени|перепиши|поменяй|измени|исправь)\\s+${NOTE_WORD}${E}`);
+const NOTE_ADD_RE = rx(
+  `(?:^\\s*(?:пожалуйста\\s+)?(?:добавь|допиши|дописать|добавить|запиши|записать|внеси|сохрани|напиши|оставь|прикрепи|сделай|создай)\\s+(?:в\\s+|во\\s+)?${NOTE_WORD}${E}|^\\s*(?:в|во)\\s+${NOTE_WORD}\\s+.*${B}(?:добавь|допиши|запиши|внеси|напиши)${E}|^\\s*(?:к|для)\\s+.+?${B}(?:добавь|допиши|запиши|внеси|напиши)\\s+(?:в\\s+)?${NOTE_WORD}${E}|^\\s*допиши\\s+(?:к|в)${E})`,
+);
+
+/**
+ * Notes of existing items: "добавь в заметку к встрече с Анной: взять документы",
+ * "к созвону добавь заметку обсудить бюджет", "что в заметке к тренировке", "очисти заметку к созвону".
+ */
+function parseNote(ctx: Ctx, mode: NonNullable<Analysis['noteMode']>): Analysis {
+  let t = ctx.text;
+  // Drop the command words, keep "к <что> : <текст>".
+  t = t
+    .replace(rx(`^\\s*(?:пожалуйста\\s+)?(?:а\\s+)?(?:что|какая|какие|какой|покажи|прочитай|прочти|открой|напомни|скажи|очисти|удали|убери|сотри|стери|замени|перепиши|поменяй|измени|исправь|добавь|допиши|дописать|добавить|запиши|записать|внеси|сохрани|напиши|оставь|прикрепи|сделай|создай)${E}`), ' ')
+    // "в заметку к X добавь Y" — the verb in the middle separates the target from the text
+    .replace(rx(`${B}(?:добавь|допиши|запиши|внеси|напиши)${E}`), ' : ')
+    .replace(rx(`${B}(?:в\\s+|во\\s+)?(?:все\\s+|всю\\s+)?${NOTE_WORD}${E}`), ' ')
+    .replace(rx(`^\\s*(?:у\\s+меня\\s+)?(?:есть\\s+)?(?:в|во|у)?\\s*`), ' ');
+  let targetKind: Analysis['targetKind'];
+  const kindWord = t.match(rx(`${B}(?:к|для|у|в|о)?\\s*(задач\\p{L}*|событи\\p{L}*)${E}`));
+  if (kindWord) {
+    targetKind = /задач/iu.test(kindWord[1]) ? 'task' : 'event';
+    t = t.replace(kindWord[0], ' ');
+  }
+  let target = t;
+  let text: string | undefined;
+  const sep = mode === 'replace' ? t.match(/^(.*?)(?:\s*[:—–]\s*|\s+-\s+|\s+на\s+(?:текст\s+)?)(.+)$/u) : t.match(/^(.*?)(?:\s*[:—–]\s*|\s+-\s+|\s+(?:текст|что)\s+)(.+)$/u);
+  if (sep && (mode === 'append' || mode === 'replace')) {
+    target = sep[1];
+    text = sep[2].replace(/^[\s:—–-]+/u, '').trim() || undefined;
+  } else target = t.replace(/[:—–]/gu, ' ');
+  const sub: Ctx = { text: ` ${target} `, now: ctx.now };
+  const adj = take(sub, rx(`${B}(сегодняшн|завтрашн|послезавтрашн)\\p{L}*${E}`));
+  const date = adj ? addDays(toKey(ctx.now), adj[1].startsWith('сегодн') ? 0 : adj[1].startsWith('завтр') ? 1 : 2) : parseDate(sub);
+  const title = cleanTitle(sub.text.replace(rx(`^\\s*(?:к|ко|для|у|в|во|о|об|про)${E}`), ' '));
+  const note = text ? text.charAt(0).toUpperCase() + text.slice(1) : undefined;
+  return { ...baseAnalysis('note', title), noteMode: mode, note, date, targetKind };
+}
+
 function baseAnalysis(intent: Intent, title = ''): Analysis {
   return { intent, title, needsStart: false, eventHint: false, taskHint: false, priority: 'medium', category: 'other', all: false, bulk: false };
 }
@@ -608,6 +660,20 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
   if (HELP_RE.test(t)) return baseAnalysis('help');
   if (UNDO_RE.test(t)) return baseAnalysis('undo');
   if (SMALLTALK_RE.test(t) && t.trim().split(/\s+/).length <= 4) return baseAnalysis('smalltalk', t.trim());
+  // "к тренировке запиши взять полотенце" — a note for an existing thing (not "к понедельнику добавь задачу …")
+  const toThing = t.match(
+    rx(`^\\s*(?:к|ко|для)\\s+(?!\\d|понедельник|вторник|сред|четверг|пятниц|суббот|воскресень|завтр|сегодн|послезавтр|вечеру|утру|обеду|концу|началу|выходн|следующ|эт\\p{L}+\\s)(.+?)\\s+(?:запиши|добавь|допиши|внеси)\\s+(?!(?:задач|событи|встреч|в\\s+календарь|напоминани)\\p{L}*)(.+)$`),
+  );
+  if (toThing && !rx(`${B}${NOTE_WORD}${E}`).test(t)) {
+    const a = parseNote({ text: ` к ${toThing[1]} : ${toThing[2]} `, now }, 'append');
+    if (a.title && a.note) return a;
+  }
+  if (rx(`${B}${NOTE_WORD}${E}`).test(t) || /^\s*допиши\s/iu.test(t)) {
+    if (NOTE_CLEAR_RE.test(t)) return parseNote(ctx, 'clear');
+    if (NOTE_REPLACE_RE.test(t)) return parseNote(ctx, 'replace');
+    if (NOTE_READ_RE.test(t)) return parseNote(ctx, 'read');
+    if (NOTE_ADD_RE.test(t)) return parseNote(ctx, 'append');
+  }
   if (AGENDA_RE.test(t)) return { ...baseAnalysis('agenda'), range: agendaRange(ctx) };
 
   // Reminders: "напомни о встрече за час", "напоминай за день до каждой смены",
@@ -734,6 +800,9 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
   }
 
   // ---- create ----
+  // "…, заметка: взять документы", "… с заметкой взять паспорт"
+  const noteTail = take(ctx, rx(`(?:,\\s*)?(?:${B}(?:с|и)\\s+)?${B}(?:заметк\\p{L}*|примечани\\p{L}*|комментари\\p{L}*)\\s*[:—–-]?\\s*(.+)$`));
+  const createNote = noteTail?.[1]?.trim() ? noteTail[1].trim().charAt(0).toUpperCase() + noteTail[1].trim().slice(1) : undefined;
   const kindWord: Analysis['kindWord'] = rx(`${B}(?:в\\s+календарь|событи\\p{L}*|в\\s+расписание)`).test(t)
     ? 'event'
     : rx(`${B}(?:задач\\p{L}*|в\\s+список|в\\s+задачи)${E}`).test(t)
@@ -786,6 +855,7 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
     taskHint,
     priority,
     category: rep.rota ? 'work' : category,
+    note: createNote,
     all: false,
     bulk: false,
   };
@@ -803,7 +873,18 @@ export function parseQuick(input: string, now: Date = new Date()) {
 
 /** Date / time words left in a title mean the rules missed something. */
 const LEFTOVER =
-  /\d(?![\d.:]*\s+(?!час|мин|числ|утр|вечер|дня|ночи|недел|месяц|январ|феврал|март|апрел|ма[яй]|июн|июл|август|сентябр|октябр|ноябр|декабр)\p{L})|понедельник|вторник|сред[ауы]|четверг|пятниц|суббот|воскресень|январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр|утр[аом]|вечер|ночь|ночи|днём|днем|через|кажд|ежедн|еженед|неделе|недели|месяц|завтра|сегодня|послезавтра|полдень|полночь|числ|час[аов]?(?![\p{L}])/iu;
+  /(?:^|\s)(?:добавь|запиши|поставь|допиши|создай|внеси)(?![\p{L}])|\d(?![\d.:]*\s+(?!час|мин|числ|утр|вечер|дня|ночи|недел|месяц|январ|феврал|март|апрел|ма[яй]|июн|июл|август|сентябр|октябр|ноябр|декабр)\p{L})|понедельник|вторник|сред[ауы]|четверг|пятниц|суббот|воскресень|январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр|утр[аом]|вечер|ночь|ночи|днём|днем|через|кажд|ежедн|еженед|неделе|недели|месяц|завтра|сегодня|послезавтра|полдень|полночь|числ|час[аов]?(?![\p{L}])/iu;
+
+/**
+ * The model sometimes says "replace"/"clear" for "добавь в заметку …" — only the user's own words
+ * may wipe a note. Applied to model answers in the app and on the server.
+ */
+export function guardNoteMode<T extends { intent: string; noteMode?: string }>(a: T, text: string): T {
+  if (a.intent !== 'note') return a;
+  if (a.noteMode === 'replace' && !/замени|перепиши|поменяй|измени|исправь/iu.test(text)) return { ...a, noteMode: 'append' };
+  if (a.noteMode === 'clear' && !/очисти|удали|убери|сотри|стери/iu.test(text)) return { ...a, noteMode: 'append' };
+  return a;
+}
 
 /**
  * Is the offline analysis trustworthy enough to act on without the model?
@@ -823,6 +904,9 @@ export function isConfident(a: Analysis, text: string): boolean {
       return true;
     case 'move':
       return Boolean(a.title || a.targetKind) && !LEFTOVER.test(a.title);
+    case 'note':
+      // Without a separator the target and the text are mixed — the model splits them better.
+      return Boolean(a.title) && (a.noteMode === 'read' || a.noteMode === 'clear' || Boolean(a.note)) && a.title.split(/\s+/).length <= 5;
     case 'delete':
     case 'complete':
     case 'remind':

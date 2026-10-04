@@ -14,7 +14,7 @@ import { occurrencesBetween, sanitizeRepeat } from './recurrence';
 const TIMEOUT_MS = 12_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
-const INTENTS: Intent[] = ['create', 'agenda', 'delete', 'move', 'complete', 'remind', 'undo', 'help', 'smalltalk'];
+const INTENTS: Intent[] = ['create', 'agenda', 'delete', 'move', 'complete', 'remind', 'note', 'undo', 'help', 'smalltalk'];
 
 /** Last AI round-trip outcome, shown under the assistant title. */
 export type AiStatus = { state: 'idle' | 'ok' | 'error' | 'off'; detail?: string };
@@ -87,6 +87,8 @@ function toAnalysis(x: any): Analysis | null {
     remind: x.intent === 'create' && Boolean(x.remind),
     remindOffset: int(x.remindOffset, 0, 60 * 24 * 60),
     remindCancel: x.intent === 'remind' && Boolean(x.remindCancel),
+    note: (x.intent === 'create' || x.intent === 'note') && typeof x.note === 'string' && x.note.trim() ? x.note.trim().slice(0, 2000) : undefined,
+    noteMode: x.intent === 'note' ? (['append', 'replace', 'clear', 'read'].includes(x.noteMode) ? x.noteMode : 'append') : undefined,
     remindAt: x.intent === 'remind' && typeof x.remindAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(x.remindAt) ? x.remindAt : undefined,
   };
 }

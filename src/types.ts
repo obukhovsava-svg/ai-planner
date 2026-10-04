@@ -30,6 +30,7 @@ export interface Task {
   createdAt: number;
   completedAt?: number;
   remind?: Reminder;
+  note?: string;
   /** Last change (ms) — newer wins when syncing. */
   updatedAt?: number;
 }

@@ -162,6 +162,7 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
             end: e,
             color: COLOR[category as keyof typeof COLOR],
             repeat,
+            note: typeof a.note === 'string' && a.note.trim() ? a.note.trim().slice(0, 2000) : undefined,
             remind: a.remind ? { offset: typeof a.remindOffset === 'number' ? a.remindOffset : 30 } : undefined,
             createdAt: now,
             updatedAt: now,
@@ -181,6 +182,7 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
             priority: (['low', 'medium', 'high'] as const).includes(a.priority) ? a.priority : 'medium',
             category,
             remind,
+            note: typeof a.note === 'string' && a.note.trim() ? a.note.trim().slice(0, 2000) : undefined,
             createdAt: now,
             updatedAt: now,
           };
@@ -189,6 +191,36 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
           const w = when(task.date, task.time);
           lines.push(`записал ${noun} «${task.title}»${w ? ` — ${w}` : ''}${remind ? ', напомню' : ''}`);
         }
+        break;
+      }
+      case 'note': {
+        const mode = ['append', 'replace', 'clear', 'read'].includes(a.noteMode) ? a.noteMode : 'append';
+        let text = typeof a.note === 'string' && a.note.trim() ? a.note.trim().slice(0, 2000) : undefined;
+        let hit = title ? findOne(doc, title, date, today, kinds) : null;
+        // "допиши к встрече с Анной взять паспорт": the longest leading part that matches an item
+        if (!text && (mode === 'append' || mode === 'replace') && title) {
+          hit = null;
+          const words = title.split(/\s+/);
+          for (let k = words.length - 1; k >= 1 && !hit; k--) {
+            const h = findOne(doc, words.slice(0, k).join(' '), date, today, kinds);
+            if (h && score(words.slice(0, k).join(' '), h.item.title) >= 0.99) {
+              hit = h;
+              text = words.slice(k).join(' ');
+            }
+          }
+        }
+        if (!hit || ((mode === 'append' || mode === 'replace') && !text)) {
+          unresolved.push(a);
+          break;
+        }
+        const old = hit.item.note?.trim() ?? '';
+        if (mode === 'read') {
+          lines.push(old ? `заметка к «${hit.item.title}»: ${old}` : `у «${hit.item.title}» нет заметки`);
+          break;
+        }
+        const note = mode === 'clear' ? undefined : mode === 'replace' || !old ? text : `${old}\n${text}`;
+        hit.kind === 'event' ? touchEvent(hit.item.id, { note }) : touchTask(hit.item.id, { note });
+        lines.push(mode === 'clear' ? `очистил заметку к «${hit.item.title}»` : `${old && mode === 'append' ? 'дописал' : 'записал'} в заметку к «${hit.item.title}»: ${text}`);
         break;
       }
       case 'complete': {
