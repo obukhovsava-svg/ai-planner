@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { TabId } from '@/types';
 import { TabBar } from '@/components/TabBar';
 import { Toast } from '@/components/Toast';
@@ -10,6 +10,12 @@ import { useShortcutInbox } from '@/lib/shortcut';
 import { CalendarTab } from '@/features/calendar/CalendarTab';
 import { AssistantTab } from '@/features/assistant/AssistantTab';
 import { TasksTab } from '@/features/tasks/TasksTab';
+import { DigestPrompt, SettingsSheet } from '@/features/settings/SettingsSheet';
+import { ShortcutSheet } from '@/features/assistant/ShortcutSheet';
+import { usePlannerStore } from '@/store/usePlannerStore';
+
+/** Completed tasks older than this are removed for good (they've long left the list). */
+const KEEP_DONE_DAYS = 30;
 
 export const TAB_ORDER: TabId[] = ['calendar', 'assistant', 'tasks'];
 
@@ -29,6 +35,15 @@ export default function App() {
   // Data lives on the server too: two-way sync (reminders are computed there).
   useServerSync();
   useShortcutInbox();
+  const shortcutOpen = useUIStore((s) => s.shortcutOpen);
+  const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
+
+  // Housekeeping: completed tasks from a month ago go away for good.
+  useEffect(() => {
+    const p = usePlannerStore.getState();
+    const cutoff = Date.now() - KEEP_DONE_DAYS * 86_400_000;
+    for (const t of p.tasks) if (t.done && (t.completedAt ?? t.createdAt) < cutoff) p.deleteTask(t.id);
+  }, []);
 
   // Slide the new screen in from the side it is on.
   const dir = TAB_ORDER.indexOf(tab) - TAB_ORDER.indexOf(prev.current);
@@ -55,6 +70,9 @@ export default function App() {
       </main>
       <Toast />
       <TabBar />
+      <SettingsSheet />
+      <DigestPrompt />
+      <ShortcutSheet open={shortcutOpen} onClose={() => setShortcutOpen(false)} />
     </div>
   );
 }

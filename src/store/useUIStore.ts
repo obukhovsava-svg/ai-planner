@@ -33,6 +33,17 @@ interface UIState {
   toast: Toast | null;
   showToast(message: string, action?: Toast['action']): void;
   hideToast(): void;
+
+  settingsOpen: boolean;
+  setSettingsOpen(open: boolean): void;
+  shortcutOpen: boolean;
+  setShortcutOpen(open: boolean): void;
+  /** Completed tasks leave the list the next day (otherwise they stay until deleted). */
+  hideDoneNextDay: boolean;
+  setHideDoneNextDay(v: boolean): void;
+  /** The one-time "send me a morning summary?" card was answered. */
+  digestPrompted: boolean;
+  setDigestPrompted(v: boolean): void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -56,6 +67,15 @@ export const useUIStore = create<UIState>()(
       toast: null,
       showToast: (message, action) => set({ toast: { id: Date.now(), message, action } }),
       hideToast: () => set({ toast: null }),
+
+      settingsOpen: false,
+      setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+      shortcutOpen: false,
+      setShortcutOpen: (shortcutOpen) => set({ shortcutOpen }),
+      hideDoneNextDay: true,
+      setHideDoneNextDay: (hideDoneNextDay) => set({ hideDoneNextDay }),
+      digestPrompted: false,
+      setDigestPrompted: (digestPrompted) => set({ digestPrompted }),
     }),
     {
       name: STORAGE_KEYS.ui,
@@ -63,6 +83,8 @@ export const useUIStore = create<UIState>()(
       // Only durable preferences — the app always opens on today's date.
       partialize: (s) => ({
         themeOverride: s.themeOverride,
+        hideDoneNextDay: s.hideDoneNextDay,
+        digestPrompted: s.digestPrompted,
       }),
     },
   ),

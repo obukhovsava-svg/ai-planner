@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<title>Логотип — AI-планер</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: transparent; }
+  body { font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  .v { display: none; }
+  .v.on { display: flex; }
+  .grad { background: linear-gradient(120deg, #5b8cff, #a78bfa 50%, #ff8fa3); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* horizontal logo: icon + name + tagline */
+  .wm { width: 1600px; height: 500px; align-items: center; gap: 56px; padding: 0 90px; }
+  .wm img { width: 300px; height: 300px; }
+  .wm .name { font-size: 168px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; }
+  .wm .tag { font-size: 46px; font-weight: 600; margin-top: 18px; letter-spacing: -0.005em; }
+  .dark { background: #000; color: #fff; }
+  .dark .tag { color: rgb(235 235 245 / 0.6); }
+  .light { background: #fff; color: #000; }
+  .light .tag { color: rgb(60 60 67 / 0.6); }
+  .clear { background: transparent; color: #000; }
+  .clear .tag { color: rgb(60 60 67 / 0.6); }
+
+  /* cover 1500×500 (VK / X / YouTube / Telegram channel) */
+  .cover { width: 1500px; height: 500px; background: #000; color: #fff; position: relative; overflow: hidden; align-items: center; padding: 0 110px; gap: 60px; }
+  .glow { position: absolute; border-radius: 50%; filter: blur(110px); }
+  .cover .z { position: relative; z-index: 1; }
+  .cover img { width: 230px; height: 230px; }
+  .cover h1 { font-size: 78px; white-space: nowrap; font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; }
+  .cover p { font-size: 36px; color: rgb(235 235 245 / 0.65); margin-top: 20px; font-weight: 500; }
+  .cover .handle { display: inline-block; margin-top: 30px; padding: 16px 30px; border-radius: 999px; background: rgb(255 255 255 / 0.1); border: 1px solid rgb(255 255 255 / 0.16); font-size: 34px; font-weight: 700; white-space: nowrap; }
+</style>
+</head>
+<body>
+  <section class="v wm dark" id="wordmark-dark">
+    <img src="app-icon.svg" alt="" />
+    <div><div class="name">Планер</div><div class="tag">AI-ассистент <span class="grad">в Telegram</span></div></div>
+  </section>
+  <section class="v wm light" id="wordmark-light">
+    <img src="app-icon.svg" alt="" />
+    <div><div class="name">Планер</div><div class="tag">AI-ассистент <span class="grad">в Telegram</span></div></div>
+  </section>
+  <section class="v wm clear" id="wordmark-transparent">
+    <img src="app-icon.svg" alt="" />
+    <div><div class="name">Планер</div><div class="tag">AI-ассистент <span class="grad">в Telegram</span></div></div>
+  </section>
+  <section class="v cover" id="cover">
+    <div class="glow" style="width:620px;height:620px;background:#5b8cff;opacity:.5;top:-330px;left:-120px"></div>
+    <div class="glow" style="width:560px;height:560px;background:#ff8fa3;opacity:.35;bottom:-330px;right:120px"></div>
+    <div class="glow" style="width:420px;height:420px;background:#a78bfa;opacity:.3;top:-120px;right:-80px"></div>
+    <img class="z" src="app-icon.svg" alt="" />
+    <div class="z"><h1>Скажи — и&nbsp;всё <span class="grad">в&nbsp;календаре</span></h1><p>Задачи, события и напоминания голосом</p><span class="handle">@myliveplaners_bot</span></div>
+  </section>
+  <section class="v" id="svg" style="display:none"></section>
+  <script>
+    // ?svg=file.svg&w=640&h=640 — the SVG at an exact size (for PNG export)
+    const q = new URLSearchParams(location.search);
+    if (q.get('svg')) {
+      document.body.innerHTML = `<img src="${q.get('svg')}" style="display:block;width:${q.get('w')}px;height:${q.get('h')}px">`;
+    }
+    const v = q.get('v');
+    if (v) document.getElementById(v).classList.add('on');
+  </script>
+</body>
+</html>

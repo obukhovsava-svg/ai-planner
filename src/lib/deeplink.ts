@@ -3,6 +3,7 @@
  *   e:<eventId>:<YYYY-MM-DD>  → the plan for that day
  *   t:<taskId>                → the task list, with that task highlighted
  *   a                         → the assistant (a question is waiting there)
+ *   d:<YYYY-MM-DD>            → the plan for that day (from the morning summary)
  */
 import { useUIStore } from '@/store/useUIStore';
 import { getStartParam } from './telegram';
@@ -25,6 +26,10 @@ export function handleDeepLink() {
   } else if (kind === 't' && id) {
     ui.setTab('tasks');
     ui.setFocus({ kind: 'task', id });
+  } else if (kind === 'd' && id) {
+    ui.setSelectedDate(id);
+    ui.setDayOpen(true);
+    ui.setTab('calendar');
   } else if (kind === 'a') {
     ui.setTab('assistant');
   }

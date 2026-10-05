@@ -7,6 +7,7 @@ import { useUIStore } from '@/store/useUIStore';
 import { CATEGORY_META } from '@/lib/meta';
 import { haptic } from '@/lib/telegram';
 import { useFlip } from '@/hooks/useFlip';
+import { todayKey } from '@/lib/date';
 import { QuickAdd } from './QuickAdd';
 import { TaskItem } from './TaskItem';
 import { TaskSheet } from './TaskSheet';
@@ -30,8 +31,19 @@ function orderTasks(tasks: Task[]): string[] {
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
 
+/** Start of today (local), ms. */
+const startOfToday = () => new Date(`${todayKey()}T00:00:00`).getTime();
+
 export function TasksTab() {
-  const tasks = usePlannerStore((s) => s.tasks);
+  const allTasks = usePlannerStore((s) => s.tasks);
+  const hideDone = useUIStore((s) => s.hideDoneNextDay);
+  // Done today: stays (grey, struck through) so you can see progress and undo a mis-tap.
+  // Done before today: leaves the list (unless kept in Settings).
+  const tasks = useMemo(() => {
+    if (!hideDone) return allTasks;
+    const today = startOfToday();
+    return allTasks.filter((t) => !t.done || (t.completedAt ?? t.createdAt) >= today);
+  }, [allTasks, hideDone]);
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [editing, setEditing] = useState<Task | null>(null);
   const list = useRef<HTMLDivElement>(null);

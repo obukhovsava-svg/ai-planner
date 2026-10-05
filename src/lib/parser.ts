@@ -16,7 +16,7 @@ import type { Category, DateKey, Priority, Repeat, TimeStr } from '@/types';
 import { addDays, minutesToTime, startOfWeek, timeToMinutes, toKey, weekdayMon } from './date';
 import { nthOfMonth } from './recurrence';
 
-export type Intent = 'create' | 'agenda' | 'delete' | 'move' | 'complete' | 'remind' | 'note' | 'undo' | 'help' | 'smalltalk';
+export type Intent = 'create' | 'agenda' | 'delete' | 'move' | 'complete' | 'remind' | 'note' | 'digest' | 'undo' | 'help' | 'smalltalk';
 
 export interface Analysis {
   intent: Intent;
@@ -62,6 +62,9 @@ export interface Analysis {
   note?: string;
   /** note: what to do with the item's note. */
   noteMode?: 'append' | 'replace' | 'clear' | 'read';
+  /** digest: which summary ("утренняя" / "вечерняя") and whether to send it. */
+  digestKind?: 'morning' | 'evening';
+  digestOn?: boolean;
   /** remind: the exact moment, "YYYY-MM-DDTHH:MM" ("напомни о созвоне в 16:55", "… через 5 минут"). */
   remindAt?: string;
 }
@@ -732,6 +735,16 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
     if (NOTE_READ_RE.test(t)) return parseNote(ctx, 'read');
     if (NOTE_ADD_RE.test(t)) return parseNote(ctx, 'append');
   }
+  // The bot's daily summary: "присылай сводку в 7 утра", "выключи вечернюю сводку"
+  if (rx(`${B}(?:сводк\\p{L}*|дайджест\\p{L}*|утренн\\p{L}*\\s+план\\p{L}*|план\\s+на\\s+(?:день|завтра)\\s+(?:каждое|по\\s+утрам|каждый|по\\s+вечерам))`).test(t) && !AGENDA_RE.test(t)) {
+    const evening = /вечер|на\s+завтра/iu.test(t);
+    const off = /(?:выключи|отключи|не\s+присылай|не\s+надо|не\s+нужн|убери|отмени|стоп|хватит|перестань)/iu.test(t);
+    const time = off ? {} : parseTime(ctx, false);
+    let start = time.start;
+    // "вечернюю сводку в 9" → 21:00
+    if (evening && start && timeToMinutes(start) < 12 * 60 && !/утра/iu.test(t)) start = minutesToTime(timeToMinutes(start) + 12 * 60);
+    return { ...baseAnalysis('digest'), digestKind: evening ? 'evening' : 'morning', digestOn: !off, start };
+  }
   if (AGENDA_RE.test(t)) return { ...baseAnalysis('agenda'), range: agendaRange(ctx) };
 
   // Reminders: "напомни о встрече за час", "напоминай за день до каждой смены",
@@ -964,6 +977,8 @@ export function isConfident(a: Analysis, text: string): boolean {
       return true;
     case 'move':
       return Boolean(a.title || a.targetKind) && !LEFTOVER.test(a.title);
+    case 'digest':
+      return true;
     case 'note':
       // Without a separator the target and the text are mixed — the model splits them better.
       return Boolean(a.title) && (a.noteMode === 'read' || a.noteMode === 'clear' || Boolean(a.note)) && a.title.split(/\s+/).length <= 5;

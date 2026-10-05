@@ -16,6 +16,8 @@ import { aiAnalyze } from '@/lib/ai';
 import { addDays, humanDate, minutesToTime, timeToMinutes, todayKey } from '@/lib/date';
 import { CATEGORY_TO_COLOR } from '@/lib/meta';
 import { matchScore } from '@/lib/match';
+import { saveDigest, serverSettingsAvailable } from '@/lib/settings';
+import { useUIStore } from '@/store/useUIStore';
 import { nextOccurrence, occurrencesBetween, occursOn, repeatLabel } from '@/lib/recurrence';
 import { offsetLabel } from '@/lib/reminders';
 import type { Reminder } from '@/types';
@@ -755,6 +757,20 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
       return {
         text: mode === 'read' ? 'Чью заметку показать?' : 'К какому делу?',
         attachment: { type: 'choose', action: 'note', candidates: found, target: { note: text, noteMode: mode } },
+      };
+    }
+    case 'digest': {
+      if (!serverSettingsAvailable()) return { text: 'Сводку присылает бот — откройте планер в Telegram.' };
+      const evening = a.digestKind === 'evening';
+      const patch = evening ? { evening: a.digestOn !== false, ...(a.start ? { eveningTime: a.start } : {}) } : { morning: a.digestOn !== false, ...(a.start ? { morningTime: a.start } : {}) };
+      void saveDigest(patch).then((saved) => {
+        if (!saved) useUIStore.getState().showToast('Не удалось сохранить настройку сводки — проверьте интернет');
+      });
+      if (a.digestOn === false) return { text: evening ? 'Вечернюю сводку выключил.' : 'Утреннюю сводку выключил. Включить снова — в настройках или скажите «присылай сводку».' };
+      return {
+        text: evening
+          ? `Буду присылать вечером план на завтра${a.start ? ` в ${a.start}` : ''}.`
+          : `Буду присылать каждое утро план на день${a.start ? ` в ${a.start}` : ''}.`,
       };
     }
     case 'complete': {

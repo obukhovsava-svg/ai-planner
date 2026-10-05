@@ -1,6 +1,7 @@
 import { mergeDocs, emptyDoc, type PlannerDoc } from '../../src/lib/merge';
 import { reminderInstances } from '../../src/lib/reminderCore';
 import { execute } from './exec';
+import { buildDigest, DEFAULT_DIGEST, minutesOf, type DigestSettings } from './digest';
 import { timeToMinutes } from '../../src/lib/date';
 import { analyze, guardNoteMode, isConfident, splitRequests } from '../../src/lib/parser';
 /**
@@ -36,6 +37,8 @@ interface Env {
   API_BASE: string;
   ALLOWED_ORIGIN: string;
   APP_URL: string;
+  /** Optional: your Telegram chat id — feedback from the app is forwarded there (send /myid to the bot). */
+  ADMIN_CHAT_ID?: string;
 }
 
 const MAX_TEXT = 600;
@@ -246,11 +249,117 @@ async function onTelegramUpdate(update: any, env: Env) {
     return;
   }
 
+  // "/today", "/tomorrow" — the summary on demand
+  if (/^\/(today|tomorrow|сегодня|завтра)\b/iu.test(text)) {
+    const user = String(msg.from?.id ?? msg.chat.id);
+    const { tz } = await loadDoc(env, user);
+    const ok = await sendDigest(env, user, tz ?? 0, /tomorrow|завтра/iu.test(text) ? 'evening' : 'morning');
+    if (!ok) await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: 'Откройте планер хотя бы раз, чтобы я увидел ваше расписание 👇', reply_markup: openButton(env) });
+    return;
+  }
+  if (text.startsWith('/myid')) {
+    await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `Ваш chat id: ${msg.chat.id}` });
+    return;
+  }
+
   await tg(env, 'sendMessage', {
     chat_id: msg.chat.id,
-    text: 'Всё планирование — внутри приложения. Откройте планер и скажите ассистенту, что добавить 👇',
+    text: 'Всё планирование — внутри приложения. Откройте планер и скажите ассистенту, что добавить 👇\n\n/today — план на сегодня, /tomorrow — на завтра',
     reply_markup: openButton(env),
   });
+}
+
+/* ------------------------------------------------------------ Daily summary */
+
+let digestTableReady = false;
+async function ensureDigestTables(env: Env) {
+  if (digestTableReady) return;
+  await env.DB.batch([
+    env.DB.prepare(
+      'CREATE TABLE IF NOT EXISTS digest (user_id TEXT PRIMARY KEY, morning INTEGER NOT NULL, morning_time TEXT NOT NULL, evening INTEGER NOT NULL, evening_time TEXT NOT NULL, last_morning TEXT, last_evening TEXT)',
+    ),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, text TEXT NOT NULL, created_at INTEGER NOT NULL)'),
+  ]);
+  digestTableReady = true;
+}
+
+type DigestRow = { morning: number; morning_time: string; evening: number; evening_time: string; last_morning: string | null; last_evening: string | null };
+const toSettings = (r?: DigestRow | null): DigestSettings =>
+  r ? { morning: Boolean(r.morning), morningTime: r.morning_time, evening: Boolean(r.evening), eveningTime: r.evening_time } : { ...DEFAULT_DIGEST };
+
+async function getDigest(env: Env, user: string): Promise<DigestSettings> {
+  await ensureDigestTables(env);
+  const { results } = await env.DB.prepare('SELECT * FROM digest WHERE user_id = ?1').bind(user).all<DigestRow>();
+  return toSettings(results[0]);
+}
+
+async function setDigest(env: Env, user: string, patch: Partial<DigestSettings>): Promise<DigestSettings> {
+  const cur = await getDigest(env, user);
+  const time = (v: unknown, d: string) => (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : d);
+  const next: DigestSettings = {
+    morning: typeof patch.morning === 'boolean' ? patch.morning : cur.morning,
+    morningTime: time(patch.morningTime, cur.morningTime),
+    evening: typeof patch.evening === 'boolean' ? patch.evening : cur.evening,
+    eveningTime: time(patch.eveningTime, cur.eveningTime),
+  };
+  await env.DB.prepare(
+    `INSERT INTO digest (user_id, morning, morning_time, evening, evening_time) VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT (user_id) DO UPDATE SET morning = ?2, morning_time = ?3, evening = ?4, evening_time = ?5`,
+  )
+    .bind(user, next.morning ? 1 : 0, next.morningTime, next.evening ? 1 : 0, next.eveningTime)
+    .run();
+  return next;
+}
+
+/** Sends the summary now; false when the user has no data on the server yet. */
+async function sendDigest(env: Env, user: string, tz: number, kind: 'morning' | 'evening'): Promise<boolean> {
+  const { results } = await env.DB.prepare('SELECT 1 FROM state WHERE user_id = ?1').bind(user).all();
+  if (!results.length) return false;
+  const { doc } = await loadDoc(env, user);
+  const today = localNow(tz).today;
+  const d = buildDigest(doc, today, kind);
+  const day = kind === 'morning' ? today : addDaysKey(today, 1);
+  const app = (open: string) => ({ web_app: { url: `${env.APP_URL}?open=${encodeURIComponent(open)}` } });
+  const keyboard = d.empty
+    ? [[{ text: kind === 'morning' ? '✨ Запланировать день' : '✨ Запланировать завтра', ...app('a') }]]
+    : [[{ text: kind === 'morning' ? '📅 Открыть день' : '📅 Открыть завтра', ...app(`d:${day}`) }, { text: '➕ Добавить', ...app('a') }]];
+  const res = await tg(env, 'sendMessage', { chat_id: user, text: d.text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } }).catch(() => ({ ok: false }));
+  return Boolean(res.ok);
+}
+
+const addDaysKey = (key: string, n: number) => {
+  const d = new Date(`${key}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/** Every minute: whoever's local time has reached their summary time and hasn't got it today. */
+async function sendDigests(env: Env) {
+  await ensureDigestTables(env);
+  const { results } = await env.DB.prepare(
+    `SELECT s.user_id AS user_id, s.tz AS tz, d.morning, d.morning_time, d.evening, d.evening_time, d.last_morning, d.last_evening
+     FROM state s LEFT JOIN digest d ON d.user_id = s.user_id`,
+  ).all<DigestRow & { user_id: string; tz: number | null; morning: number | null }>();
+  for (const r of results) {
+    const st = toSettings(r.morning === null ? null : r);
+    const now = localNow(r.tz ?? 0);
+    const mins = minutesOf(now.time);
+    for (const kind of ['morning', 'evening'] as const) {
+      const on = kind === 'morning' ? st.morning : st.evening;
+      const at = minutesOf(kind === 'morning' ? st.morningTime : st.eveningTime);
+      const last = kind === 'morning' ? r.last_morning : r.last_evening;
+      // Within 3 hours after the chosen time (a missed cron run still delivers), once a day.
+      if (!on || mins < at || mins >= at + 180 || last === now.today) continue;
+      await env.DB.prepare(
+        `INSERT INTO digest (user_id, morning, morning_time, evening, evening_time, ${kind === 'morning' ? 'last_morning' : 'last_evening'})
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT (user_id) DO UPDATE SET ${kind === 'morning' ? 'last_morning' : 'last_evening'} = ?6`,
+      )
+        .bind(r.user_id, st.morning ? 1 : 0, st.morningTime, st.evening ? 1 : 0, st.eveningTime, now.today)
+        .run();
+      await sendDigest(env, r.user_id, r.tz ?? 0, kind);
+    }
+  }
 }
 
 /* ------------------------------------------------------------ Handler */
@@ -466,7 +575,7 @@ async function sendDue(env: Env) {
 
 export default {
   async scheduled(controller: { cron?: string }, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
-    ctx.waitUntil(controller.cron === '0 3 * * *' ? rollAllReminders(env) : sendDue(env));
+    ctx.waitUntil(controller.cron === '0 3 * * *' ? rollAllReminders(env) : Promise.all([sendDue(env), sendDigests(env)]));
   },
 
   async fetch(request: Request, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }): Promise<Response> {
@@ -493,6 +602,14 @@ export default {
         allowed_updates: ['message'],
         drop_pending_updates: true,
       });
+      // The bot's command menu.
+      await tg(env, 'setMyCommands', {
+        commands: [
+          { command: 'today', description: 'План на сегодня' },
+          { command: 'tomorrow', description: 'План на завтра' },
+          { command: 'start', description: 'Открыть планер' },
+        ],
+      });
       return json({ ok: result.ok, description: result.description }, 200, headers);
     }
 
@@ -510,6 +627,29 @@ export default {
       await saveDoc(env, user, merged, tz);
       await env.DB.prepare('UPDATE users SET tz = ?2 WHERE user_id = ?1').bind(user, tz).run();
       return json({ doc: merged }, 200, headers);
+    }
+
+    // Summary settings / a sample now / feedback — from the app's settings sheet.
+    if (request.method === 'POST' && ['/settings', '/digest/test', '/feedback'].includes(url.pathname)) {
+      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
+      const body = (await request.json().catch(() => ({}))) as { digest?: Partial<DigestSettings>; kind?: string; text?: string; tz?: number };
+      if (url.pathname === '/settings') {
+        const digest = body.digest ? await setDigest(env, user, body.digest) : await getDigest(env, user);
+        return json({ digest }, 200, headers);
+      }
+      if (url.pathname === '/digest/test') {
+        const { tz } = await loadDoc(env, user);
+        const ok = await sendDigest(env, user, Number.isFinite(body.tz) ? Math.round(body.tz!) : (tz ?? 0), body.kind === 'evening' ? 'evening' : 'morning');
+        return json({ ok }, 200, headers);
+      }
+      const text = String(body.text ?? '').trim().slice(0, 2000);
+      if (!text) return json({ error: 'empty' }, 400, headers);
+      if (rateLimited(`f:${user}`)) return json({ error: 'rate' }, 429, headers);
+      await ensureDigestTables(env);
+      await env.DB.prepare('INSERT INTO feedback (user_id, text, created_at) VALUES (?1, ?2, ?3)').bind(user, text, Date.now()).run();
+      if (env.ADMIN_CHAT_ID) await tg(env, 'sendMessage', { chat_id: env.ADMIN_CHAT_ID, text: `💬 Отзыв от ${user}:\n\n${text}` }).catch(() => null);
+      return json({ ok: true }, 200, headers);
     }
 
     // iPhone Shortcut: dictated text → model → queued for the app; the bot confirms.

@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { ArrowUp, Smartphone } from 'lucide-react';
-import { Header, IconButton } from '@/components/Header';
-import { ShortcutSheet } from './ShortcutSheet';
+import { ArrowUp } from 'lucide-react';
+import { Header } from '@/components/Header';
 import { useChatStore, type ChatMessage } from '@/store/useChatStore';
 import { useUIStore } from '@/store/useUIStore';
 import { haptic } from '@/lib/telegram';
@@ -44,7 +43,6 @@ export function AssistantTab() {
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const [typing, setTyping] = useState(false);
-  const [shortcutOpen, setShortcutOpen] = useState(false);
   const ai = useSyncExternalStore(aiStatus.subscribe, aiStatus.get);
   const showToast = useUIStore((s) => s.showToast);
   const scroller = useRef<HTMLDivElement>(null);
@@ -105,11 +103,6 @@ export function AssistantTab() {
     <div className="flex h-full flex-col">
       <Header
         title="Ассистент"
-        actions={
-          <IconButton label="Кнопка на iPhone" onClick={() => setShortcutOpen(true)}>
-            <Smartphone className="size-[18px]" strokeWidth={2.2} />
-          </IconButton>
-        }
         subtitle={
           <button type="button" onClick={() => ai.detail && showToast(ai.detail)} className="flex items-center gap-1.5 transition-opacity active:opacity-50">
             <span
@@ -209,7 +202,6 @@ export function AssistantTab() {
           </form>
         </div>
       </div>
-      <ShortcutSheet open={shortcutOpen} onClose={() => setShortcutOpen(false)} />
     </div>
   );
 }
