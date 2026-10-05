@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { ArrowUp, CalendarDays, Flag, Plus, X } from 'lucide-react';
+import { ArrowUp, CalendarDays, Flag, X } from 'lucide-react';
 import type { Priority } from '@/types';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { parseQuick } from '@/lib/parser';
@@ -56,10 +56,10 @@ export function QuickAdd() {
           submit();
         }}
       >
-        <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-blue text-white">
-          <Plus className="size-4" strokeWidth={3} />
-        </span>
+        {/* An empty circle, like the tasks below: "this is where the next one goes", not a button. */}
+        <label htmlFor="quick-add" aria-hidden className="size-[22px] shrink-0 rounded-full border-[1.5px] border-dashed border-faint" />
         <input
+          id="quick-add"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onFocus={() => setFocused(true)}

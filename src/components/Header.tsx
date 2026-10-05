@@ -1,13 +1,12 @@
 import type { ReactNode } from 'react';
 import { Settings } from 'lucide-react';
-import { ThemeToggle } from './ThemeToggle';
 import { useUIStore } from '@/store/useUIStore';
 import { haptic } from '@/lib/telegram';
 
 interface HeaderProps {
   title: ReactNode;
   subtitle?: ReactNode;
-  /** Extra controls rendered left of the theme toggle. */
+  /** Extra controls rendered left of the settings button. */
   actions?: ReactNode;
   /** Plain (white/black) bar for non-grouped screens such as the calendar. */
   plain?: boolean;
@@ -27,7 +26,6 @@ export function Header({ title, subtitle, actions, plain }: HeaderProps) {
         </div>
         <div className="flex shrink-0 items-center gap-2 pb-1.5">
           {actions}
-          <ThemeToggle />
           <IconButton
             label="Настройки"
             onClick={() => {
