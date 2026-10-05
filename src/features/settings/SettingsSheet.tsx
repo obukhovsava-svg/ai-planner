@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CheckCheck, ChevronRight, Clock, MessageCircle, Moon, Palette, Smartphone, Sun } from 'lucide-react';
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
@@ -63,6 +63,18 @@ export function SettingsSheet() {
   const [digest, setDigest] = useState<DigestSettings | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const feedbackBox = useRef<HTMLDivElement>(null);
+  const feedbackOpen = feedback !== null;
+
+  // Opening the feedback form: bring it into view, then again once the keyboard has slid up.
+  const revealFeedback = () => {
+    for (const ms of [60, 380, 700]) {
+      window.setTimeout(() => feedbackBox.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), ms);
+    }
+  };
+  useEffect(() => {
+    if (feedbackOpen) revealFeedback();
+  }, [feedbackOpen]);
 
   useEffect(() => {
     if (open && online) loadDigest().then((d) => d && setDigest(d));
@@ -181,10 +193,11 @@ export function SettingsSheet() {
         </Group>
 
         {feedback !== null && (
-          <div className="animate-fade-up flex flex-col gap-3">
+          <div ref={feedbackBox} className="animate-fade-up flex scroll-mb-6 flex-col gap-3">
             <textarea
               rows={4}
               autoFocus
+              onFocus={revealFeedback}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               placeholder="Что понравилось, что неудобно, чего не хватает?"
