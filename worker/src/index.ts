@@ -322,7 +322,7 @@ async function sendDigest(env: Env, user: string, tz: number, kind: 'morning' | 
   const app = (open: string) => ({ web_app: { url: `${env.APP_URL}?open=${encodeURIComponent(open)}` } });
   const keyboard = d.empty
     ? [[{ text: kind === 'morning' ? '✨ Запланировать день' : '✨ Запланировать завтра', ...app('a') }]]
-    : [[{ text: kind === 'morning' ? '📅 Открыть день' : '📅 Открыть завтра', ...app(`d:${day}`) }, { text: '➕ Добавить', ...app('a') }]];
+    : [[{ text: kind === 'morning' ? '📅 Открыть день' : '📅 Открыть завтра', ...app(`d:${day}`) }]];
   const res = await tg(env, 'sendMessage', { chat_id: user, text: d.text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } }).catch(() => ({ ok: false }));
   return Boolean(res.ok);
 }
