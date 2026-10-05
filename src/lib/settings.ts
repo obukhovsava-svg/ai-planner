@@ -46,3 +46,16 @@ export async function sendDigestSample(kind: 'morning' | 'evening'): Promise<boo
 export async function sendFeedback(text: string): Promise<boolean> {
   return Boolean((await post<{ ok: boolean }>('/feedback', { text }))?.ok);
 }
+
+export interface CalendarFeed {
+  /** Subscribe page (opens in Safari, has the «Подписаться» button). */
+  page: string;
+  ics: string;
+  webcal: string;
+  tasks: boolean;
+}
+
+/** The personal calendar subscription; `tasks` changes what it includes, `reset` issues a new link. */
+export async function calendarFeed(patch: { tasks?: boolean; reset?: boolean } = {}): Promise<CalendarFeed | null> {
+  return post<CalendarFeed>('/calendar', patch);
+}

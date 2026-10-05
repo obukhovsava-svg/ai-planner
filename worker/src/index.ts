@@ -2,6 +2,7 @@ import { mergeDocs, emptyDoc, type PlannerDoc } from '../../src/lib/merge';
 import { reminderInstances } from '../../src/lib/reminderCore';
 import { execute } from './exec';
 import { buildDigest, DEFAULT_DIGEST, minutesOf, type DigestSettings } from './digest';
+import { buildIcs } from './ics';
 import { timeToMinutes } from '../../src/lib/date';
 import { analyze, guardNoteMode, isConfident, splitRequests } from '../../src/lib/parser';
 /**
@@ -267,6 +268,43 @@ async function onTelegramUpdate(update: any, env: Env) {
     text: 'Всё планирование — внутри приложения. Откройте планер и скажите ассистенту, что добавить 👇\n\n/today — план на сегодня, /tomorrow — на завтра',
     reply_markup: openButton(env),
   });
+}
+
+/* ------------------------------------------------------------ Calendar subscription (iPhone / Mac / Google) */
+
+let feedTableReady = false;
+async function ensureFeedTable(env: Env) {
+  if (feedTableReady) return;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS calendar_feed (user_id TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, tasks INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL)').run();
+  feedTableReady = true;
+}
+
+function feedLinks(origin: string, token: string) {
+  const ics = `${origin}/cal/${token}.ics`;
+  return { page: `${origin}/cal/${token}`, ics, webcal: ics.replace(/^https?:/, 'webcal:') };
+}
+
+function subscribePage(links: ReturnType<typeof feedLinks>): string {
+  const google = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(links.webcal)}`;
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Планер в Календаре</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;background:#000;color:#fff;-webkit-font-smoothing:antialiased}
+main{max-width:460px;margin:0 auto;padding:48px 20px 40px}h1{font-size:30px;line-height:1.15;margin:20px 0 10px;letter-spacing:-.02em}p{color:rgba(235,235,245,.65);font-size:17px;line-height:1.45;margin:0 0 14px}
+.icon{width:76px;height:76px;border-radius:20px;background:linear-gradient(135deg,#5b8cff,#a78bfa 52%,#ff8fa3);display:grid;place-items:center}
+.btn{display:block;text-align:center;text-decoration:none;font-weight:600;font-size:17px;border-radius:999px;padding:16px;margin-top:12px}
+.primary{background:#0a84ff;color:#fff}.secondary{background:#1c1c1e;color:#0a84ff}
+ol{margin:22px 0 0;padding-left:20px;color:rgba(235,235,245,.65);font-size:15px;line-height:1.5}li{margin-bottom:6px}
+code{display:block;margin-top:18px;padding:12px;border-radius:12px;background:#1c1c1e;color:rgba(235,235,245,.65);font-size:12px;word-break:break-all}
+</style></head><body><main>
+<div class="icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="4"/><path d="M8 3v3.5M16 3v3.5"/></svg></div>
+<h1>Планер в Календаре</h1>
+<p>События из планера появятся в Календаре iPhone и Mac, в его виджетах на экране «Домой» и экране блокировки, на Apple Watch.</p>
+<a class="btn primary" href="${links.webcal}">Подписаться на iPhone или Mac</a>
+<a class="btn secondary" href="${google}">Добавить в Google Календарь</a>
+<ol><li>Нажмите «Подписаться» → «Подписаться» в окне iPhone.</li><li>Календарь «Планер» обновляется сам — новые события появятся через несколько минут.</li><li>Виджет: удерживайте экран «Домой» → «+» → «Календарь».</li></ol>
+<code>${links.ics}</code>
+</main></body></html>`;
 }
 
 /* ------------------------------------------------------------ Daily summary */
@@ -627,6 +665,36 @@ export default {
       await saveDoc(env, user, merged, tz);
       await env.DB.prepare('UPDATE users SET tz = ?2 WHERE user_id = ?1').bind(user, tz).run();
       return json({ doc: merged }, 200, headers);
+    }
+
+    // Calendar subscription: the personal link (app) and the feed / subscribe page (public, by secret token).
+    if (request.method === 'POST' && url.pathname === '/calendar') {
+      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
+      const body = (await request.json().catch(() => ({}))) as { reset?: boolean; tasks?: boolean };
+      await ensureFeedTable(env);
+      const { results } = await env.DB.prepare('SELECT token, tasks FROM calendar_feed WHERE user_id = ?1').bind(user).all<{ token: string; tasks: number }>();
+      const token = results[0] && !body.reset ? results[0].token : randomToken();
+      const tasks = typeof body.tasks === 'boolean' ? body.tasks : results[0] ? Boolean(results[0].tasks) : true;
+      await env.DB.prepare(
+        'INSERT INTO calendar_feed (user_id, token, tasks, created_at) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id) DO UPDATE SET token = ?2, tasks = ?3',
+      )
+        .bind(user, token, tasks ? 1 : 0, Date.now())
+        .run();
+      return json({ ...feedLinks(url.origin, token), tasks }, 200, headers);
+    }
+    const cal = url.pathname.match(/^\/cal\/([0-9a-f]{40,64})(\.ics)?$/);
+    if (request.method === 'GET' && cal) {
+      await ensureFeedTable(env);
+      const { results } = await env.DB.prepare('SELECT user_id, tasks FROM calendar_feed WHERE token = ?1').bind(cal[1]).all<{ user_id: string; tasks: number }>();
+      const feed = results[0];
+      if (!feed) return new Response('Ссылка устарела — получите новую в планере: Настройки → Календарь iPhone.', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      if (!cal[2]) return new Response(subscribePage(feedLinks(url.origin, cal[1])), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
+      const { doc, tz } = await loadDoc(env, feed.user_id);
+      const ics = buildIcs(doc, { today: localNow(tz ?? 0).today, appUrl: env.APP_URL, tasks: Boolean(feed.tasks) });
+      return new Response(ics, {
+        headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'inline; filename="planner.ics"', 'Cache-Control': 'max-age=300' },
+      });
     }
 
     // Summary settings / a sample now / feedback — from the app's settings sheet.

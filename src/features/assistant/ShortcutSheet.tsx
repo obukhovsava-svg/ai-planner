@@ -102,8 +102,8 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
             </div>
 
             <p className="px-1 text-[13px] leading-snug text-muted">
-              Кнопка на экране «Домой»: в «Командах» удерживайте «Планер» → «Поделиться» → «На экран „Домой“». Также работает «Привет, Siri, Планер» и
-              Кнопка действия.
+              Кнопка на экране «Домой»: в «Командах» удерживайте «Планер» → «Поделиться» → «На экран „Домой“». На экран блокировки и в Пункт
+              управления (iOS 18): «Настроить» → «Быстрые команды» → «Планер». Также работает «Привет, Siri, Планер» и Кнопка действия.
             </p>
 
             <button type="button" onClick={() => load(true)} className="flex items-center justify-center gap-1.5 py-1 text-[14px] text-red active:opacity-60">

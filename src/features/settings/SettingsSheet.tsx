@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, ChevronRight, Clock, MessageCircle, Moon, Palette, Smartphone, Sun } from 'lucide-react';
+import { CalendarDays, CheckCheck, ChevronRight, Clock, ListChecks, MessageCircle, Moon, Palette, RefreshCw, Smartphone, Sun } from 'lucide-react';
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
 import { useUIStore } from '@/store/useUIStore';
-import { haptic } from '@/lib/telegram';
-import { loadDigest, saveDigest, sendDigestSample, sendFeedback, serverSettingsAvailable, type DigestSettings } from '@/lib/settings';
+import { haptic, openExternal } from '@/lib/telegram';
+import { calendarFeed, loadDigest, saveDigest, sendDigestSample, sendFeedback, serverSettingsAvailable, type CalendarFeed, type DigestSettings } from '@/lib/settings';
 import type { ThemeMode } from '@/types';
 
 const fieldClass = 'block w-full appearance-none rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
@@ -63,6 +63,16 @@ export function SettingsSheet() {
   const [digest, setDigest] = useState<DigestSettings | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [feed, setFeed] = useState<CalendarFeed | null>(null);
+
+  const connectCalendar = async () => {
+    haptic.impact('medium');
+    const f = feed ?? (await calendarFeed());
+    if (!f) return showToast('Не удалось получить ссылку — проверьте интернет');
+    setFeed(f);
+    // Safari shows «Подписаться»; iOS then adds the calendar.
+    openExternal(f.page);
+  };
   const feedbackBox = useRef<HTMLDivElement>(null);
   const feedbackOpen = feedback !== null;
 
@@ -77,7 +87,10 @@ export function SettingsSheet() {
   }, [feedbackOpen]);
 
   useEffect(() => {
-    if (open && online) loadDigest().then((d) => d && setDigest(d));
+    if (open && online) {
+      loadDigest().then((d) => d && setDigest(d));
+      calendarFeed().then((f) => f && setFeed(f));
+    }
     if (!open) setFeedback(null);
   }, [open, online]);
 
@@ -142,6 +155,42 @@ export function SettingsSheet() {
             </button>
           )}
         </Group>
+
+        {online && (
+          <Group
+            title="Календарь iPhone"
+            footer="События появятся в Календаре iPhone и Mac — и в его виджетах на экране «Домой», экране блокировки и на Apple Watch. Обновляется само каждые несколько минут."
+          >
+            <Row icon={<CalendarDays className="size-[18px]" />} iconBg="bg-red" label="Подключить к Календарю" onClick={connectCalendar}>
+              <ChevronRight className="size-5 text-faint" />
+            </Row>
+            <Row icon={<ListChecks className="size-[18px]" />} iconBg="bg-blue" label="Показывать задачи">
+              <Switch
+                checked={feed?.tasks ?? true}
+                disabled={!feed}
+                onChange={async (v) => {
+                  haptic.selection();
+                  if (feed) setFeed({ ...feed, tasks: v });
+                  const f = await calendarFeed({ tasks: v });
+                  if (f) setFeed(f);
+                }}
+              />
+            </Row>
+            <Row
+              icon={<RefreshCw className="size-[17px]" />}
+              iconBg="bg-[#8e8e93]"
+              label="Сбросить ссылку"
+              onClick={async () => {
+                haptic.impact('light');
+                const f = await calendarFeed({ reset: true });
+                if (f) {
+                  setFeed(f);
+                  showToast('Старая подписка отключена. Подключите календарь заново');
+                }
+              }}
+            />
+          </Group>
+        )}
 
         <Group title="Задачи" footer={hideDone ? 'Выполненные остаются до конца дня, а на следующий день исчезают из списка.' : 'Выполненные задачи остаются в списке, пока вы их не удалите.'}>
           <Row icon={<CheckCheck className="size-[18px]" />} iconBg="bg-green" label="Скрывать выполненные">
