@@ -13,6 +13,8 @@ MODEL = "openai/gpt-5.6-sol"
 API_BASE = "https://apiracloud.ru/v1"
 # The Mini App opened by the bot's "Открыть планер" button.
 APP_URL = "https://obukhovsava-svg.github.io/ai-planner/"
+# Your Telegram chat id: feedback from the app is forwarded there.
+ADMIN_CHAT_ID = "6679917699"
 # Only the published Mini App may call this worker.
 ALLOWED_ORIGIN = "https://obukhovsava-svg.github.io"
 
