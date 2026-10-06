@@ -35,6 +35,10 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
          let items = try? JSONDecoder().decode([Reminders.Item].self, from: data) {
         Reminders.schedule(items)
       }
+    case "widget":
+      if let raw = body["snapshot"], let data = try? JSONSerialization.data(withJSONObject: raw, options: .sortedKeys) {
+        WidgetStore.save(data)
+      }
     case "speech":
       switch body["action"] as? String {
       case "start": speech.start()

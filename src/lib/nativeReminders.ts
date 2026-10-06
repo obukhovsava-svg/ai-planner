@@ -2,12 +2,14 @@
  * iOS app: reminders are local notifications scheduled on the device by the app (they arrive
  * as the app's own notifications, even offline). Whenever the planner changes we hand the app
  * the upcoming moments; it keeps the soonest 60 scheduled (iOS allows 64 pending).
+ * The same push refreshes the home-screen widget with the coming week.
  */
 import { useEffect } from 'react';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { reminderInstances } from './reminderCore';
-import { todayKey } from './date';
-import { isNative, postNative } from './native';
+import { addDays, todayKey } from './date';
+import { occursOn } from './recurrence';
+import { isNative, postNative, type WidgetSnapshot } from './native';
 
 let timer = 0;
 
@@ -20,6 +22,29 @@ function push() {
       return { id: r.rid, at: r.at, title: title.replace(/^⏰\s*/, ''), body: rest.join('\n'), open: r.rid };
     });
   postNative({ type: 'reminders', items });
+  postNative({ type: 'widget', snapshot: widgetSnapshot() });
+}
+
+/** The next 7 days for the home-screen widget: events in time order, then that day's tasks. */
+function widgetSnapshot(): WidgetSnapshot {
+  const { events, tasks } = usePlannerStore.getState();
+  const today = todayKey();
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(today, i);
+    return {
+      date,
+      events: events
+        .filter((e) => occursOn(e, date))
+        .sort((a, b) => a.start.localeCompare(b.start))
+        .map((e) => ({ title: e.title, start: e.start, end: e.end, color: e.color })),
+      tasks: tasks
+        .filter((t) => t.date === date)
+        .sort((a, b) => Number(a.done) - Number(b.done) || (a.time ?? '99').localeCompare(b.time ?? '99'))
+        .map((t) => ({ title: t.title, time: t.time, done: t.done })),
+    };
+  });
+  const overdue = tasks.filter((t) => !t.done && t.date && t.date < today).length;
+  return { days, overdue };
 }
 
 export function useNativeReminders() {

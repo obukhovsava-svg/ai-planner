@@ -14,6 +14,10 @@ struct PlannerApp: App {
         // still shrinks the view — so the page fits above it instead of growing a scrollable gap.
         .ignoresSafeArea(.container)
         .background(Color(uiColor: .systemGroupedBackground))
+        // A tap on the home-screen widget: planerapp://d/2026-10-06 → that day's plan.
+        .onOpenURL { url in
+          if url.host == "d" { Bridge.shared.open("d:" + url.lastPathComponent) }
+        }
     }
   }
 }

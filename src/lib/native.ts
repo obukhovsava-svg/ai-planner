@@ -16,7 +16,19 @@ type NativeMessage =
   | { type: 'haptic'; kind: 'impact' | 'notify' | 'selection'; style?: string }
   | { type: 'open'; url: string }
   | { type: 'reminders'; items: { id: string; at: number; title: string; body: string; open: string }[] }
-  | { type: 'speech'; action: 'start' | 'stop' | 'cancel' };
+  | { type: 'speech'; action: 'start' | 'stop' | 'cancel' }
+  | { type: 'widget'; snapshot: WidgetSnapshot };
+
+/** What the home-screen widget shows: the next week, day by day (the widget can't run this code). */
+export interface WidgetSnapshot {
+  days: {
+    date: string;
+    events: { title: string; start: string; end: string; color: string }[];
+    tasks: { title: string; time?: string; done: boolean }[];
+  }[];
+  /** Undone tasks from earlier days. */
+  overdue: number;
+}
 
 declare global {
   interface Window {
