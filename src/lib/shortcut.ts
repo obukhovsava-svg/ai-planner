@@ -5,7 +5,7 @@
  */
 import { useEffect } from 'react';
 import { AI_URL } from '@/config';
-import { getInitData } from './telegram';
+import { authHeaders, hasServerAuth } from './auth';
 import { toAnalyses } from './ai';
 import { useChatStore } from '@/store/useChatStore';
 import { useUIStore } from '@/store/useUIStore';
@@ -14,12 +14,11 @@ import { applyQueued } from '@/features/assistant/brain';
 const base = () => AI_URL.replace(/\/$/, '');
 
 export async function getShortcutLink(reset = false): Promise<{ token: string; url: string } | null> {
-  const initData = getInitData();
-  if (!AI_URL || !initData) return null;
+  if (!hasServerAuth()) return null;
   try {
     const res = await fetch(`${base()}/shortcut/token`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ tz: new Date().getTimezoneOffset(), reset }),
     });
     return res.ok ? res.json() : null;
@@ -31,11 +30,10 @@ export async function getShortcutLink(reset = false): Promise<{ token: string; u
 let busy = false;
 
 async function pull() {
-  const initData = getInitData();
-  if (busy || !AI_URL || !initData || document.visibilityState !== 'visible') return;
+  if (busy || !hasServerAuth() || document.visibilityState !== 'visible') return;
   busy = true;
   try {
-    const res = await fetch(`${base()}/shortcut/pull`, { method: 'POST', headers: { 'X-Telegram-Init-Data': initData } });
+    const res = await fetch(`${base()}/shortcut/pull`, { method: 'POST', headers: authHeaders() });
     if (!res.ok) return;
     const { items } = (await res.json()) as { items: { text: string; actions: unknown }[] };
     const chat = useChatStore.getState();

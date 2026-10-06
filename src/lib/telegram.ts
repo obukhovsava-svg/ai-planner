@@ -6,6 +6,8 @@
  * every call degrades to a safe no-op, so the app runs anywhere.
  */
 
+import { isNative, postNative } from './native';
+
 type ImpactStyle = 'light' | 'medium' | 'heavy' | 'rigid' | 'soft';
 type NotificationType = 'error' | 'success' | 'warning';
 
@@ -88,16 +90,19 @@ export const haptic = {
   impact(style: ImpactStyle = 'light') {
     mark();
     if (supports('6.1')) getWebApp()!.HapticFeedback.impactOccurred(style);
+    else if (isNative()) postNative({ type: 'haptic', kind: 'impact', style });
     else if (!isInTelegram()) navigator.vibrate?.(style === 'heavy' ? 20 : style === 'medium' ? 12 : 6);
   },
   notify(type: NotificationType) {
     mark();
     if (supports('6.1')) getWebApp()!.HapticFeedback.notificationOccurred(type);
+    else if (isNative()) postNative({ type: 'haptic', kind: 'notify', style: type });
     else if (!isInTelegram()) navigator.vibrate?.(type === 'success' ? [8, 40, 8] : 15);
   },
   selection() {
     mark();
     if (supports('6.1')) getWebApp()!.HapticFeedback.selectionChanged();
+    else if (isNative()) postNative({ type: 'haptic', kind: 'selection' });
     else if (!isInTelegram()) navigator.vibrate?.(4);
   },
 };
@@ -121,6 +126,7 @@ function installTapHaptics() {
 export function openExternal(url: string) {
   const wa = getWebApp();
   if (wa?.openLink && isInTelegram()) wa.openLink(url, { try_instant_view: false });
+  else if (isNative()) postNative({ type: 'open', url });
   else window.open(url, '_blank', 'noopener');
 }
 

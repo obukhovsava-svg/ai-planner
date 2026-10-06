@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isNative, postNative } from '@/lib/native';
 
 /* Minimal typings — the Web Speech API is not in lib.dom for all TS versions. */
 interface SpeechRecognitionResultLike {
@@ -49,7 +50,8 @@ interface Options {
  */
 export function useSpeechRecognition({ onFinal }: Options) {
   const Ctor = getRecognitionCtor();
-  const supported = Boolean(Ctor);
+  const native = isNative();
+  const supported = native || Boolean(Ctor);
   const [status, setStatus] = useState<SpeechStatus>('idle');
   const [interim, setInterim] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +67,10 @@ export function useSpeechRecognition({ onFinal }: Options) {
   };
 
   const stop = useCallback(() => {
+    if (native) {
+      postNative({ type: 'speech', action: 'stop' });
+      return;
+    }
     if (rec.current) {
       rec.current.stop();
       return;
@@ -76,7 +82,7 @@ export function useSpeechRecognition({ onFinal }: Options) {
     setInterim('');
     setStatus('idle');
     if (text) onFinalRef.current(text);
-  }, []);
+  }, [native]);
 
   const startDemo = useCallback(() => {
     const phrase = DEMO_PHRASES[Math.floor(Math.random() * DEMO_PHRASES.length)];
@@ -98,6 +104,26 @@ export function useSpeechRecognition({ onFinal }: Options) {
     setError(null);
     setInterim('');
     finalText.current = '';
+    // iOS app: Apple's on-device speech recognition through the bridge.
+    if (native) {
+      window.__plannerSpeech = (e) => {
+        if (e.type === 'interim') setInterim(e.text);
+        else if (e.type === 'final') {
+          setInterim('');
+          setStatus('idle');
+          if (e.text.trim()) onFinalRef.current(e.text.trim());
+        } else if (e.type === 'error') {
+          setError(e.message);
+          setStatus('error');
+        } else {
+          setInterim('');
+          setStatus((s) => (s === 'error' ? s : 'idle'));
+        }
+      };
+      setStatus('listening');
+      postNative({ type: 'speech', action: 'start' });
+      return;
+    }
     if (!Ctor) {
       startDemo();
       return;
@@ -138,12 +164,13 @@ export function useSpeechRecognition({ onFinal }: Options) {
       setStatus('error');
       setError('Микрофон занят');
     }
-  }, [Ctor, startDemo]);
+  }, [Ctor, native, startDemo]);
 
   useEffect(
     () => () => {
       clearDemo();
       rec.current?.abort();
+      if (isNative()) postNative({ type: 'speech', action: 'cancel' });
     },
     [],
   );

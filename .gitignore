@@ -9,3 +9,7 @@ worker/.wrangler
 
 # unsigned shortcut build artefact
 shortcut/*.unsigned.shortcut
+# web bundle for the iOS app (the result is ios/Planner/Web/index.html)
+dist-ios
+# Xcode per-user state
+xcuserdata/

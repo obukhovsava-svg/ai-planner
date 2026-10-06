@@ -7,7 +7,7 @@
 import { useEffect } from 'react';
 import { AI_URL } from '@/config';
 import { usePlannerStore } from '@/store/usePlannerStore';
-import { getInitData } from './telegram';
+import { authHeaders, hasServerAuth } from './auth';
 import type { PlannerDoc } from './merge';
 
 let timer = 0;
@@ -22,8 +22,7 @@ const localDoc = (): PlannerDoc => {
 };
 
 export async function syncNow() {
-  const initData = getInitData();
-  if (!AI_URL || !initData) return;
+  if (!hasServerAuth()) return;
   if (inFlight) {
     again = true;
     return;
@@ -33,7 +32,7 @@ export async function syncNow() {
     const doc = localDoc();
     const res = await fetch(`${AI_URL.replace(/\/$/, '')}/state/sync`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ doc, tz: new Date().getTimezoneOffset() }),
     });
     if (!res.ok) return;

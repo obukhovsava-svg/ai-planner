@@ -3,7 +3,8 @@
  * Everything needs Telegram (the server knows the user by initData).
  */
 import { AI_URL } from '@/config';
-import { getInitData } from './telegram';
+import { authHeaders, hasServerAuth } from './auth';
+import { isInTelegram } from './telegram';
 
 export interface DigestSettings {
   morning: boolean;
@@ -15,12 +16,11 @@ export interface DigestSettings {
 const base = () => AI_URL.replace(/\/$/, '');
 
 async function post<T>(path: string, body: unknown): Promise<T | null> {
-  const initData = getInitData();
-  if (!AI_URL || !initData) return null;
+  if (!hasServerAuth()) return null;
   try {
     const res = await fetch(`${base()}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
     });
     return res.ok ? ((await res.json()) as T) : null;
@@ -29,7 +29,9 @@ async function post<T>(path: string, body: unknown): Promise<T | null> {
   }
 }
 
-export const serverSettingsAvailable = () => Boolean(AI_URL && getInitData());
+export const serverSettingsAvailable = () => hasServerAuth();
+/** The bot's morning/evening summary needs a Telegram chat to write to. */
+export const digestAvailable = () => hasServerAuth() && isInTelegram();
 
 export async function loadDigest(): Promise<DigestSettings | null> {
   return (await post<{ digest: DigestSettings }>('/settings', {}))?.digest ?? null;

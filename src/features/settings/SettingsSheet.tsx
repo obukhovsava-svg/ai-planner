@@ -4,7 +4,7 @@ import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
 import { useUIStore } from '@/store/useUIStore';
 import { haptic } from '@/lib/telegram';
-import { loadDigest, saveDigest, sendDigestSample, sendFeedback, serverSettingsAvailable, type DigestSettings } from '@/lib/settings';
+import { digestAvailable, loadDigest, saveDigest, sendDigestSample, sendFeedback, serverSettingsAvailable, type DigestSettings } from '@/lib/settings';
 import type { ThemeMode } from '@/types';
 
 const fieldClass = 'block w-full appearance-none rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
@@ -77,7 +77,7 @@ export function SettingsSheet() {
   }, [feedbackOpen]);
 
   useEffect(() => {
-    if (open && online) {
+    if (open && digestAvailable()) {
       loadDigest().then((d) => d && setDigest(d));
     }
     if (!open) setFeedback(null);
@@ -118,6 +118,7 @@ export function SettingsSheet() {
   return (
     <Sheet open={open} title="Настройки" onClose={() => setOpen(false)}>
       <div className="flex flex-col gap-6 pb-2">
+        {digestAvailable() && (
         <Group
           title="Сводка от бота"
           footer={online ? 'Утром — план на день, вечером — на завтра. Бот пришлёт в Telegram события, задачи и просроченное. В любой момент: /today боту.' : 'Работает, когда планер открыт в Telegram.'}
@@ -144,6 +145,7 @@ export function SettingsSheet() {
             </button>
           )}
         </Group>
+        )}
 
         <Group title="Задачи" footer={hideDone ? 'Выполненные остаются до конца дня, а на следующий день исчезают из списка.' : 'Выполненные задачи остаются в списке, пока вы их не удалите.'}>
           <Row icon={<CheckCheck className="size-[18px]" />} iconBg="bg-green" label="Скрывать выполненные">
@@ -233,7 +235,7 @@ export function DigestPrompt() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (prompted || !serverSettingsAvailable()) return;
+    if (prompted || !digestAvailable()) return;
     const t = window.setTimeout(() => setOpen(true), 2500);
     return () => window.clearTimeout(t);
   }, [prompted]);

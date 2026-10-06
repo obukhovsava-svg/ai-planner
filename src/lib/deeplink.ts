@@ -17,6 +17,11 @@ export function handleDeepLink() {
   params.delete('open');
   history.replaceState(null, '', `${location.pathname}${params.toString() ? `?${params}` : ''}${location.hash}`);
 
+  openTarget(open);
+}
+
+/** e:<id>:<date> / t:<id> / d:<date> / a — also called by the iOS app when a notification is tapped. */
+export function openTarget(open: string) {
   const ui = useUIStore.getState();
   const [kind, id, date] = open.split(':');
   if (kind === 'e' && date) {
@@ -34,3 +39,5 @@ export function handleDeepLink() {
     ui.setTab('assistant');
   }
 }
+
+window.__plannerOpen = (target: string) => openTarget(target);

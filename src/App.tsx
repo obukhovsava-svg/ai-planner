@@ -7,6 +7,7 @@ import { haptic } from '@/lib/telegram';
 import { useTabSwipe } from '@/hooks/useTabSwipe';
 import { useServerSync } from '@/lib/sync';
 import { useShortcutInbox } from '@/lib/shortcut';
+import { useNativeReminders } from '@/lib/nativeReminders';
 import { CalendarTab } from '@/features/calendar/CalendarTab';
 import { AssistantTab } from '@/features/assistant/AssistantTab';
 import { TasksTab } from '@/features/tasks/TasksTab';
@@ -35,6 +36,8 @@ export default function App() {
   // Data lives on the server too: two-way sync (reminders are computed there).
   useServerSync();
   useShortcutInbox();
+  // iOS app: reminders become the app's own local notifications.
+  useNativeReminders();
   const shortcutOpen = useUIStore((s) => s.shortcutOpen);
   const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
 

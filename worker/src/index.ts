@@ -58,6 +58,21 @@ async function hmac(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayB
 const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 /** Validates Telegram Mini App initData; returns the user id or null. */
+/**
+ * The caller: a Telegram user (signed initData) or the iOS app, whose random device key is the
+ * account (no sign-up). Device users are stored as "dev:" + a hash of the key — the key itself
+ * is never kept, and the id cannot be guessed from it.
+ */
+async function authUser(request: Request, env: Env): Promise<string | null> {
+  const tgUser = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+  if (tgUser) return tgUser;
+  const key = request.headers.get('X-Device-Key') ?? '';
+  if (!/^[0-9a-f]{64}$/.test(key)) return null;
+  const digest = await crypto.subtle.digest('SHA-256', enc.encode(`planner-device:${key}`));
+  return `dev:${hex(digest).slice(0, 40)}`;
+}
+const isDeviceUser = (user: string) => user.startsWith('dev:');
+
 async function verifyInitData(initData: string, botToken: string): Promise<string | null> {
   if (!initData || !botToken) return null;
   const params = new URLSearchParams(initData);
@@ -376,7 +391,7 @@ async function sendDigests(env: Env) {
   await ensureDigestTables(env);
   const { results } = await env.DB.prepare(
     `SELECT s.user_id AS user_id, s.tz AS tz, d.morning, d.morning_time, d.evening, d.evening_time, d.last_morning, d.last_evening
-     FROM state s LEFT JOIN digest d ON d.user_id = s.user_id`,
+     FROM state s LEFT JOIN digest d ON d.user_id = s.user_id WHERE s.user_id NOT LIKE 'dev:%'`,
   ).all<DigestRow & { user_id: string; tz: number | null; morning: number | null }>();
   for (const r of results) {
     const st = toSettings(r.morning === null ? null : r);
@@ -403,11 +418,12 @@ async function sendDigests(env: Env) {
 /* ------------------------------------------------------------ Handler */
 
 function cors(origin: string | null, env: Env): Record<string, string> {
-  const allowed = origin && (origin === env.ALLOWED_ORIGIN || origin.startsWith('http://localhost')) ? origin : env.ALLOWED_ORIGIN;
+  // The Mini App's site, the iOS app (its pages come from planner://app) and local development.
+  const allowed = origin && (origin === env.ALLOWED_ORIGIN || origin === 'planner://app' || origin.startsWith('http://localhost')) ? origin : env.ALLOWED_ORIGIN;
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Telegram-Init-Data',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Telegram-Init-Data, X-Device-Key',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -552,6 +568,8 @@ async function saveDoc(env: Env, user: string, doc: PlannerDoc, tz: number) {
 
 /** Recomputes the user's upcoming reminders from their data (35 days ahead). */
 async function scheduleReminders(env: Env, user: string, doc: PlannerDoc, tz: number) {
+  // The iOS app schedules its own notifications on the device; the bot can't write to it anyway.
+  if (isDeviceUser(user)) return;
   const list = reminderInstances(doc.events, doc.tasks, { today: localNow(tz).today, tz });
   await env.DB.batch([
     // Anything not re-scheduled was removed or edited away.
@@ -653,7 +671,7 @@ export default {
 
     // Two-way sync: merge the app's document with the server copy, store, return the result.
     if (request.method === 'POST' && url.pathname === '/state/sync') {
-      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      const user = await authUser(request, env);
       if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
       const body = (await request.json().catch(() => null)) as { doc?: unknown; tz?: number } | null;
       const incoming = cleanDoc(body?.doc);
@@ -669,7 +687,7 @@ export default {
 
     // Calendar subscription: the personal link (app) and the feed / subscribe page (public, by secret token).
     if (request.method === 'POST' && url.pathname === '/calendar') {
-      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      const user = await authUser(request, env);
       if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
       const body = (await request.json().catch(() => ({}))) as { reset?: boolean; tasks?: boolean };
       await ensureFeedTable(env);
@@ -699,7 +717,7 @@ export default {
 
     // Summary settings / a sample now / feedback — from the app's settings sheet.
     if (request.method === 'POST' && ['/settings', '/digest/test', '/feedback'].includes(url.pathname)) {
-      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      const user = await authUser(request, env);
       if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
       const body = (await request.json().catch(() => ({}))) as { digest?: Partial<DigestSettings>; kind?: string; text?: string; tz?: number };
       if (url.pathname === '/settings') {
@@ -774,7 +792,7 @@ export default {
 
     // Personal key for the Shortcut (issued to the signed-in Mini App user).
     if (request.method === 'POST' && url.pathname === '/shortcut/token') {
-      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      const user = await authUser(request, env);
       if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
       const body = (await request.json().catch(() => ({}))) as { tz?: number; reset?: boolean };
       const tz = Number.isFinite(body.tz) ? Math.round(body.tz!) : 0;
@@ -788,7 +806,7 @@ export default {
 
     // The app collects what was dictated via the Shortcut and applies it locally.
     if (request.method === 'POST' && url.pathname === '/shortcut/pull') {
-      const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+      const user = await authUser(request, env);
       if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
       const { results } = await env.DB.prepare('SELECT id, text, actions FROM queue WHERE user_id = ?1 ORDER BY id LIMIT 20')
         .bind(user)
@@ -807,7 +825,7 @@ export default {
     }
     if (request.method !== 'POST' || url.pathname !== '/analyze') return json({ error: 'not_found' }, 404, headers);
 
-    const user = await verifyInitData(request.headers.get('X-Telegram-Init-Data') ?? '', env.BOT_TOKEN);
+    const user = await authUser(request, env);
     if (!user) return json({ error: 'unauthorized' }, 401, headers);
     if (rateLimited(user)) return json({ error: 'rate_limited' }, 429, headers);
 

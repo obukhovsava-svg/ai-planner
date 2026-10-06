@@ -6,7 +6,7 @@
 import type { Repeat } from '@/types';
 import type { Analysis, Intent } from './parser';
 import { AI_URL } from '@/config';
-import { getInitData } from './telegram';
+import { authHeaders, hasServerAuth } from './auth';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { addDays, fromKey, todayKey } from './date';
 import { occurrencesBetween, sanitizeRepeat } from './recurrence';
@@ -37,7 +37,7 @@ export interface AiResult {
   reply?: string;
 }
 
-export const aiAvailable = () => Boolean(AI_URL && getInitData());
+export const aiAvailable = () => hasServerAuth();
 
 /** Compact list of upcoming items so the model can resolve "перенеси встречу…". */
 function contextItems(): string {
@@ -110,7 +110,7 @@ export async function aiAnalyze(text: string): Promise<AiResult | null> {
     const res = await fetch(`${AI_URL.replace(/\/$/, '')}/analyze`, {
       method: 'POST',
       signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': getInitData() },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         text,
         today: todayKey(),

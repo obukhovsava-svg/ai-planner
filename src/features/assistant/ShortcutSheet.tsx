@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react';
 import { Check, Copy, Download, RefreshCw } from 'lucide-react';
 import { Sheet } from '@/components/Sheet';
 import { getShortcutLink } from '@/lib/shortcut';
-import { haptic, isInTelegram, openExternal } from '@/lib/telegram';
+import { haptic, openExternal } from '@/lib/telegram';
+import { hasServerAuth } from '@/lib/auth';
+import { isNative } from '@/lib/native';
 
 /** The signed Shortcut file, served next to the app; Safari hands it to «Команды». */
-const FILE_URL = new URL('planner.shortcut', location.href).href;
+// In the iOS app the page is served from the app bundle, so point Safari at the published copy.
+const FILE_URL = isNative() ? 'https://obukhovsava-svg.github.io/ai-planner/planner.shortcut' : new URL('planner.shortcut', location.href).href;
 
 /** Home-screen voice button: copy your personal link → install the ready-made Shortcut. */
 export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): void }) {
   const [link, setLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const inTelegram = isInTelegram();
+  const inTelegram = hasServerAuth();
 
   const load = async (reset = false) => {
     setLoading(true);
