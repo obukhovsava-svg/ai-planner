@@ -10,7 +10,9 @@ struct PlannerApp: App {
   var body: some Scene {
     WindowGroup {
       PlannerWebView()
-        .ignoresSafeArea()
+        // Edge to edge (the page handles the notch and home indicator itself), but the keyboard
+        // still shrinks the view — so the page fits above it instead of growing a scrollable gap.
+        .ignoresSafeArea(.container)
         .background(Color(uiColor: .systemGroupedBackground))
     }
   }

@@ -138,6 +138,9 @@ private final class WeakHandler: NSObject, WKScriptMessageHandler {
   }
 }
 
+/// Keeps the page's own scroll view at the top (see makeUIView).
+private var pin: NSKeyValueObservation?
+
 struct PlannerWebView: UIViewRepresentable {
   func makeUIView(context: Context) -> WKWebView {
     let bridge = Bridge.shared
@@ -158,6 +161,14 @@ struct PlannerWebView: UIViewRepresentable {
     // The page lays itself out with env(safe-area-inset-*) and scrolls inside its own panes.
     webView.scrollView.contentInsetAdjustmentBehavior = .never
     webView.scrollView.bounces = false
+    // The page itself never scrolls (its lists scroll inside it): no dragging the whole interface
+    // around, and WebKit's "scroll the focused field into view" can't shift it either.
+    webView.scrollView.isScrollEnabled = false
+    pin = webView.scrollView.observe(\.contentOffset, options: [.new]) { scroll, _ in
+      MainActor.assumeIsolated {
+        if scroll.contentOffset != .zero { scroll.contentOffset = .zero }
+      }
+    }
     // iOS 26+: no "liquid glass" edge effect over the page — it bends our own header and tab bar.
     webView.hideScrollEdgeEffects()
     webView.allowsBackForwardNavigationGestures = false
