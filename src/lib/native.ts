@@ -28,6 +28,9 @@ export interface WidgetSnapshot {
   }[];
   /** Undone tasks from earlier days. */
   overdue: number;
+  /** The same overdue tasks, oldest first, and undone tasks without a date (newest first). */
+  late: { title: string; date: string }[];
+  inbox: { title: string }[];
 }
 
 declare global {

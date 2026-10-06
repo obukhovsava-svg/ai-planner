@@ -43,8 +43,16 @@ function widgetSnapshot(): WidgetSnapshot {
         .map((t) => ({ title: t.title, time: t.time, done: t.done })),
     };
   });
-  const overdue = tasks.filter((t) => !t.done && t.date && t.date < today).length;
-  return { days, overdue };
+  const late = tasks
+    .filter((t) => !t.done && t.date && t.date < today)
+    .sort((a, b) => a.date!.localeCompare(b.date!))
+    .map((t) => ({ title: t.title, date: t.date! }));
+  const inbox = tasks
+    .filter((t) => !t.done && !t.date)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 10)
+    .map((t) => ({ title: t.title }));
+  return { days, overdue: late.length, late: late.slice(0, 10), inbox };
 }
 
 export function useNativeReminders() {

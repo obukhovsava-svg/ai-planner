@@ -24,9 +24,37 @@ nonisolated struct WidgetSnapshot: Codable, Sendable {
     let tasks: [Task]
   }
 
+  struct Late: Codable, Hashable, Sendable {
+    let title: String
+    let date: String
+  }
+
+  struct Inbox: Codable, Hashable, Sendable {
+    let title: String
+  }
+
   let days: [Day]
   /// Undone tasks from earlier days.
   let overdue: Int
+  let late: [Late]
+  /// Undone tasks without a date.
+  let inbox: [Inbox]
+
+  init(days: [Day], overdue: Int, late: [Late] = [], inbox: [Inbox] = []) {
+    self.days = days
+    self.overdue = overdue
+    self.late = late
+    self.inbox = inbox
+  }
+
+  /// Older app data has no `late` / `inbox` yet.
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    days = try c.decode([Day].self, forKey: .days)
+    overdue = try c.decodeIfPresent(Int.self, forKey: .overdue) ?? 0
+    late = try c.decodeIfPresent([Late].self, forKey: .late) ?? []
+    inbox = try c.decodeIfPresent([Inbox].self, forKey: .inbox) ?? []
+  }
 
   static let empty = WidgetSnapshot(days: [], overdue: 0)
 
