@@ -116,8 +116,8 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
                 break;
               }
               lines.push(`напомню о «${hit.item.title}» ${dayText(at.slice(0, 10), today)} в ${at.slice(11)}`);
-            } else if (hit.kind === 'task' && !hit.item.date) {
-              unresolved.push(a); // needs a moment to remind at
+            } else if (hit.kind === 'task' && (!hit.item.date || !hit.item.time)) {
+              unresolved.push(a); // needs a moment (a dated task without a time: at what time?) — the app asks
             } else {
               const offset = typeof a.remindOffset === 'number' ? a.remindOffset : 30;
               hit.kind === 'event' ? touchEvent(hit.item.id, { remind: { offset } }) : touchTask(hit.item.id, { remind: { offset } });
@@ -169,6 +169,11 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
           const noun = /встреч/.test(lower) ? 'встречу' : /смен/.test(lower) ? 'смену' : /тренир/.test(lower) ? 'тренировку' : /созвон/.test(lower) ? 'созвон' : 'событие';
           lines.push(`записал ${noun} «${ev.title}» — ${when(d)}, ${start}–${e}${ev.repeat ? ', с повтором' : ''}${ev.remind ? ', напомню' : ''}`);
         } else {
+          // A to-do with a reminder but no time ("напомни завтра купить хлеб"): don't guess 9:00 — the app asks.
+          if (a.remind && !start) {
+            unresolved.push(a);
+            break;
+          }
           const remind = a.remind ? { offset: typeof a.remindOffset === 'number' ? a.remindOffset : 0 } : undefined;
           const task: Task = {
             id: ctx.newId(),

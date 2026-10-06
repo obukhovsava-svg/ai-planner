@@ -6,6 +6,8 @@ import { occurrencesBetween } from '@/lib/recurrence';
 import { EVENT_COLORS } from '@/lib/meta';
 
 const ROW_H = 92;
+/** Month title row — fixed, so a month's height is exactly HEAD_H + rows × ROW_H. */
+const HEAD_H = 46;
 const MAX_LINES = 3;
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 /** Months rendered before / after the current one. Native scrolling keeps it smooth. */
@@ -59,10 +61,30 @@ export function MonthView({ initial, todaySignal, onVisibleMonth, onOpenDay }: M
     return map;
   }, [events, tasks, months]);
 
-  // Jump (without animation) to the initial month before the first paint.
+  // Jump (without animation) to the initial month before the first paint — and hold it there
+  // for a moment: iOS Safari has no scroll anchoring, so any late layout change above the
+  // target (fonts, the WebView resizing) would otherwise leave the list in an earlier year.
   useLayoutEffect(() => {
-    const el = scroller.current?.querySelector<HTMLElement>(`[data-month="${initial.slice(0, 7)}"]`);
-    if (el && scroller.current) scroller.current.scrollTop = el.offsetTop;
+    const root = scroller.current;
+    if (!root) return;
+    const key = initial.slice(0, 7);
+    const place = () => {
+      const el = root.querySelector<HTMLElement>(`[data-month="${key}"]`);
+      if (el && Math.abs(root.scrollTop - el.offsetTop) > 1) root.scrollTop = el.offsetTop;
+    };
+    place();
+    let touched = false;
+    const stop = () => (touched = true);
+    root.addEventListener('pointerdown', stop, { passive: true });
+    root.addEventListener('wheel', stop, { passive: true });
+    root.addEventListener('touchstart', stop, { passive: true });
+    const timers = [0, 120, 400, 900].map((ms) => window.setTimeout(() => !touched && place(), ms));
+    return () => {
+      timers.forEach(window.clearTimeout);
+      root.removeEventListener('pointerdown', stop);
+      root.removeEventListener('wheel', stop);
+      root.removeEventListener('touchstart', stop);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -99,8 +121,10 @@ export function MonthView({ initial, todaySignal, onVisibleMonth, onOpenDay }: M
         ))}
       </div>
       <div ref={scroller} className="pb-tabbar relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        {months.map((m) => (
-          <Month key={m} month={m} today={today} byDay={byDay} onOpenDay={onOpenDay} />
+        {months.map((m, i) => (
+          // Months above the current one are always fully laid out, so their height never
+          // changes under the user (that is what used to scroll the list back to last year).
+          <Month key={m} month={m} today={today} byDay={byDay} onOpenDay={onOpenDay} lazy={i > RANGE_BACK + 1} />
         ))}
       </div>
     </div>
@@ -112,11 +136,13 @@ const Month = memo(function Month({
   today,
   byDay,
   onOpenDay,
+  lazy,
 }: {
   month: DateKey;
   today: DateKey;
   byDay: Map<DateKey, DayItems>;
   onOpenDay(d: DateKey): void;
+  lazy: boolean;
 }) {
   const rows = monthRows(month);
   const first = fromKey(month);
@@ -127,10 +153,10 @@ const Month = memo(function Month({
   return (
     <section
       data-month={month.slice(0, 7)}
-      // Off-screen months skip layout/paint entirely — keeps a long list cheap.
-      style={{ contentVisibility: 'auto', containIntrinsicSize: `auto ${rows * ROW_H + 44}px` }}
+      // Months below the visible one skip layout/paint until scrolled near — keeps the list cheap.
+      style={lazy ? { contentVisibility: 'auto', containIntrinsicSize: `auto ${rows * ROW_H + HEAD_H}px` } : undefined}
     >
-      <div className="grid grid-cols-7 pt-3">
+      <div className="grid grid-cols-7 pt-3" style={{ height: HEAD_H }}>
         <h2
           className={`truncate pb-1 pl-1.5 text-[20px] font-bold ${isCurrent ? 'text-red' : ''}`}
           style={{ gridColumnStart: Math.min(offset + 1, 5), gridColumnEnd: 'span 3' }}

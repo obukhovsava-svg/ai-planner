@@ -532,9 +532,14 @@ function remindAtMoment(c: Candidate, at: string): AssistantReply {
 
 /** Reminder known → set it; otherwise ask how long before (or when, for undated tasks). */
 function remindOrAsk(c: Candidate, offset?: number): AssistantReply {
-  const item = itemOf(c);
+  const item = itemOf(c) as { date?: DateKey; time?: string } | undefined;
   if (c.kind === 'task' && !item?.date) {
     return { text: `Когда напомнить: «${c.title}»?`, attachment: { type: 'remind-ask', candidate: c, step: 'date' } };
+  }
+  // A dated task without a time: "N minutes before" means nothing — ask at what time ("за день" → the day before).
+  if (c.kind === 'task' && item?.date && !item.time) {
+    const day = addDays(item.date, -Math.floor((offset ?? 0) / 1440));
+    return { text: `Во сколько напомнить ${when(day)}: «${c.title}»?`, attachment: { type: 'remind-ask', candidate: c, step: 'time', date: day } };
   }
   if (offset !== undefined) return remindDone(c, { offset });
   return { text: `За сколько напомнить о «${c.title}»?`, attachment: { type: 'remind-ask', candidate: c, step: 'offset' } };

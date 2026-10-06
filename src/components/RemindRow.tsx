@@ -12,14 +12,22 @@ interface RemindRowProps {
   onChange(value: Reminder | undefined): void;
   /** The item has a date — remind "N minutes before"; otherwise pick an exact moment. */
   hasDate: boolean;
-  /** Tasks with a date but no time are counted from 09:00. */
+  /** A task with a date but no time: the user picks the day (that day / the day before…) and the time. */
   timeMissing?: boolean;
+  /** The task's date (with `timeMissing`). */
+  date?: string;
 }
+
+const DAY_CHOICES: [number, string][] = [
+  [0, 'В этот день'],
+  [1, 'Накануне'],
+  [2, 'За 2 дня'],
+];
 
 const short = (m: number) => (m === 0 ? 'Вовремя' : offsetLabel(m).replace('за ', ''));
 
 /** "Напомнить" switch (off by default) with offset chips or an exact date/time for undated tasks. */
-export function RemindRow({ value, onChange, hasDate, timeMissing }: RemindRowProps) {
+export function RemindRow({ value, onChange, hasDate, timeMissing, date }: RemindRowProps) {
   const [picker, setPicker] = useState(false);
   const [custom, setCustom] = useState(false);
   const [d, setD] = useState('0');
@@ -34,7 +42,9 @@ export function RemindRow({ value, onChange, hasDate, timeMissing }: RemindRowPr
       setCustom(false);
       return;
     }
-    if (hasDate) onChange({ offset: 30 });
+    // A date without a time: remind at a chosen moment (default: that day, 09:00 — adjustable right here).
+    if (hasDate && timeMissing && date) onChange({ at: `${date}T09:00` });
+    else if (hasDate) onChange({ offset: 30 });
     else {
       // Undated task: default to tomorrow 09:00 and let the user adjust it.
       onChange({ at: `${addDays(todayKey(), 1)}T09:00` });
@@ -55,7 +65,43 @@ export function RemindRow({ value, onChange, hasDate, timeMissing }: RemindRowPr
         <Switch checked={on} onChange={toggle} />
       </div>
 
-      {on && hasDate && value?.offset !== undefined && (
+      {on && hasDate && timeMissing && date && value?.at && (() => {
+        const [atDate, atTime] = value.at.split('T');
+        const before = Math.round((new Date(`${date}T00:00`).getTime() - new Date(`${atDate}T00:00`).getTime()) / 86_400_000);
+        return (
+          <div className="animate-fade-in border-t-[0.5px] border-line px-4 pb-3 pt-2.5">
+            <div className="flex flex-wrap gap-1.5">
+              {DAY_CHOICES.map(([n, label]) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => {
+                    haptic.selection();
+                    onChange({ at: `${addDays(date, -n)}T${atTime}` });
+                  }}
+                  className={`rounded-full px-3 py-1.5 text-[14px] transition-all duration-300 ease-spring active:scale-95 ${
+                    before === n ? 'bg-blue text-white' : 'bg-surface-2 text-fg'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <label className="mt-2.5 flex items-center gap-3">
+              <span className="flex-1 text-[17px]">Во сколько</span>
+              <input
+                type="time"
+                value={atTime}
+                onChange={(e) => e.target.value && onChange({ at: `${atDate}T${e.target.value}` })}
+                className="rounded-[8px] bg-surface-2 px-2.5 py-1 text-[17px] text-blue outline-none"
+              />
+            </label>
+            <p className="mt-2 text-[13px] text-muted">Бот напишет {atLabel(value.at).toLowerCase()}.</p>
+          </div>
+        );
+      })()}
+
+      {on && hasDate && !(timeMissing && date) && value?.offset !== undefined && (
         <div className="animate-fade-in border-t-[0.5px] border-line px-4 pb-3 pt-2.5">
           <div className="flex flex-wrap gap-1.5">
             {REMIND_PRESETS.map((p) => (
@@ -119,10 +165,7 @@ export function RemindRow({ value, onChange, hasDate, timeMissing }: RemindRowPr
               </button>
             </div>
           )}
-          <p className="mt-2 text-[13px] text-muted">
-            Бот напишет {offsetLabel(offset)}
-            {timeMissing ? ' (время не указано — считаю от 09:00)' : ''}.
-          </p>
+          <p className="mt-2 text-[13px] text-muted">Бот напишет {offsetLabel(offset)}.</p>
         </div>
       )}
 

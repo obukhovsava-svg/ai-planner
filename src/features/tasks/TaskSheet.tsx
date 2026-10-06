@@ -8,9 +8,26 @@ import { usePlannerStore } from '@/store/usePlannerStore';
 import { useUIStore } from '@/store/useUIStore';
 import { CATEGORY_META, PRIORITY_META } from '@/lib/meta';
 import { haptic } from '@/lib/telegram';
+import { addDays } from '@/lib/date';
 
 const fieldClass =
   'block w-full min-w-0 max-w-full appearance-none rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
+
+/**
+ * The reminder after the task's date / time changed:
+ *  • with a time → "N minutes before" (an exact moment becomes "at the time");
+ *  • a date without a time → an exact moment that day (keeps the chosen time and "накануне" shift);
+ *  • no date → only an exact moment survives.
+ */
+function keepRemind(task: Task, date?: string, time?: string): Task['remind'] {
+  const r = task.remind;
+  if (!r) return undefined;
+  if (!date) return r.at ? r : undefined;
+  if (time) return r.at ? { offset: 0 } : r;
+  const [atDate, atTime = '09:00'] = r.at?.split('T') ?? [];
+  const before = task.date && atDate ? Math.max(0, Math.round((new Date(`${task.date}T00:00`).getTime() - new Date(`${atDate}T00:00`).getTime()) / 86_400_000)) : 0;
+  return { at: `${addDays(date, -Math.min(before, 2))}T${atTime}` };
+}
 
 export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): void }) {
   const updateTask = usePlannerStore((s) => s.updateTask);
@@ -71,6 +88,7 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
           onChange={(r) => setForm({ ...form, remind: r })}
           hasDate={Boolean(form.date)}
           timeMissing={Boolean(form.date && !form.time)}
+          date={form.date}
         />
 
         <div className="flex flex-col gap-1.5">
@@ -144,8 +162,7 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
             ...form,
             date,
             time,
-            // Keep the reminder meaningful: offsets need a date, exact moments are for undated tasks.
-            remind: form.remind && (date ? (form.remind.at ? { offset: 0 } : form.remind) : form.remind.at ? form.remind : undefined),
+            remind: keepRemind(form, date, time),
           })
         }
         onClose={() => setPicker(false)}

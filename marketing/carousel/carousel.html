@@ -17,6 +17,10 @@
   .deck { display: flex; flex-wrap: wrap; gap: 40px; padding: 40px; }
   body.single .deck { padding: 0; gap: 0; }
   body.single .slide:not(.on) { display: none; }
+  /* ?reel=1 — 9:16 for Reels: room above/below for Instagram's own captions and buttons */
+  body.reel .slide { height: 1920px; padding: 250px 88px 430px; justify-content: center; }
+  body.reel .slide .bottom { margin-top: 56px; }
+  body.reel .count, body.reel .swipe { visibility: hidden; }
 
   .slide { position: relative; width: 1080px; height: 1350px; overflow: hidden; background: var(--bg); padding: 96px 88px; display: flex; flex-direction: column; }
   .glow { position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.55; pointer-events: none; }
@@ -230,6 +234,7 @@
     m.innerHTML += `<div class="d${on ? ' on' : ''}">${d}</div>`;
   }
   // ?s=N renders a single slide (for export).
+  if (new URLSearchParams(location.search).get('reel')) document.body.classList.add('reel');
   const s = new URLSearchParams(location.search).get('s');
   if (s) {
     document.body.classList.add('single');

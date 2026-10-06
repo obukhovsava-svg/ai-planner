@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<title>Threads — AI-планер</title>
+<link rel="stylesheet" href="style.css" />
+<style>
+  .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 60px; flex: 1; max-height: 860px; }
+  .col { border-radius: 40px; padding: 36px 32px; background: var(--surface); border: 1px solid rgb(255 255 255 / 0.06); }
+  .col h3 { font-size: 42px; font-weight: 800; letter-spacing: -0.02em; }
+  .col .k { font-size: 30px; color: var(--muted); margin-top: 6px; font-weight: 600; }
+  .steps2 { margin-top: 40px; display: flex; flex-direction: column; gap: 26px; }
+  .s2 { display: flex; gap: 16px; align-items: center; font-size: 33px; color: var(--muted); }
+  .s2 b { width: 52px; height: 52px; border-radius: 50%; background: rgb(255 255 255 / 0.08); display: grid; place-items: center; font-size: 24px; color: #fff; flex-shrink: 0; }
+  .col.win { background: linear-gradient(160deg, rgb(91 140 255 / 0.22), rgb(167 139 250 / 0.18) 55%, rgb(255 143 163 / 0.16)); border-color: rgb(167 139 250 / 0.4); }
+  .bubble { margin-top: 40px; font-size: 36px !important; background: var(--blue); border-radius: 30px 30px 10px 30px; padding: 22px 26px; font-size: 30px; line-height: 1.3; font-weight: 500; }
+  .done { margin-top: 26px; font-size: 32px !important; display: flex; gap: 12px; align-items: center; font-size: 28px; color: var(--green); font-weight: 700; }
+  .big { font-size: 150px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; margin-top: 30px; }
+  .feat { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 56px; }
+  .f { border-radius: 40px; padding: 36px 32px; background: var(--surface); border: 1px solid rgb(255 255 255 / 0.06); min-height: 300px; display: flex; flex-direction: column; }
+  .f .e { font-size: 64px; }
+  .f h3 { font-size: 38px; font-weight: 800; letter-spacing: -0.02em; margin-top: 22px; line-height: 1.1; }
+  .f p { font-size: 28px; color: var(--muted); margin-top: 12px; line-height: 1.3; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- 1 — the hook: what it understands -->
+  <section class="slide">
+    <div class="glow g1"></div><div class="glow g2"></div>
+    <div class="z top"><span class="pill"><span class="dot"></span>Сделал сам</span><span class="count"></span></div>
+    <h2 class="z" style="font-size:80px">AI-планер, который понимает <span class="grad">как&nbsp;говорят люди</span></h2>
+    <div class="z compact" style="margin-top:38px;display:flex;flex-direction:column;gap:16px">
+      <div class="user">перенеси учёбу на пятницу</div>
+      <div class="card"><div class="ic blue">↪️</div><div><div class="ct">Перенёс «Учёба»</div><div class="cs">Пятница · 10:00 – 12:00</div></div></div>
+      <div class="user" style="margin-top:14px">смены 2 через 2 с 8 до 20 с понедельника</div>
+      <div class="card"><div class="ic orange">🗓</div><div><div class="ct">Смена · график 2/2</div><div class="cs">С понедельника · 08:00 – 20:00</div></div></div>
+      <div class="user" style="margin-top:14px">напомни про созвон за 15 минут</div>
+      <div class="card"><div class="ic violet">🔔</div><div><div class="ct">Напомню о «Созвон»</div><div class="cs">за 15 мин · в Telegram</div></div></div>
+    </div>
+    <div class="z bottom"><span>Прямо в Telegram · бесплатно</span></div>
+  </section>
+
+  <!-- 2 — before / after -->
+  <section class="slide">
+    <div class="glow g1" style="opacity:.4"></div><div class="glow g3"></div>
+    <div class="z top"><span class="pill"><span class="dot"></span>Одна встреча в календаре</span><span class="count"></span></div>
+    <h2 class="z">6 нажатий <span class="grad">или&nbsp;1&nbsp;фраза</span></h2>
+    <div class="z vs">
+      <div class="col">
+        <h3>Обычный календарь</h3>
+        <div class="steps2">
+          <div class="s2"><b>1</b>Открыть</div>
+          <div class="s2"><b>2</b>Нажать «+»</div>
+          <div class="s2"><b>3</b>Название</div>
+          <div class="s2"><b>4</b>Дата</div>
+          <div class="s2"><b>5</b>Начало и конец</div>
+          <div class="s2"><b>6</b>Напоминание</div>
+        </div>
+      </div>
+      <div class="col win">
+        <h3>Планер</h3>
+        <div class="k">Сказал — готово</div>
+        <div class="bubble">Встреча с Анной завтра с 15 до 16 и напомни за час</div>
+        <div class="done">✅ Записал · 🔔 за 1 ч</div>
+      </div>
+    </div>
+    <div class="z bottom"><span>Голосом или текстом</span></div>
+  </section>
+
+  <!-- 3 — what's inside -->
+  <section class="slide">
+    <div class="glow g1"></div><div class="glow g2"></div>
+    <div class="z top"><span class="pill"><span class="dot"></span>Что внутри</span><span class="count"></span></div>
+    <h2 class="z">Не&nbsp;просто планер</h2>
+    <div class="z feat">
+      <div class="f"><span class="e">☀️</span><h3>Утренняя сводка</h3><p>Бот сам присылает план на день в 8:00</p></div>
+      <div class="f"><span class="e">📱</span><h3>Кнопка на iPhone</h3><p>Нажал на экране «Домой», сказал — записано</p></div>
+      <div class="f"><span class="e">📅</span><h3>Календарь iPhone</h3><p>События в виджетах и на Apple Watch</p></div>
+      <div class="f"><span class="e">📝</span><h3>Заметки к делам</h3><p>«Допиши к встрече: взять договор»</p></div>
+    </div>
+    <span class="z handle" style="margin-top:50px;font-size:44px;padding:24px 40px"><svg width="44" height="44" viewBox="0 0 24 24" fill="#0b0b12"><path d="M21.5 4.3 2.9 11.5c-1.3.5-1.3 1.2-.2 1.5l4.8 1.5 1.8 5.6c.2.6.1.9.8.9.5 0 .7-.2 1-.5l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.7c.3-1.3-.5-1.9-1.5-1.5Z"/></svg>@myliveplaners_bot</span>
+    <div class="z bottom"></div>
+  </section>
+
+</div>
+<script>
+  const s = new URLSearchParams(location.search).get('s');
+  if (s) {
+    document.body.classList.add('single');
+    document.querySelectorAll('.slide')[Number(s) - 1].classList.add('on');
+  }
+</script>
+</body>
+</html>
