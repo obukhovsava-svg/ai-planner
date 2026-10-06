@@ -64,6 +64,7 @@ nonisolated struct WidgetSnapshot: Codable, Sendable {
 nonisolated enum WidgetStore {
   static let group = "group.com.obukhov.planner"
   static let kind = "PlannerToday"
+  static let tasksKind = "PlannerTasks"
 
   private static var file: URL? {
     FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?.appendingPathComponent("widget.json")
@@ -74,7 +75,7 @@ nonisolated enum WidgetStore {
   static func save(_ data: Data) {
     guard let file, (try? Data(contentsOf: file)) != data else { return }
     try? data.write(to: file, options: .atomic)
-    WidgetCenter.shared.reloadTimelines(ofKind: kind)
+    WidgetCenter.shared.reloadAllTimelines()
   }
 
   static func load() -> WidgetSnapshot {

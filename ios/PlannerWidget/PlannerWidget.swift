@@ -7,6 +7,7 @@ import WidgetKit
 struct PlannerWidgets: WidgetBundle {
   var body: some Widget {
     TodayWidget()
+    TasksWidget()
   }
 }
 
@@ -20,6 +21,20 @@ struct TodayWidget: Widget {
     .configurationDisplayName("Сегодня")
     .description("Планы и задачи на сегодня.")
     .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular, .accessoryInline, .accessoryCircular])
+  }
+}
+
+/// Lock screen only: today's tasks with a progress ring — sits next to «Сегодня»'s plans.
+struct TasksWidget: Widget {
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: WidgetStore.tasksKind, provider: Provider()) { entry in
+      TasksLockView(day: DayPlan(entry.snapshot, at: entry.date))
+        .containerBackground(for: .widget) { Color.clear }
+        .widgetURL(URL(string: "planerapp://d/\(WidgetStore.key(entry.date))"))
+    }
+    .configurationDisplayName("Задачи")
+    .description("Задачи на сегодня и прогресс.")
+    .supportedFamilies([.accessoryRectangular, .accessoryCircular])
   }
 }
 
@@ -437,30 +452,105 @@ struct LargeView: View {
 }
 
 // MARK: - Lock screen
+// iOS tints lock-screen widgets to one colour over the wallpaper, so the design carries over
+// as shapes: the plan timeline (time · bar · title), task circles and the progress ring.
 
+/// «Сегодня» on the lock screen: the next plans as a mini timeline.
 struct RectangularView: View {
   let day: DayPlan
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 1) {
-      if let e = day.next {
-        Text(day.isNow(e) ? "Сейчас · до \(e.end)" : e.start).font(.system(size: 13, weight: .semibold)).widgetAccentable()
-        Text(e.title).font(.system(size: 15, weight: .semibold)).lineLimit(1)
-        Text(rest).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+    if day.events.isEmpty {
+      TasksRect(day: day)
+    } else {
+      VStack(alignment: .leading, spacing: 2) {
+        LockTitle(icon: "calendar", title: "Планы", count: day.events.count)
+        ForEach(Array(day.events.prefix(2).enumerated()), id: \.offset) { _, e in
+          let now = day.isNow(e)
+          HStack(spacing: 5) {
+            Text(e.start).font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
+              .fixedSize()
+            Capsule().frame(width: 3, height: 13).opacity(now ? 1 : 0.5).widgetAccentable()
+            Text(e.title).font(.system(size: 14, weight: now ? .bold : .regular)).lineLimit(1)
+          }
+        }
+        Spacer(minLength: 0)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+}
+
+private struct LockTitle: View {
+  let icon: String
+  let title: String
+  let count: Int
+
+  var body: some View {
+    HStack(spacing: 3) {
+      Image(systemName: icon)
+      Text(count > 0 ? "\(title.uppercased()) · \(count)" : title.uppercased())
+    }
+    .font(.system(size: 11, weight: .bold)).opacity(0.75).widgetAccentable()
+  }
+}
+
+/// Ring of today's progress + the first open tasks.
+struct TasksRect: View {
+  let day: DayPlan
+
+  var body: some View {
+    HStack(spacing: 8) {
+      LockRing(day: day, size: 38)
+      VStack(alignment: .leading, spacing: 2) {
+        if day.openTodo.isEmpty {
+          Text(day.todo.isEmpty ? "Задач нет" : "Всё сделано").font(.system(size: 15, weight: .semibold))
+          Text("на сегодня").font(.system(size: 13)).opacity(0.7)
+        }
+        ForEach(Array(day.openTodo.prefix(3).enumerated()), id: \.offset) { _, t in
+          HStack(spacing: 4) {
+            Image(systemName: t.kind == .late ? "exclamationmark.circle" : "circle").font(.system(size: 10, weight: .semibold))
+            Text(t.title).font(.system(size: 13)).lineLimit(1)
+          }
+        }
+      }
+      Spacer(minLength: 0)
+    }
+  }
+}
+
+/// Today's tasks done / all of them, drawn like the home-screen ring.
+private struct LockRing: View {
+  let day: DayPlan
+  let size: CGFloat
+
+  var body: some View {
+    let total = day.tasks.count, done = day.doneCount
+    ZStack {
+      Circle().stroke(lineWidth: size * 0.11).opacity(0.25)
+      Circle().trim(from: 0, to: total == 0 ? 0 : Double(done) / Double(total))
+        .stroke(style: StrokeStyle(lineWidth: size * 0.11, lineCap: .round))
+        .rotationEffect(.degrees(-90)).widgetAccentable()
+      if total > 0 && done == total {
+        Image(systemName: "checkmark").font(.system(size: size * 0.32, weight: .bold))
       } else {
-        Text("Сегодня").font(.system(size: 13, weight: .semibold)).widgetAccentable()
-        Text(day.openTodo.first?.title ?? "Свободный день").font(.system(size: 15, weight: .semibold)).lineLimit(1)
-        Text(day.openTodo.isEmpty ? "Нет дел" : tasksLabel(day.openTodo.count)).font(.system(size: 13)).foregroundStyle(.secondary)
+        Text("\(done)/\(total)").font(.system(size: size * 0.27, weight: .bold, design: .rounded)).monospacedDigit()
       }
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(width: size, height: size)
   }
+}
 
-  private var rest: String {
-    let more = day.events.count - 1
-    let tasks = day.openTodo.count
-    return [more > 0 ? "ещё \(more) \(plural(more, "план", "плана", "планов"))" : nil, tasks > 0 ? tasksLabel(tasks) : nil]
-      .compactMap { $0 }.joined(separator: " · ")
+struct TasksLockView: View {
+  let day: DayPlan
+  @Environment(\.widgetFamily) private var family
+
+  var body: some View {
+    if family == .accessoryCircular {
+      LockRing(day: day, size: 52)
+    } else {
+      TasksRect(day: day)
+    }
   }
 }
 
@@ -476,6 +566,7 @@ struct InlineView: View {
   }
 }
 
+/// «Сегодня» round: the next plan's time, or how many tasks are left.
 struct CircularView: View {
   let day: DayPlan
 
@@ -483,8 +574,13 @@ struct CircularView: View {
     ZStack {
       AccessoryWidgetBackground()
       VStack(spacing: 0) {
-        Image(systemName: "checklist").font(.system(size: 12))
-        Text("\(day.openTodo.count)").font(.system(size: 20, weight: .semibold))
+        if let e = day.next {
+          Image(systemName: "calendar").font(.system(size: 11, weight: .semibold))
+          Text(e.start).font(.system(size: 14, weight: .bold, design: .rounded)).monospacedDigit()
+        } else {
+          Image(systemName: "checklist").font(.system(size: 11, weight: .semibold))
+          Text("\(day.openTodo.count)").font(.system(size: 20, weight: .bold, design: .rounded))
+        }
       }
     }
   }
