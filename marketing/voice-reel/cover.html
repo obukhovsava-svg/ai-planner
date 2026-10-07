@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Cover — ПЛАН</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #060913; font-family: 'Montserrat', sans-serif; -webkit-font-smoothing: antialiased; }
+  .abs { position: absolute; }
+  .H { font-family: 'Oswald', sans-serif; font-weight: 700; text-transform: uppercase; line-height: 0.92; }
+  .grad { background: linear-gradient(100deg, #7a9dfe, #a48bfa 50%, #f48eae); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tile { width: 150px; height: 150px; border-radius: 38px; display: grid; place-items: center; position: absolute; }
+  .badge { position: absolute; left: -12px; top: -12px; width: 44px; height: 44px; border-radius: 50%; background: #ff3b30; color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 34px; line-height: 1; box-shadow: 0 4px 14px rgba(255,59,48,.5); }
+</style>
+</head>
+<body>
+<!-- glows -->
+<div class="abs" style="width:1400px;height:1400px;left:-160px;top:280px;border-radius:50%;background:radial-gradient(circle,rgba(70,100,230,.5),rgba(40,60,160,.12) 45%,transparent 68%)"></div>
+<div class="abs" style="width:1000px;height:1000px;right:-460px;top:-300px;border-radius:50%;background:radial-gradient(circle,rgba(164,139,250,.32),transparent 65%)"></div>
+<div class="abs" style="width:1000px;height:1000px;left:-480px;bottom:-200px;border-radius:50%;background:radial-gradient(circle,rgba(244,142,174,.24),transparent 65%)"></div>
+
+<!-- speed streaks -->
+<svg class="abs" style="left:0;top:0" width="1080" height="1920">
+  <defs><linearGradient id="st" x1="0" x2="1"><stop offset="0" stop-color="#a48bfa" stop-opacity="0"/><stop offset=".7" stop-color="#a48bfa" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity=".9"/></linearGradient></defs>
+  <g transform="rotate(-14 540 960)" stroke="url(#st)" stroke-linecap="round">
+    <line x1="-100" y1="620" x2="420" y2="620" stroke-width="5"/>
+    <line x1="-60" y1="700" x2="300" y2="700" stroke-width="3"/>
+    <line x1="700" y1="1260" x2="1180" y2="1260" stroke-width="6"/>
+    <line x1="760" y1="1340" x2="1160" y2="1340" stroke-width="3"/>
+    <line x1="-80" y1="1500" x2="260" y2="1500" stroke-width="4"/>
+    <line x1="820" y1="560" x2="1200" y2="560" stroke-width="3"/>
+  </g>
+</svg>
+
+<!-- headline (inside the 3:4 grid crop: y 240…1680) -->
+<div class="abs" style="left:0;right:0;top:300px;text-align:center;transform:rotate(-4deg)">
+  <div style="display:inline-block;font-weight:800;font-size:30px;letter-spacing:.14em;color:#8fb0ff;border:2px solid rgba(143,176,255,.45);border-radius:999px;padding:10px 26px;margin-bottom:22px;background:rgba(10,14,30,.6)">AI-ПЛАНЕР · ГОЛОСОМ</div>
+  <div class="H" style="font-size:132px;color:#fff;text-shadow:0 8px 40px rgba(0,0,0,.6)">Я удалил</div>
+  <div class="H grad" style="font-size:146px;filter:drop-shadow(0 0 40px rgba(164,139,250,.45))">все планеры</div>
+</div>
+
+<!-- the phone, tilted, with the real notification -->
+<div class="abs" style="left:300px;top:760px;width:480px;height:986px;perspective:1600px">
+  <div style="position:absolute;inset:0;transform:rotateY(-18deg) rotateX(6deg) rotateZ(6deg);transform-style:preserve-3d">
+    <div style="position:absolute;left:-8px;top:220px;width:11px;height:72px;border-radius:6px;background:linear-gradient(#7a9dfe,#a48bfa);box-shadow:0 0 30px #a48bfa"></div>
+    <div style="position:absolute;inset:0;border-radius:80px;background:#15171f;padding:12px;box-shadow:0 0 0 2px #2f3240,0 60px 140px rgba(0,0,0,.7),0 0 140px rgba(122,157,254,.35)">
+      <div style="position:relative;width:100%;height:100%;border-radius:68px;overflow:hidden">
+        <img src="ipf/v0954.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+        <div style="position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.18),transparent 35%)"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- deleted planner apps flying away (motion blur) -->
+<div class="tile" style="left:70px;top:860px;background:linear-gradient(145deg,#ff5a5f,#ff5a5fcc);transform:rotate(-16deg);filter:blur(1px);box-shadow:-60px 0 50px -20px rgba(255,90,95,.35)">
+  <svg width="74" height="74" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg><div class="badge">−</div></div>
+<div class="tile" style="left:110px;top:1120px;width:120px;height:120px;border-radius:30px;background:linear-gradient(145deg,#3b82f6,#3b82f6cc);transform:rotate(12deg);filter:blur(2.5px);opacity:.85">
+  <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="m8 12.5 3 3 5-6.5"/></svg><div class="badge" style="width:38px;height:38px;font-size:28px">−</div></div>
+<div class="tile" style="left:840px;top:900px;width:130px;height:130px;border-radius:33px;background:linear-gradient(145deg,#f59e0b,#f59e0bcc);transform:rotate(18deg);filter:blur(1.5px)">
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/></svg><div class="badge" style="width:40px;height:40px;font-size:30px">−</div></div>
+<div class="tile" style="left:880px;top:1170px;width:100px;height:100px;border-radius:26px;background:linear-gradient(145deg,#8b5cf6,#8b5cf6cc);transform:rotate(-22deg);filter:blur(3.5px);opacity:.7">
+  <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16M15 4v16"/></svg></div>
+
+<!-- 7 taps → 1 phrase -->
+<div class="abs" style="left:0;right:0;top:1478px;display:flex;justify-content:center;align-items:center;gap:22px;transform:rotate(-3deg)">
+  <div style="position:relative;padding:18px 30px;border-radius:24px;background:#141a33;border:2px solid rgba(255,255,255,.22);font-weight:800;font-size:44px;color:rgba(255,255,255,.85);box-shadow:0 16px 50px rgba(0,0,0,.55)">7 нажатий
+    <div style="position:absolute;left:14px;right:14px;top:50%;height:6px;border-radius:3px;background:#ff3b30;transform:rotate(-6deg)"></div></div>
+  <svg width="70" height="40" viewBox="0 0 70 40" fill="none" stroke="#a48bfa" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h56M44 6l16 14-16 14"/></svg>
+  <div style="padding:18px 34px;border-radius:24px;background:linear-gradient(110deg,#7a9dfe,#a48bfa 50%,#f48eae);font-weight:800;font-size:46px;color:#0b0b18;box-shadow:0 16px 60px rgba(164,139,250,.55)">1 фраза ✓</div>
+</div>
+
+<!-- vignette + grain -->
+<div class="abs" style="inset:0;background:radial-gradient(ellipse at 50% 48%,transparent 55%,rgba(0,0,0,.5))"></div>
+<svg class="abs" style="inset:0;opacity:.1;mix-blend-mode:overlay" width="1080" height="1920"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.4 0"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>
+</body>
+</html>
