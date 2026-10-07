@@ -18,6 +18,7 @@ async function worker() {
   while (next < jobs.length) {
     const [i, t] = jobs[next++];
     await page.evaluate((t) => window.render(t), t);
+    await page.evaluate(() => Promise.all([...document.images].map((im) => (im.complete && im.naturalWidth ? 0 : im.decode().catch(() => 0)))));
     await page.screenshot({ path: `${outDir}/f${String(i).padStart(4, '0')}.png`, type: 'png' });
     if (i % 100 === 0) console.log('frame', i);
   }

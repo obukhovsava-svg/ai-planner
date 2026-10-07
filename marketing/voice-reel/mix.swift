@@ -6,7 +6,11 @@ import AVFoundation
 import Foundation
 
 let SR = 48_000.0
-let DUR = 43.2
+let DUR = 46.2
+// After the iPhone demo the voice pauses for GAP seconds while the app is shown (same as reel.html).
+let GAP_AT = 33.35, GAP = 3.0
+/// Times in the score are on the voice clock; RAW = true means "already video time" (the app showcase).
+var RAW = false
 let N = Int(SR * DUR)
 var sfx = [Float](repeating: 0, count: N * 2)
 var voice = [Float](repeating: 0, count: N * 2)
@@ -21,7 +25,7 @@ func note(_ m: Double) -> Double { 440 * pow(2, (m - 69) / 12) }
 
 /// Adds a generated sound; gen(t seconds, x 0…1) → sample.
 func add(_ at: Double, _ len: Double, pan: Float = 0, gain: Float = 1, _ gen: (Double, Double) -> Float) {
-  let start = Int(at * SR), count = Int(len * SR)
+  let start = Int((RAW || at < GAP_AT ? at : at + GAP) * SR), count = Int(len * SR)
   let l = 1 - max(0, pan), r = 1 + min(0, pan)
   for i in 0..<count {
     let n = start + i
@@ -243,6 +247,24 @@ func riseCut(_ at: Double, gain: Float = 0.16) {
   click(at, gain: gain, bright: 3000)
 }
 
+/// Vinyl brake: everything winds down (into the black-and-white moment).
+func brake(_ at: Double, gain: Float = 0.2) {
+  var lp = LP(), ph = 0.0
+  add(at - 0.05, 0.45, gain: gain) { _, x in
+    ph += (320 * pow(1 - x, 2.5) + 25) / SR
+    let s = Float(sin(tau * ph))
+    return (s * 0.7 + lp.run(noise(), coef(1800 * (1 - x) + 100)) * 0.6) * Float(1 - x)
+  }
+}
+/// Low uneasy hum under the awkward question.
+func hum(_ at: Double, _ len: Double, gain: Float = 0.07) {
+  var lp = LP()
+  add(at, len, gain: gain) { t, x in
+    let env = Float(min(1, x * 6) * min(1, (1 - x) * 6))
+    return (Float(sin(tau * 55 * t) + 0.4 * sin(tau * 82.5 * t)) + lp.run(noise(), coef(400)) * 1.5) * env
+  }
+}
+
 // ---------------------------------------------------------------- the score (seconds, same clock as reel.html)
 boom(0.02, gain: 0.55); glitch(0.02, gain: 0.08, bursts: 3)
 for (i, d) in [0.86, 1.14, 1.36, 1.62, 1.9, 2.2].enumerated() { glitch(d + 0.04, gain: 0.07, bursts: 2 + i % 2); click(d + 0.04, gain: 0.12) }
@@ -250,7 +272,7 @@ reverseSnap(2.72); hit(2.75, gain: 0.22)
 flashBloom(3.62)
 var tt = 3.82, gap = 0.24, tock = false
 while tt < 5.5 { tick(tt, tock: tock); tock.toggle(); tt += gap; gap = max(0.075, gap * 0.85) }
-hit(4.8, gain: 0.3)
+swell(4.8, 0.4, gain: 0.1); hit(4.8, gain: 0.3)
 lowSwoosh(5.58)
 click(5.92, gain: 0.16)
 for i in 0..<5 { click(6.6 + Double(i) * 0.07, gain: 0.1) }
@@ -271,16 +293,29 @@ for at in [19.0, 19.54, 20.5] { hit(at, gain: 0.2); click(at, gain: 0.12) }
 riser(21.1, 0.6); boom(21.1, gain: 0.45)
 glitchCut(21.95)
 click(23.32, gain: 0.14)
-glitch(24.45, gain: 0.14, bursts: 6); hit(24.62, gain: 0.45)
-swell(25.25, 0.5, gain: 0.16); boom(25.25, gain: 0.4)
+// «какое у меня эмоциональное состояние»: the brake, a low hum, two slow ticks, then the snap back
+brake(23.33)
+hum(23.35, 1.55)
+tick(23.85, tock: false, gain: 0.07); tick(24.4, tock: true, gain: 0.07)
+glitchCut(24.92, gain: 0.2); hit(24.98, gain: 0.45)
+swell(25.35, 0.5, gain: 0.16); boom(25.35, gain: 0.4)
 warp(26.24)
 button(26.42)
 listen(26.92, start: true)
 listen(29.78, start: false)
-ding(30.2, 84, gain: 0.12); hit(30.22, gain: 0.3)
+swell(30.2, 0.35, gain: 0.12); ding(30.2, 84, gain: 0.12); hit(30.22, gain: 0.3)
 for at in [31.56, 32.16, 32.66] { click(at, gain: 0.16); hit(at, gain: 0.1) }
-whoosh(33.4, 0.5, gain: 0.24)
-for i in 0..<7 { click(33.6 + Double(i) * 0.19, gain: 0.07) }
+// the app showcase (video time, during the voice pause)
+RAW = true
+whoosh(33.42, 0.5, gain: 0.24); thumpAir(33.45, gain: 0.25)
+for (k, at) in [33.4, 34.45, 35.5, 36.55].enumerated() {
+  if k == 1 { swishLR(at, gain: 0.16) }
+  if k == 2 { cardFlip(at, gain: 0.16) }
+  if k == 3 { zip(at, gain: 0.12) }
+  click(at + 0.35, gain: 0.14, bright: 3000); ding(at + 0.38, [96.0, 93, 98, 95][k], gain: 0.035)
+}
+ding(34.86, 88, gain: 0.1); ding(34.98, 91, gain: 0.08)
+RAW = false
 thumpAir(35.1)
 for (a, b, n) in [(35.18, 35.95, 9), (36.18, 36.75, 6), (36.8, 37.45, 8)] { for i in 0..<n { key(a + (b - a) * Double(i) / Double(n), gain: 0.08) } }
 swell(37.45, 0.3, gain: 0.1); hit(37.47, gain: 0.18)
@@ -345,13 +380,42 @@ let vg = 0.92 / max(peak, 1e-4)
 var vEnv = [Float](repeating: 0, count: N) // for ducking the effects
 var e2: Float = 0
 for n in 0..<N {
-  let src = Double(n) / SR * vsr
+  let tv = Double(n) / SR
+  if tv >= GAP_AT && tv < GAP_AT + GAP { vEnv[n] = e2 * 0.999; e2 *= 0.9995; continue }
+  let src = (tv < GAP_AT ? tv : tv - GAP) * vsr
   if src >= Double(vlen - 1) { break }
   let i = Int(src), f = Float(src - Double(i))
   let v = (mono[i] * (1 - f) + mono[i + 1] * f) * vg
   voice[2 * n] = v; voice[2 * n + 1] = v
   e2 = max(abs(v), e2 * 0.9995)
   vEnv[n] = e2
+}
+
+// «какое у меня эмоциональное состояние» (23.35 … 24.95): thin "phone" voice with an echo trail
+do {
+  let a0 = Int(23.36 * SR), b0 = Int(24.95 * SR), stop = Int(25.32 * SR)
+  var hp = LP(), lp1 = LP(), lp2 = LP()
+  var fx = [Float](repeating: 0, count: b0 - a0)
+  for n in a0..<b0 {
+    let x = voice[2 * n]
+    let h = x - hp.run(x, coef(380))
+    fx[n - a0] = lp2.run(lp1.run(h, coef(2800)), coef(2800)) * 1.6
+    let edge = Float(min(1, Double(n - a0) / (0.03 * SR)))
+    let v = x * (1 - edge) + fx[n - a0] * edge
+    voice[2 * n] = v; voice[2 * n + 1] = v
+  }
+  let d = Int(0.17 * SR)
+  for k in 1...5 {
+    let g = Float(pow(0.5, Double(k)))
+    for i in 0..<fx.count {
+      let n = a0 + i + k * d
+      if n >= stop { break }
+      let fade = n > stop - Int(0.15 * SR) ? Float(stop - n) / Float(0.15 * SR) : 1
+      let pan: Float = k % 2 == 0 ? 0.35 : -0.35
+      voice[2 * n] += fx[i] * g * fade * (1 - pan)
+      voice[2 * n + 1] += fx[i] * g * fade * (1 + pan)
+    }
+  }
 }
 
 // ---------------------------------------------------------------- mix, write, mux

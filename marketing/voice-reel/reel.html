@@ -31,7 +31,10 @@
 <div id="stage"></div>
 <script src="timeline.js"></script>
 <script>
-const W = 1080, H = 1920, FPS = 30, DUR = 43.2;
+const W = 1080, H = 1920, FPS = 30, DUR = 46.2;
+// After the iPhone demo the voice pauses for GAP seconds while the app itself is shown.
+const GAP_AT = 33.35, GAP = 3;
+const voiceT = (t) => (t < GAP_AT ? t : t < GAP_AT + GAP ? null : t - GAP);
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const p = (a, b) => clamp((T - a) / (b - a));
 const ease = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
@@ -61,7 +64,7 @@ const icon = (n, size, color = 'currentColor', sw = 2) =>
 // ---------- scenes: [start, kind]
 const SCENES = [
   [0, 'dark'], [3.62, 'light'], [5.58, 'dark'], [8.32, 'dark2'], [13.5, 'light'], [15.7, 'dark'],
-  [18.68, 'dark'], [21.95, 'light'], [25.2, 'dark'], [26.24, 'phone'], [33.4, 'dark'], [35.1, 'dark'], [37.92, 'light'],
+  [18.68, 'dark'], [21.95, 'light'], [25.3, 'dark'], [26.24, 'phone'], [33.4, 'show'], [38.1, 'dark'], [40.92, 'light'],
 ];
 const sceneAt = (t) => { let i = 0; for (let k = 0; k < SCENES.length; k++) if (t >= SCENES[k][0]) i = k; return i; };
 const isLight = (i) => SCENES[i][1] === 'light';
@@ -85,6 +88,12 @@ function background(i) {
 
 // ---------- captions
 function captions(light) {
+  const vt = voiceT(T);
+  if (vt == null) return '';
+  const T0 = T; T = vt;
+  try { return captionsAt(light); } finally { T = T0; }
+}
+function captionsAt(light) {
   const hidden = (T > 26.2 && T < 33.4) || T > 35.05; // the phone demo, the typed line and the CTA carry their own text
   if (hidden) return '';
   const words = window.WORDS;
@@ -292,8 +301,8 @@ function sceneH() {
   const k = back(p(22.3, 22.65));
   h.push(layer(250, `<div class="H" style="font-size:132px;color:#0c1124;opacity:${clamp(k)};transform:scale(${0.8 + 0.2 * k})">Без тупых<br><span class="grad" style="background-image:linear-gradient(100deg,#4f6fff,#8b5cf6 60%,#e0578e)">вопросов</span></div>`));
   const ck = back(p(23.3, 23.65));
-  const no = p(24.45, 24.7);
-  const shake = T > 24.45 && T < 24.85 ? Math.sin((T - 24.45) * 70) * 14 * (1 - (T - 24.45) / 0.4) : 0;
+  const no = p(24.92, 25.12);
+  const shake = T > 24.92 && T < 25.3 ? Math.sin((T - 24.92) * 70) * 14 * (1 - (T - 24.92) / 0.38) : 0;
   const emo = ['😄', '🙂', '😐', '😕', '😢'];
   const card = `<div style="margin:0 auto;width:800px;border-radius:44px;background:#fff;padding:44px;box-shadow:0 40px 110px rgba(60,70,160,.2);transform:translateX(${shake}px) scale(${0.75 + 0.25 * ck}) rotate(${no * -3}deg);opacity:${clamp(ck) * (1 - 0.35 * no)}">
     <div style="font-weight:700;font-size:26px;color:#8a8fa3;letter-spacing:.06em">ЕЖЕДНЕВНЫЙ ЧЕК-ИН</div>
@@ -304,7 +313,7 @@ function sceneH() {
   if (no > 0) {
     // red strike + stamp
     h.push(`<svg style="position:absolute;left:0;top:0" width="1080" height="1920"><line x1="150" y1="1260" x2="${150 + 780 * ease(no)}" y2="${1260 - 520 * ease(no)}" stroke="#ff3b30" stroke-width="22" stroke-linecap="round"/></svg>`);
-    const st = back(p(24.6, 24.9));
+    const st = back(p(24.98, 25.2));
     h.push(layer(905, `<div style="text-align:center"><span style="display:inline-block;font-family:Oswald;font-weight:700;font-size:120px;color:#ff3b30;border:10px solid #ff3b30;border-radius:28px;padding:0 40px;transform:rotate(-12deg) scale(${2 - st});opacity:${clamp(st)};background:rgba(255,255,255,.85)">НЕТ</span></div>`));
   }
   return h.join('');
@@ -355,7 +364,7 @@ function sceneJ() {
   const h = [];
   const intro = out(p(26.24, 26.6));
   const lift = ease(p(30.8, 31.35)); // phone moves up for the parsed tags
-  const px = 260, py = 330 - lift * 120, ps = (0.94 + 0.06 * intro) * (1 - 0.18 * lift);
+  const px = 260, py = 250 - lift * 60, ps = (0.7 + 0.04 * intro) * (1 - 0.17 * lift);
   const pressed = T > 26.42 && T < 26.95;
   const dictK = out(p(26.9, 27.25)) * (1 - ease(p(29.75, 30.05)));
   const thinking = T > 29.8 && T < 30.18;
@@ -376,7 +385,7 @@ function sceneJ() {
     const said = window.WORDS.filter((w) => w.p >= 23 && w.p <= 24);
     const txt = said.map((w) => `<span style="color:${T >= w.s ? '#fff' : 'rgba(255,255,255,.3)'}">${w.t}</span>`).join(' ');
     const bars = Array.from({ length: 34 }, (_, i) => { const r = window.RMS[Math.max(0, Math.floor(T * 30) - 17 + i)] || 0; return `<div style="width:8px;height:${8 + r * 70}px;border-radius:4px;background:linear-gradient(#7a9dfe,#f48eae)"></div>`; }).join('');
-    h.push(layer(1130, `<div style="margin:0 auto;width:900px;border-radius:40px;background:rgba(14,18,38,.86);border:2px solid rgba(143,176,255,.35);padding:28px 40px 34px;text-align:center;transform:translateY(${(1 - sp) * 40}px);opacity:${sp};box-shadow:0 30px 90px rgba(0,0,0,.5)">
+    h.push(layer(1150, `<div style="margin:0 auto;width:900px;border-radius:40px;background:rgba(14,18,38,.86);border:2px solid rgba(143,176,255,.35);padding:28px 40px 34px;text-align:center;transform:translateY(${(1 - sp) * 40}px);opacity:${sp};box-shadow:0 30px 90px rgba(0,0,0,.5)">
       <div style="display:inline-block;font-weight:800;font-size:22px;letter-spacing:.14em;color:#8fb0ff;border:2px solid rgba(143,176,255,.4);border-radius:999px;padding:6px 18px">ГОВОРИШЬ ГОЛОСОМ</div>
       <div style="margin-top:18px;font-weight:800;font-size:46px;line-height:1.25">${txt}</div>
       <div style="display:flex;gap:6px;justify-content:center;align-items:center;height:80px;margin-top:14px">${bars}</div></div>`));
@@ -384,7 +393,7 @@ function sceneJ() {
   // "ВСЁ." with a check badge
   const all = back(p(30.2, 30.5)) * (1 - p(30.85, 31.05));
   if (all > 0) {
-    h.push(layer(1060, `<div style="display:flex;align-items:center;justify-content:center;gap:30px;transform:scale(${0.6 + 0.4 * all});opacity:${clamp(all)}">
+    h.push(layer(1140, `<div style="display:flex;align-items:center;justify-content:center;gap:30px;transform:scale(${0.6 + 0.4 * all});opacity:${clamp(all)}">
       <div style="width:150px;height:150px;border-radius:50%;background:linear-gradient(135deg,#7a9dfe,#a48bfa);display:grid;place-items:center;box-shadow:0 0 70px rgba(122,157,254,.6)"><svg width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg></div>
       <div class="H" style="font-size:210px;color:#fff;text-shadow:0 0 60px rgba(143,176,255,.6)">Всё.</div></div>`));
   }
@@ -393,7 +402,7 @@ function sceneJ() {
   tags.forEach(([at, ic, l, v], i) => {
     const k = back(p(at, at + 0.3));
     if (k <= 0) return;
-    h.push(layer(1100 + i * 112, `<div style="margin:0 auto;width:760px;height:96px;border-radius:28px;background:rgba(255,255,255,.07);border:2px solid rgba(143,176,255,.3);display:flex;align-items:center;gap:22px;padding:0 30px;transform:translateX(${(1 - k) * 80}px) scale(${0.9 + 0.1 * k});opacity:${clamp(k)}">
+    h.push(layer(960 + i * 112, `<div style="margin:0 auto;width:760px;height:96px;border-radius:28px;background:rgba(255,255,255,.07);border:2px solid rgba(143,176,255,.3);display:flex;align-items:center;gap:22px;padding:0 30px;transform:translateX(${(1 - k) * 80}px) scale(${0.9 + 0.1 * k});opacity:${clamp(k)}">
       ${icon(ic, 46, '#8fb0ff', 2.2)}<div style="font-weight:800;font-size:26px;letter-spacing:.1em;color:rgba(255,255,255,.6)">${l.toUpperCase()}</div><div style="margin-left:auto;font-weight:800;font-size:38px;color:#fff">${v}</div></div>`));
   });
   return h.join('');
@@ -459,11 +468,51 @@ function sceneM() {
   return h.join('');
 }
 
-const RENDER = [sceneA, sceneB, sceneC, sceneD, sceneE, sceneF, sceneG, sceneH, sceneI, sceneJ, sceneK, sceneL, sceneM];
+// ---------- scene S: how it worked — the real app (33.4 … 38.1, no voice for the first 3 s)
+const SHOTS = [
+  [33.4, 'app/1-day.png', 'Уже в календаре', 'cal', [0.13, 0.605, 0.99, 0.69]],
+  [34.45, 'app/2-event.png', 'Напомнит за час', 'bell', [0.03, 0.515, 0.97, 0.705]],
+  [35.5, 'app/3-tasks.png', 'Задачи — тоже голосом', 'check', [0.02, 0.17, 0.98, 0.63]],
+  [36.55, 'app/4-assistant.png', 'Или просто напиши', 'spark', [0.03, 0.3, 0.93, 0.61]],
+];
+function sceneS() {
+  const h = [];
+  let k = 0;
+  for (let j = 0; j < SHOTS.length; j++) if (T >= SHOTS[j][0]) k = j;
+  const [at, , label, ic] = SHOTS[k];
+  const sw = out(clamp((T - at) / 0.32)); // screen swipe-in
+  const tilt = (1 - out(p(33.4, 33.9))) * 14;
+  // phone with the current screen sliding over the previous one
+  const prev = k > 0 && sw < 1 ? `<img src="${SHOTS[k - 1][1]}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:translateX(${-sw * 35}%);filter:brightness(${1 - 0.5 * sw})">` : '';
+  const cur = `<img src="${SHOTS[k][1]}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:translateX(${k > 0 ? (1 - sw) * 100 : 0}%);box-shadow:-30px 0 60px rgba(0,0,0,.5)">`;
+  // highlight box around the thing that matters on this screen
+  const [x0, y0, x1, y1] = SHOTS[k][4];
+  const hk = out(p(at + 0.3, at + 0.55));
+  const pulse = 0.5 + 0.5 * Math.sin((T - at) * 7);
+  const box = hk > 0 ? `<div style="position:absolute;left:${x0 * 100}%;top:${y0 * 100}%;width:${(x1 - x0) * 100}%;height:${(y1 - y0) * 100}%;border-radius:22px;border:4px solid rgba(164,139,250,${0.6 + 0.4 * pulse});box-shadow:0 0 ${30 + 30 * pulse}px rgba(164,139,250,.7), inset 0 0 30px rgba(164,139,250,.25);transform:scale(${1.08 - 0.08 * hk});opacity:${hk}"></div>` : '';
+  const inner = prev + cur + box;
+  const ps = 0.8 * (0.9 + 0.1 * out(p(33.4, 33.75)));
+  h.push(`<div style="position:absolute;inset:0;perspective:1800px"><div style="position:absolute;inset:0;transform:rotateY(${-tilt}deg) rotateX(${tilt * 0.4}deg)">${phone(inner, 260, 330, ps, false)}</div></div>`);
+  // label above the phone
+  const lk = back(clamp((T - at) / 0.35));
+  h.push(layer(150, `<div style="text-align:center"><div style="display:inline-flex;align-items:center;gap:18px;padding:18px 34px;border-radius:999px;background:rgba(255,255,255,.08);border:2px solid rgba(143,176,255,.35);transform:scale(${0.7 + 0.3 * lk});opacity:${clamp(lk)}">${icon(ic, 46, '#8fb0ff', 2.2)}<span class="H" style="font-size:58px;color:#fff">${label}</span></div></div>`));
+  // the reminder arriving as a real notification, over the phone
+  const nb = back(p(34.85, 35.15)) * (1 - p(35.4, 35.55));
+  if (nb > 0) {
+    h.push(`<div style="position:absolute;left:150px;right:150px;top:${360 + (1 - nb) * -120}px;border-radius:36px;background:rgba(245,246,252,.97);padding:24px 28px;box-shadow:0 30px 80px rgba(0,0,0,.5);opacity:${clamp(nb)}">
+      <div style="display:flex;align-items:center;gap:14px">${logoTile(48, 1, 'margin:0;box-shadow:none;border-radius:12px')}<div style="font-weight:700;font-size:24px;color:#6b7083;letter-spacing:.04em">ПЛАНЕР</div><div style="margin-left:auto;font-size:22px;color:#8a8fa3">14:00</div></div>
+      <div style="margin-top:12px;font-weight:800;font-size:32px;color:#0c1124">⏰ Через час: Созвон</div>
+      <div style="margin-top:4px;font-size:27px;color:#2b3045;font-weight:600">Завтра, 15:00–16:00</div></div>`);
+  }
+  return h.join('');
+}
+
+const RENDER = [sceneA, sceneB, sceneC, sceneD, sceneE, sceneF, sceneG, sceneH, sceneI, sceneJ, sceneS, sceneL, sceneM];
+const ON_VOICE_CLOCK = new Set([sceneL, sceneM]); // drawn on the voice's clock (after the pause)
 
 window.render = (t) => {
-  T = t;
   const i = sceneAt(t);
+  T = ON_VOICE_CLOCK.has(RENDER[i]) ? t - GAP : t;
   const st = SCENES[i][0];
   const tr = i > 0 ? clamp((t - st) / 0.28) : 1;
   const zoom = 1 + (1 - out(tr)) * 0.07;
@@ -473,13 +522,22 @@ window.render = (t) => {
   const flash = i > 0 && isLight(i) !== isLight(i - 1) ? (1 - out(clamp((t - st) / 0.22))) * 0.6 : 0;
   // film grain + vignette ("filters")
   const seed = Math.floor(t * 30) % 9;
+  const body = (T = (ON_VOICE_CLOCK.has(RENDER[i]) ? t - GAP : t), RENDER[i]());
+  T = t;
+  // «какое у меня эмоциональное состояние» — black and white, slow push-in, shaky old film
+  const bw = t >= 23.33 && t < 24.92 ? 1 : 0;
+  const bwk = bw ? clamp((t - 23.33) / 1.6) : 0;
+  const jitter = bw ? `translate(${(Math.sin(t * 91) * 3).toFixed(1)}px,${(Math.cos(t * 77) * 3).toFixed(1)}px) scale(${1 + 0.06 * bwk})` : 'none';
   document.getElementById('stage').innerHTML =
+    `<div style="position:absolute;inset:0;filter:${bw ? 'grayscale(1) contrast(1.35) brightness(.86)' : 'none'};transform:${jitter}">` +
     background(i) +
-    `<div style="position:absolute;inset:0;transform:scale(${zoom});filter:blur(${blur}px)">${RENDER[i]()}</div>` +
+    `<div style="position:absolute;inset:0;transform:scale(${zoom});filter:blur(${blur}px)">${body}</div>` +
     captions(light) +
     `<div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(0,0,0,${light ? 0.12 : 0.45}))"></div>` +
     `<svg style="position:absolute;inset:0;opacity:${light ? 0.07 : 0.1};mix-blend-mode:overlay" width="1080" height="1920"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="${seed}"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.4 0"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>` +
-    (flash > 0 ? `<div style="position:absolute;inset:0;background:#fff;opacity:${flash}"></div>` : '');
+    (flash > 0 ? `<div style="position:absolute;inset:0;background:#fff;opacity:${flash}"></div>` : '') +
+    (bw ? `<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,transparent 40%,rgba(0,0,0,.6))"></div><svg style="position:absolute;inset:0;opacity:.22;mix-blend-mode:overlay" width="1080" height="1920"><filter id="n2"><feTurbulence type="fractalNoise" baseFrequency=".6" numOctaves="2" seed="${seed + 3}"/></filter><rect width="100%" height="100%" filter="url(#n2)"/></svg>${Math.floor(t * 30) % 7 === 0 ? `<div style="position:absolute;left:${(t * 997) % 1080}px;top:0;bottom:0;width:2px;background:rgba(255,255,255,.35)"></div>` : ''}` : '') +
+    `</div>`;
 };
 const q = new URLSearchParams(location.search);
 window.render(Number(q.get('t') || 0));
