@@ -153,37 +153,127 @@ func swooshUp(_ at: Double, gain: Float = 0.16) {
   add(at, 0.28, gain: gain) { _, x in lp.run(noise(), coef(800 + 5000 * x)) * Float(sin(Double.pi * x)) * 1.5 }
 }
 
+
+// ---------------------------------------------------------------- transitions: a different one at every scene change
+/// Bright fast swish, panned left → right.
+func swishLR(_ at: Double, gain: Float = 0.22) {
+  var lp = LP(), hp = LP()
+  let len = 0.32
+  add(at - len * 0.5, len, gain: gain) { _, x in
+    let n = lp.run(noise(), coef(1500 + 7000 * sin(Double.pi * x)))
+    return (n - hp.run(n, coef(700))) * Float(pow(sin(Double.pi * x), 2)) * 2
+  }
+  // the pan: re-add a quieter copy weighted to the right at the end
+  var lp2 = LP()
+  add(at, len * 0.5, pan: -0.8, gain: gain * 0.5) { _, x in lp2.run(noise(), coef(5000)) * Float(1 - x) }
+}
+/// Reverse cymbal swell into a dry snap.
+func reverseSnap(_ at: Double, gain: Float = 0.22) {
+  var lp = LP(), hp = LP()
+  add(at - 0.6, 0.6, gain: gain) { _, x in
+    let n = noise(); let h = n - hp.run(n, coef(3000))
+    return lp.run(h, coef(9000)) * Float(pow(x, 3)) * 2.4
+  }
+  click(at, gain: gain * 1.4, bright: 2500)
+}
+/// Tape rewind: a pitch-falling saw buzz, like a reel spinning back.
+func rewind(_ at: Double, gain: Float = 0.14) {
+  var lp = LP(), ph = 0.0
+  add(at - 0.15, 0.4, gain: gain) { _, x in
+    ph += (900 * pow(1 - x, 2) + 60) / SR
+    let saw = Float(2 * (ph - floor(ph)) - 1)
+    return lp.run(saw, coef(2500)) * Float(sin(Double.pi * x))
+  }
+}
+/// Glitch transition: stutter + noise burst cut.
+func glitchCut(_ at: Double, gain: Float = 0.2) {
+  glitch(at - 0.1, gain: gain * 0.7, bursts: 4)
+  var lp = LP()
+  add(at + 0.04, 0.12, gain: gain) { t, _ in lp.run(noise(), coef(6000)) * Float(exp(-t * 30)) }
+}
+/// Sci-fi zip: a resonant band-pass sweep up.
+func zip(_ at: Double, gain: Float = 0.2) {
+  var lp: Float = 0, bp: Float = 0
+  add(at - 0.22, 0.3, gain: gain) { _, x in
+    let f = 400 + 5000 * x * x
+    let k = Float(2 * sin(Double.pi * f / SR))
+    let hp = noise() * 0.5 - lp - 0.12 * bp
+    bp += k * hp; lp += k * bp
+    return bp * Float(sin(Double.pi * x)) * 0.9
+  }
+}
+/// Sub thump with a breath of air after it.
+func thumpAir(_ at: Double, gain: Float = 0.35) {
+  add(at, 0.35, gain: gain) { t, _ in Float(sin(tau * (45 * t + 60 * (1 - exp(-t * 30)) / 30)) * exp(-t * 9)) }
+  var lp = LP()
+  add(at + 0.02, 0.45, gain: gain * 0.35) { _, x in lp.run(noise(), coef(1200)) * Float(sin(Double.pi * x) * (1 - x)) * 2 }
+}
+/// Camera flash: shutter + bright airy bloom (for dark → light).
+func flashBloom(_ at: Double, gain: Float = 0.2) {
+  shutter(at - 0.02, gain: gain * 0.9)
+  var hp = LP()
+  add(at, 0.6, gain: gain * 0.6) { t, _ in let n = noise(); return (n - hp.run(n, coef(5000))) * Float(exp(-t * 6)) }
+}
+/// Digital warp: a bit-crushed sweep down.
+func warp(_ at: Double, gain: Float = 0.13) {
+  var ph = 0.0
+  add(at - 0.18, 0.32, gain: gain) { _, x in
+    ph += (2400 * pow(1 - x, 1.5) + 120) / SR
+    let v = sin(tau * ph)
+    return Float((v * 3).rounded() / 3) * Float(sin(Double.pi * x))
+  }
+}
+/// Deep low swoosh (light → dark).
+func lowSwoosh(_ at: Double, gain: Float = 0.32) {
+  var lp1 = LP(), lp2 = LP()
+  add(at - 0.4, 0.7, gain: gain) { _, x in
+    let f = 120 + 700 * pow(sin(Double.pi * x), 2)
+    return lp2.run(lp1.run(noise(), coef(f)), coef(f)) * Float(pow(sin(Double.pi * x), 1.4)) * 3
+  }
+}
+/// Paper flip / card slide: short mid swish with two ticks.
+func cardFlip(_ at: Double, gain: Float = 0.18) {
+  var lp = LP(), hp = LP()
+  add(at - 0.12, 0.2, gain: gain) { _, x in let n = lp.run(noise(), coef(4000)); return (n - hp.run(n, coef(900))) * Float(sin(Double.pi * x)) * 2 }
+  click(at - 0.12, gain: gain * 0.6, bright: 3000); click(at + 0.06, gain: gain * 0.7, bright: 2000)
+}
+/// Riser into a cut (short).
+func riseCut(_ at: Double, gain: Float = 0.16) {
+  riser(at, 0.45, gain: gain)
+  click(at, gain: gain, bright: 3000)
+}
+
 // ---------------------------------------------------------------- the score (seconds, same clock as reel.html)
 boom(0.02, gain: 0.55); glitch(0.02, gain: 0.08, bursts: 3)
 for (i, d) in [0.86, 1.14, 1.36, 1.62, 1.9, 2.2].enumerated() { glitch(d + 0.04, gain: 0.07, bursts: 2 + i % 2); click(d + 0.04, gain: 0.12) }
-whoosh(2.72, 0.5, gain: 0.25); hit(2.75, gain: 0.25)
-whoosh(3.62, 0.55, gain: 0.3)
+reverseSnap(2.72); hit(2.75, gain: 0.22)
+flashBloom(3.62)
 var tt = 3.82, gap = 0.24, tock = false
 while tt < 5.5 { tick(tt, tock: tock); tock.toggle(); tt += gap; gap = max(0.075, gap * 0.85) }
 hit(4.8, gain: 0.3)
-whoosh(5.58, 0.5, gain: 0.28)
+lowSwoosh(5.58)
 click(5.92, gain: 0.16)
 for i in 0..<5 { click(6.6 + Double(i) * 0.07, gain: 0.1) }
 swell(7.3, 0.45, gain: 0.12); hit(7.32, gain: 0.22)
-whoosh(8.32, 0.45, gain: 0.2)
+cardFlip(8.32)
 for at in [8.4, 9.4, 10.08, 11.04, 11.45, 11.95, 12.8] { tap(at) }
 for i in 0..<6 { key(10.18 + Double(i) * 0.075) }
 for i in 0..<3 { click(11.1 + Double(i) * 0.05, gain: 0.07, bright: 5000) }
 shutter(12.85, gain: 0.16)
-whoosh(13.5, 0.55, gain: 0.3)
+zip(13.5); shutter(13.5, gain: 0.12)
 for i in 0..<7 { click(14.4 + Double(i) * 0.065, gain: 0.12 + Float(i) * 0.015) }
 swell(14.85, 0.5, gain: 0.14); boom(14.85, gain: 0.6)
-whoosh(15.7, 0.55, gain: 0.28)
+rewind(15.7)
 for d in [16.2, 16.64, 17.14] { glitch(d + 0.04, gain: 0.08, bursts: 3); click(d + 0.04, gain: 0.12) }
 swell(17.95, 0.6, gain: 0.16); ding(17.95, 88, gain: 0.1); hit(17.97, gain: 0.25)
-whoosh(18.68, 0.5, gain: 0.26)
+swishLR(18.68)
 for at in [19.0, 19.54, 20.5] { hit(at, gain: 0.2); click(at, gain: 0.12) }
 riser(21.1, 0.6); boom(21.1, gain: 0.45)
-whoosh(21.95, 0.55, gain: 0.28)
+glitchCut(21.95)
 click(23.32, gain: 0.14)
 glitch(24.45, gain: 0.14, bursts: 6); hit(24.62, gain: 0.45)
-whoosh(25.2, 0.5, gain: 0.26); swell(25.25, 0.4, gain: 0.12); boom(25.25, gain: 0.4)
-whoosh(26.24, 0.45, gain: 0.18)
+swell(25.25, 0.5, gain: 0.16); boom(25.25, gain: 0.4)
+warp(26.24)
 button(26.42)
 listen(26.92, start: true)
 listen(29.78, start: false)
@@ -191,10 +281,10 @@ ding(30.2, 84, gain: 0.12); hit(30.22, gain: 0.3)
 for at in [31.56, 32.16, 32.66] { click(at, gain: 0.16); hit(at, gain: 0.1) }
 whoosh(33.4, 0.5, gain: 0.24)
 for i in 0..<7 { click(33.6 + Double(i) * 0.19, gain: 0.07) }
-whoosh(35.1, 0.45, gain: 0.18)
+thumpAir(35.1)
 for (a, b, n) in [(35.18, 35.95, 9), (36.18, 36.75, 6), (36.8, 37.45, 8)] { for i in 0..<n { key(a + (b - a) * Double(i) / Double(n), gain: 0.08) } }
 swell(37.45, 0.3, gain: 0.1); hit(37.47, gain: 0.18)
-whoosh(37.92, 0.55, gain: 0.28)
+riseCut(37.92); flashBloom(37.95, gain: 0.12)
 swell(39.22, 0.4, gain: 0.12); boom(39.22, gain: 0.45)
 for i in 0..<4 { key(39.47 + Double(i) * 0.09, gain: 0.09) }
 tap(39.88, gain: 0.18); swooshUp(39.95)
