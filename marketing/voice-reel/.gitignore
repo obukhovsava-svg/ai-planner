@@ -1,0 +1,18 @@
+# heavy / generated / personal
+node_modules/
+.venv/
+frames_out/
+preview/
+chk/
+ex/
+example.mp4
+voice.m4a
+reel-video.mp4
+plan-reel.mp4
+env
+frames
+stt
+rms
+encode
+mix
+fonts/raw.css

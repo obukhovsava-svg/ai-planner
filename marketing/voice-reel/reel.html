@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Reel — ПЛАН</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root {
+    --a: #7a9dfe; --b: #a48bfa; --c: #f48eae;
+    --navy: #060913; --ink: #0c1124; --hi: #8fb0ff; --hi-dark: #4f6fff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+  body { font-family: 'Montserrat', sans-serif; -webkit-font-smoothing: antialiased; }
+  #stage { position: absolute; inset: 0; overflow: hidden; }
+  .abs { position: absolute; left: 0; right: 0; }
+  .H { font-family: 'Oswald', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.005em; line-height: 0.98; text-align: center; }
+  .grad { background: linear-gradient(100deg, var(--a), var(--b) 55%, var(--c)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tile { width: 170px; height: 170px; border-radius: 42px; display: grid; place-items: center; position: relative; }
+  .tile svg { width: 84px; height: 84px; }
+  .badge { position: absolute; left: -14px; top: -14px; width: 46px; height: 46px; border-radius: 50%; background: #3a3d4a; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 34px; line-height: 1; }
+  .field { display: flex; justify-content: space-between; align-items: center; height: 76px; padding: 0 26px; border-radius: 18px; background: #f2f3f8; font-size: 27px; font-weight: 600; color: #8a8fa3; margin-top: 14px; }
+  .field b { color: #0c1124; font-weight: 700; }
+  .cap { position: absolute; left: 70px; right: 70px; top: 1405px; text-align: center; font-weight: 700; font-size: 46px; line-height: 1.32; letter-spacing: -0.01em; }
+  .cap span { display: inline-block; margin: 0 0.12em; }
+  .pill { display: inline-flex; align-items: center; gap: 14px; padding: 16px 30px; border-radius: 999px; font-weight: 700; }
+  .chip { display: inline-flex; align-items: center; gap: 18px; padding: 22px 34px; border-radius: 26px; font-family: 'Oswald'; font-weight: 700; font-size: 64px; text-transform: uppercase; color: #fff; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="timeline.js"></script>
+<script>
+const W = 1080, H = 1920, FPS = 30, DUR = 43.2;
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const p = (a, b) => clamp((T - a) / (b - a));
+const ease = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const out = (k) => 1 - Math.pow(1 - k, 3);
+const back = (k) => { const c = 1.9; k = clamp(k); return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+let T = 0;
+
+// ---------- icons (24×24 strokes)
+const I = {
+  cal: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>',
+  check: '<rect x="3" y="3" width="18" height="18" rx="5"/><path d="m8 12.5 3 3 5-6.5"/>',
+  list: '<path d="M10 6h10M10 12h10M10 18h10"/><circle cx="5" cy="6" r="1.3"/><circle cx="5" cy="12" r="1.3"/><circle cx="5" cy="18" r="1.3"/>',
+  note: '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>',
+  board: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16M15 4v16"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  spark: '<path d="M12 3c.5 4.2 2.6 6.4 8 8-5.4 1.6-7.5 3.8-8 8-.5-4.2-2.6-6.4-8-8 5.4-1.6 7.5-3.8 8-8Z" fill="currentColor" stroke="none"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="currentColor" stroke="none"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  send: '<path d="M4 12 20 4l-4 16-4-7z" fill="currentColor" stroke="none"/>',
+};
+const icon = (n, size, color = 'currentColor', sw = 2) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" style="color:${color}">${I[n]}</svg>`;
+
+// ---------- scenes: [start, kind]
+const SCENES = [
+  [0, 'dark'], [3.62, 'light'], [5.58, 'dark'], [8.32, 'dark2'], [13.5, 'light'], [15.7, 'dark'],
+  [18.68, 'dark'], [21.95, 'light'], [25.2, 'dark'], [26.24, 'phone'], [33.4, 'dark'], [35.1, 'dark'], [37.92, 'light'],
+];
+const sceneAt = (t) => { let i = 0; for (let k = 0; k < SCENES.length; k++) if (t >= SCENES[k][0]) i = k; return i; };
+const isLight = (i) => SCENES[i][1] === 'light';
+
+const layer = (top, html, style = '') => `<div class="abs" style="top:${top}px;${style}">${html}</div>`;
+
+function background(i) {
+  const light = isLight(i);
+  const drift = Math.sin(T * 0.6) * 40;
+  if (light) {
+    return `<div style="position:absolute;inset:0;background:#f3f4fa"></div>
+      <div style="position:absolute;width:1100px;height:1100px;left:${-300 + drift}px;top:-380px;border-radius:50%;background:radial-gradient(circle,rgba(164,139,250,.30),transparent 65%)"></div>
+      <div style="position:absolute;width:1000px;height:1000px;right:${-360 - drift}px;bottom:-200px;border-radius:50%;background:radial-gradient(circle,rgba(122,157,254,.28),transparent 65%)"></div>
+      <div style="position:absolute;width:700px;height:700px;left:190px;top:620px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.9),transparent 70%)"></div>`;
+  }
+  return `<div style="position:absolute;inset:0;background:var(--navy)"></div>
+    <div style="position:absolute;width:1300px;height:1300px;left:-110px;top:${180 + drift}px;border-radius:50%;background:radial-gradient(circle,rgba(70,100,230,.42),rgba(40,60,160,.12) 45%,transparent 68%)"></div>
+    <div style="position:absolute;width:900px;height:900px;right:-420px;top:-300px;border-radius:50%;background:radial-gradient(circle,rgba(164,139,250,.26),transparent 65%)"></div>
+    <div style="position:absolute;width:900px;height:900px;left:-420px;bottom:-260px;border-radius:50%;background:radial-gradient(circle,rgba(244,142,174,.18),transparent 65%)"></div>`;
+}
+
+// ---------- captions
+function captions(light) {
+  const hidden = (T > 26.2 && T < 33.4) || T > 35.05; // the phone demo, the typed line and the CTA carry their own text
+  if (hidden) return '';
+  const words = window.WORDS;
+  const phrases = [];
+  for (const w of words) (phrases[w.p] ||= []).push(w);
+  let cur = -1;
+  for (let i = 0; i < phrases.length; i++) if (T >= phrases[i][0].s - 0.12) cur = i;
+  if (cur < 0) return '';
+  const ph = phrases[cur];
+  const next = phrases[cur + 1];
+  const endAt = next ? Math.min(next[0].s - 0.12, ph.at(-1).e + 1.4) : ph.at(-1).e + 2.2;
+  if (T > endAt) return '';
+  const k = out(p(ph[0].s - 0.12, ph[0].s + 0.08));
+  const base = light ? '12,17,36' : '255,255,255';
+  const spans = ph.map((w) => {
+    const said = T >= w.s - 0.03;
+    const pop = said ? out(clamp((T - w.s + 0.03) / 0.14)) : 0;
+    const col = said ? (w.k ? (light ? 'var(--hi-dark)' : 'var(--hi)') : `rgb(${base})`) : `rgba(${base},.32)`;
+    return `<span style="color:${col};transform:translateY(${said ? (1 - pop) * 8 : 0}px)">${w.t}</span>`;
+  }).join(' ');
+  return `<div class="cap" style="opacity:${k};transform:translateY(${(1 - k) * 18}px);text-shadow:${light ? 'none' : '0 2px 24px rgba(0,0,0,.5)'}">${spans}</div>`;
+}
+
+// ---------- scene A: deleted all planners (0 … 3.62)
+function sceneA() {
+  const h = [];
+  const k1 = back(p(-0.2, 0.18));
+  const swapK = p(2.6, 2.85);
+  const title1 = `<div class="H" style="font-size:150px;color:#fff;transform:scale(${0.6 + 0.4 * k1});opacity:${clamp(k1) * (1 - swapK)}">Я удалил<br><span class="grad">все планеры</span></div>`;
+  h.push(layer(300, title1));
+  const k2 = back(p(2.72, 3.05));
+  if (swapK > 0) {
+    const arrow = Math.sin((T - 2.9) * 9) * 10 * (T > 2.9 ? 1 : 0);
+    h.push(layer(380, `<div class="H" style="font-size:170px;color:#fff;opacity:${clamp(k2)};transform:scale(${0.7 + 0.3 * k2})">Вот <span class="grad">почему</span></div>
+      <div style="text-align:center;margin-top:40px;transform:translateY(${arrow}px);opacity:${clamp(k2)}"><svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="url(#ga)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="ga" x1="0" x2="1"><stop offset="0" stop-color="#7a9dfe"/><stop offset="1" stop-color="#f48eae"/></linearGradient></defs><path d="M12 4v15M5 12l7 7 7-7"/></svg></div>`));
+  }
+  // app tiles get deleted one by one
+  const tiles = [['cal', '#ff5a5f'], ['check', '#3b82f6'], ['note', '#f59e0b'], ['target', '#22c55e'], ['board', '#8b5cf6'], ['list', '#06b6d4']];
+  const del = [0.86, 1.14, 1.36, 1.62, 1.9, 2.2];
+  const appear = back(p(-0.1, 0.35));
+  const grid = tiles.map(([n, c], i) => {
+    const d = p(del[i], del[i] + 0.32);
+    const s = (0.6 + 0.4 * appear) * (1 - ease(d));
+    const wob = d === 0 ? Math.sin(T * 22 + i) * 2.5 : 0;
+    const x = (i % 3) * 230, y = Math.floor(i / 3) * 230;
+    return `<div style="position:absolute;left:${x}px;top:${y + d * 60}px;transform:scale(${s}) rotate(${wob + d * 20}deg);opacity:${1 - d}">
+      <div class="tile" style="background:linear-gradient(145deg,${c},${c}cc);box-shadow:0 20px 50px ${c}44">${icon(n, 84, '#fff', 2.1)}<div class="badge">−</div></div></div>`;
+  }).join('');
+  if (swapK < 1) h.push(`<div style="position:absolute;left:${(W - 630) / 2}px;top:820px;width:630px;height:420px;opacity:${1 - swapK}">${grid}</div>`);
+  const n = del.filter((d) => T >= d + 0.15).length;
+  if (T > 0.8 && swapK < 1) h.push(layer(1290, `<div style="text-align:center;font-weight:800;font-size:36px;letter-spacing:.08em;color:rgba(255,255,255,.7);opacity:${1 - swapK}">УДАЛЕНО: <span style="color:#ff6b6b">${n}</span></div>`));
+  return h.join('');
+}
+
+// ---------- scene B: takes a lot of time (3.62 … 5.58) — light
+function sceneB() {
+  const k = back(p(3.62, 3.95));
+  const spin = Math.pow(clamp((T - 3.62) / 1.9), 1.6) * 2600;
+  const clock = `<div style="width:420px;height:420px;margin:0 auto;border-radius:50%;background:#fff;box-shadow:0 40px 90px rgba(80,90,180,.18), inset 0 0 0 14px #eef0f8;position:relative;transform:scale(${0.6 + 0.4 * k})">
+    ${Array.from({ length: 12 }, (_, i) => `<div style="position:absolute;left:206px;top:34px;width:8px;height:${i % 3 ? 18 : 34}px;border-radius:4px;background:${i % 3 ? '#c9cde0' : '#0c1124'};transform-origin:4px 176px;transform:rotate(${i * 30}deg)"></div>`).join('')}
+    <div style="position:absolute;left:204px;top:90px;width:12px;height:126px;border-radius:6px;background:#0c1124;transform-origin:6px 120px;transform:rotate(${spin / 12}deg)"></div>
+    <div style="position:absolute;left:206px;top:60px;width:8px;height:156px;border-radius:4px;background:linear-gradient(#7a9dfe,#a48bfa);transform-origin:4px 150px;transform:rotate(${spin}deg)"></div>
+    <div style="position:absolute;left:192px;top:192px;width:36px;height:36px;border-radius:50%;background:#0c1124"></div></div>`;
+  const t1 = back(p(4.4, 4.7)), t2 = back(p(4.78, 5.1));
+  return layer(290, `<div class="H" style="font-size:96px;color:#0c1124;opacity:${clamp(t1)};transform:translateY(${(1 - t1) * 30}px)">Уходит</div>
+    <div class="H" style="font-size:170px;margin-top:6px;opacity:${clamp(t2)};transform:scale(${0.8 + 0.2 * t2})"><span class="grad" style="background-image:linear-gradient(100deg,#4f6fff,#8b5cf6 60%,#e0578e)">много времени</span></div>`) + layer(740, clock);
+}
+
+// ---------- scene C: every thing becomes a separate task (5.58 … 8.32)
+function sceneC() {
+  const h = [];
+  const k = back(p(5.6, 5.95));
+  const k2 = back(p(7.3, 7.65));
+  h.push(layer(270, `<div class="H" style="font-size:120px;color:#fff;opacity:${clamp(k) * (1 - p(7.2, 7.35))};transform:scale(${0.8 + 0.2 * k})">Каждое <span class="grad">дело</span></div>`));
+  if (T > 7.2) h.push(layer(230, `<div class="H" style="font-size:112px;color:#fff;opacity:${clamp(k2)};transform:scale(${0.85 + 0.15 * k2})">Превращается<br>в <span class="grad">отдельную задачу</span></div>`));
+  // one line splits into five fields
+  const split = ease(p(6.58, 7.2));
+  const pk = back(p(5.9, 6.3));
+  const labels = [['Название', 'Созвон'], ['Дата', '—'], ['Начало', '—'], ['Конец', '—'], ['Напоминание', '—']];
+  const rows = labels.map(([l, v], i) => {
+    const y = split * (i - 2) * 112;
+    const s = i === 0 ? 1 : split;
+    return `<div style="position:absolute;left:0;right:0;top:${y}px;transform:scale(${0.85 + 0.15 * s});opacity:${i === 0 ? clamp(pk) : split}">
+      <div style="margin:0 auto;width:720px;height:92px;border-radius:24px;background:rgba(255,255,255,${0.07 + 0.03 * (1 - split)});border:1.5px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:space-between;padding:0 34px;font-size:34px;font-weight:600;color:rgba(255,255,255,.55)">
+      <span>${i === 0 && split < 0.5 ? '' : l}</span><span style="color:#fff;font-weight:700">${i === 0 ? (split < 0.5 ? 'Созвон с командой' : v) : v}</span></div></div>`;
+  }).join('');
+  h.push(`<div style="position:absolute;left:0;right:0;top:${T > 7.2 ? 920 : 860}px;height:0">${rows}</div>`);
+  return h.join('');
+}
+
+// ---------- scene D: the 7-tap quest (8.32 … 13.5)
+const TAPS = [8.4, 9.4, 10.08, 11.04, 11.45, 11.95, 12.8];
+function sceneD() {
+  const h = [];
+  const taps = TAPS.filter((x) => T >= x).length;
+  const head = out(p(8.32, 8.6));
+  const seg = Array.from({ length: 7 }, (_, i) => `<div style="width:54px;height:8px;border-radius:4px;background:${i < taps ? 'linear-gradient(90deg,#7a9dfe,#a48bfa)' : 'rgba(255,255,255,.14)'}"></div>`).join('');
+  const bump = taps ? back(clamp((T - TAPS[taps - 1]) / 0.25)) : 1;
+  h.push(`<div style="position:absolute;left:70px;top:250px;opacity:${head}"><div style="font-weight:800;font-size:28px;letter-spacing:.1em;color:#8fb0ff">КВЕСТ: ЗАПИСАТЬ СОЗВОН</div><div style="display:flex;gap:10px;margin-top:16px">${seg}</div></div>
+    <div style="position:absolute;right:70px;top:226px;width:150px;height:150px;border-radius:30px;border:2px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);text-align:center;opacity:${head}">
+      <div style="font-weight:700;font-size:20px;letter-spacing:.12em;color:rgba(255,255,255,.6);margin-top:18px">НАЖАТИЙ</div>
+      <div style="font-family:Oswald;font-weight:700;font-size:80px;line-height:1;color:#fff;margin-top:6px;transform:scale(${0.75 + 0.25 * bump})">${taps}</div></div>`);
+  // step 1: the calendar icon gets tapped, then the form card pops up
+  const cardK = back(p(8.75, 9.1));
+  if (T < 9.0) {
+    const s = 1 - 0.12 * Math.sin(clamp((T - 8.4) / 0.2) * Math.PI);
+    h.push(layer(780, `<div class="tile" style="margin:0 auto;width:220px;height:220px;border-radius:54px;background:#fff;transform:scale(${back(p(8.32, 8.5)) * s});opacity:${1 - p(8.85, 9.0)}"><div style="text-align:center"><div style="font-weight:700;font-size:28px;color:#ff3b30">ВТ</div><div style="font-weight:500;font-size:110px;line-height:.9;color:#0c1124">6</div></div></div>`));
+  }
+  if (T >= 8.75) {
+    const typed = 'Созвон'.slice(0, Math.floor(clamp((T - 10.15) / 0.45) * 6));
+    const f = (label, val, on, focus) => `<div class="field" style="${focus ? 'box-shadow:0 0 0 3px #7a9dfe;background:#fff' : ''}"><span>${label}</span><b style="opacity:${on ? 1 : 0.0}">${val}</b></div>`;
+    const reminderOpen = T > 11.95 && T < 12.55;
+    const saved = p(12.8, 13.1);
+    const card = `<div style="position:relative;margin:0 auto;width:760px;border-radius:44px;background:#fff;padding:40px 40px 44px;box-shadow:0 50px 120px rgba(0,0,0,.45);transform:scale(${0.7 + 0.3 * cardK}) translateY(${saved * -20}px);opacity:${clamp(cardK)}">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:800;font-size:40px;color:#0c1124">${T < 9.4 ? 'Календарь' : 'Новое событие'}</div>
+        <div style="width:64px;height:64px;border-radius:50%;background:${T < 9.4 ? '#007aff' : '#e9ecf6'};color:${T < 9.4 ? '#fff' : '#8a8fa3'};display:grid;place-items:center;font-size:46px;font-weight:500">${T < 9.4 ? '+' : '×'}</div></div>
+      ${f('Название', typed || '&nbsp;', T > 10.1, T > 10.08 && T < 11.04)}
+      ${f('Дата', 'Завтра', T > 11.04, false)}
+      ${f('Начало', '15:00', T > 11.04, T > 11.04 && T < 11.45)}
+      ${f('Конец', '16:00', T > 11.45, T > 11.45 && T < 11.95)}
+      ${f('Напоминание', 'За 1 час', T > 12.5, T > 11.95 && T < 12.8)}
+      ${reminderOpen ? `<div style="position:absolute;left:300px;right:40px;top:560px;border-radius:18px;background:#fff;box-shadow:0 10px 40px rgba(20,30,80,.25);padding:10px 26px;z-index:2;font-size:26px;font-weight:600;color:#0c1124">${['Нет', 'За 15 минут', 'За 30 минут', 'За 1 час'].map((x, i) => `<div style="padding:10px 0;${i === 3 && T > 12.3 ? 'color:#4f6fff' : ''}">${x}</div>`).join('')}</div>` : ''}
+      <div style="margin-top:22px;height:84px;border-radius:22px;background:${saved > 0 ? '#22c55e' : '#007aff'};color:#fff;display:grid;place-items:center;font-size:32px;font-weight:700;transform:scale(${T > 12.8 && T < 12.95 ? 0.95 : 1})">${saved > 0 ? '✓ Сохранено' : 'Сохранить'}</div></div>`;
+    h.push(layer(560, card));
+  }
+  // tap ripple at the right spot
+  const spots = [[540, 890], [846, 632], [600, 715], [600, 895], [600, 985], [600, 1075], [540, 1170]];
+  for (let i = 0; i < TAPS.length; i++) {
+    const k = clamp((T - TAPS[i]) / 0.45);
+    if (k <= 0 || k >= 1) continue;
+    let [x, y] = spots[i];
+    h.push(`<div style="position:absolute;left:${x - 70}px;top:${y - 70}px;width:140px;height:140px;border-radius:50%;border:5px solid rgba(143,176,255,${1 - k});transform:scale(${0.3 + k})"></div>
+      <div style="position:absolute;left:${x - 26}px;top:${y - 26}px;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,${0.7 * (1 - k)})"></div>`);
+  }
+  return h.join('');
+}
+
+// ---------- scene E: one call = 7 taps (13.5 … 15.7) — light
+function sceneE() {
+  const k = back(p(13.55, 13.9));
+  const count = T < 14.4 ? 1 : Math.min(7, 1 + Math.floor((T - 14.4) / 0.065));
+  const thump = back(clamp((T - 14.8) / 0.3));
+  const big = `<div style="font-family:Oswald;font-weight:700;font-size:560px;line-height:1;text-align:center;transform:scale(${count === 7 ? 0.85 + 0.15 * thump : 0.9})"><span class="grad" style="background-image:linear-gradient(160deg,#4f6fff,#8b5cf6 60%,#e0578e)">${count}</span></div>`;
+  const dots = Array.from({ length: 7 }, (_, i) => `<div style="width:30px;height:30px;border-radius:50%;background:${i < count ? '#4f6fff' : 'rgba(12,17,36,.12)'};transform:scale(${i < count ? 1 : 0.7})"></div>`).join('');
+  return layer(270, `<div class="H" style="font-size:110px;color:#0c1124;opacity:${clamp(k)};transform:translateY(${(1 - k) * 30}px)">Один созвон =</div>`) +
+    layer(470, big) + layer(1110, `<div style="display:flex;gap:22px;justify-content:center">${dots}</div><div class="H" style="margin-top:34px;font-size:96px;color:#0c1124;opacity:${clamp(thump)}">нажатий</div>`);
+}
+
+// ---------- scene F: after another deleted app, it dawned on me (15.7 … 18.68)
+function sceneF() {
+  const h = [];
+  const del = [16.2, 16.64, 17.14];
+  const n = 1 + del.filter((d) => T >= d + 0.12).length;
+  const bulbOn = p(17.66, 18.05);
+  const fadeTiles = p(17.5, 17.75);
+  const tiles = [['note', '#f59e0b'], ['check', '#3b82f6'], ['board', '#8b5cf6'], ['cal', '#ff5a5f']];
+  const grid = tiles.map(([nm, c], i) => {
+    const d = i < 3 ? p(del[i], del[i] + 0.3) : 0;
+    return `<div style="position:absolute;left:${(i % 2) * 250}px;top:${Math.floor(i / 2) * 250 + d * 50}px;transform:scale(${(1 - ease(d)) * back(p(15.72 + i * 0.06, 16.05 + i * 0.06))}) rotate(${d * -18 + (d === 0 ? Math.sin(T * 20 + i) * 2 : 0)}deg);opacity:${1 - d}">
+      <div class="tile" style="width:190px;height:190px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.14)">${icon(nm, 90, c, 2)}<div class="badge">−</div></div></div>`;
+  }).join('');
+  if (fadeTiles < 1) {
+    h.push(layer(260, `<div style="text-align:center;font-weight:800;font-size:40px;letter-spacing:.08em;color:rgba(255,255,255,.75);opacity:${(1 - fadeTiles) * out(p(15.7, 15.95))}">УДАЛЕНО: <span style="color:#ff6b6b;display:inline-block;transform:scale(${1 + 0.3 * (1 - clamp((T - (del.filter((d) => T >= d).at(-1) ?? 0) - 0.12) / 0.2))})">${n}</span></div>`));
+    h.push(`<div style="position:absolute;left:${(W - 440) / 2}px;top:600px;width:440px;height:440px;opacity:${1 - fadeTiles}">${grid}</div>`);
+  }
+  if (T > 17.5) {
+    const k = back(p(17.6, 17.95));
+    const glow = 0.55 + 0.45 * bulbOn + 0.1 * Math.sin(T * 6);
+    h.push(layer(560, `<div style="width:360px;height:360px;margin:0 auto;border-radius:50%;display:grid;place-items:center;transform:scale(${k});
+      background:radial-gradient(circle,rgba(255,226,140,${0.55 * bulbOn}),rgba(164,139,250,${0.25 * bulbOn}) 45%,transparent 70%)">${icon('bulb', 230, bulbOn > 0.5 ? '#ffe28c' : 'rgba(255,255,255,.75)', 1.6)}</div>`, `filter:drop-shadow(0 0 ${60 * glow * bulbOn}px rgba(255,220,140,.7))`));
+    const t2 = back(p(17.9, 18.25));
+    h.push(layer(1000, `<div class="H" style="font-size:150px;color:#fff;opacity:${clamp(t2)};transform:scale(${0.8 + 0.2 * t2})">И тут <span class="grad">дошло</span></div>`));
+    // rays
+    if (bulbOn > 0 && bulbOn < 1 || (T > 18 && T < 18.6)) {
+      const r = clamp((T - 17.9) / 0.7);
+      h.push(`<svg style="position:absolute;left:0;top:0" width="1080" height="1920">${Array.from({ length: 12 }, (_, i) => { const a = i / 12 * Math.PI * 2; const r1 = 200 + r * 120, r2 = 240 + r * 220; return `<line x1="${540 + Math.cos(a) * r1}" y1="${740 + Math.sin(a) * r1}" x2="${540 + Math.cos(a) * r2}" y2="${740 + Math.sin(a) * r2}" stroke="#ffe28c" stroke-width="8" stroke-linecap="round" opacity="${1 - r}"/>`; }).join('')}</svg>`);
+    }
+  }
+  return h.join('');
+}
+
+// ---------- scene G: needed — planner + tasks + AI = quick capture (18.68 … 21.95)
+function sceneG() {
+  const h = [];
+  const k = back(p(18.7, 19.0));
+  h.push(layer(250, `<div class="H" style="font-size:130px;color:#fff;opacity:${clamp(k)};transform:scale(${0.8 + 0.2 * k})">Нужен</div>`));
+  const chips = [[19.0, 'cal', 'Планер', 'rgba(122,157,254,.18)', '#7a9dfe'], [19.54, 'check', 'Задачи', 'rgba(164,139,250,.18)', '#a48bfa'], [20.5, 'spark', 'Нейросеть', 'rgba(244,142,174,.18)', '#f48eae']];
+  chips.forEach(([at, ic, label, bg, c], i) => {
+    const ck = back(p(at, at + 0.3));
+    if (ck <= 0) return;
+    const plus = i > 0 ? `<div style="font-family:Oswald;font-size:70px;color:rgba(255,255,255,.4);line-height:1;margin:6px 0;opacity:${clamp(ck)}">+</div>` : '';
+    h.push(layer(470 + i * 205, `<div style="text-align:center">${plus}<div class="chip" style="background:${bg};border:2px solid ${c}66;transform:scale(${ck});opacity:${clamp(ck)}">${icon(ic, 62, c, 2.2)}${label}</div></div>`));
+  });
+  const z = back(p(21.1, 21.45));
+  if (z > 0) {
+    const sh = 100 - ((T - 21.1) * 90) % 300;
+    h.push(layer(1140, `<div style="text-align:center"><div class="pill" style="font-family:Oswald;font-size:66px;text-transform:uppercase;padding:24px 46px;border-radius:30px;color:#0b0b18;background:linear-gradient(110deg,#7a9dfe,#a48bfa 30%,#fff 45%,#f48eae 60%,#a48bfa);background-size:300% 100%;background-position:${sh}% 0;transform:scale(${z});box-shadow:0 20px 80px rgba(164,139,250,.45)">${icon('bolt', 58, '#0b0b18')}Быстрая запись</div></div>`));
+  }
+  return h.join('');
+}
+
+// ---------- scene H: no silly questions (21.95 … 25.2) — light
+function sceneH() {
+  const h = [];
+  const k = back(p(22.3, 22.65));
+  h.push(layer(250, `<div class="H" style="font-size:132px;color:#0c1124;opacity:${clamp(k)};transform:scale(${0.8 + 0.2 * k})">Без тупых<br><span class="grad" style="background-image:linear-gradient(100deg,#4f6fff,#8b5cf6 60%,#e0578e)">вопросов</span></div>`));
+  const ck = back(p(23.3, 23.65));
+  const no = p(24.45, 24.7);
+  const shake = T > 24.45 && T < 24.85 ? Math.sin((T - 24.45) * 70) * 14 * (1 - (T - 24.45) / 0.4) : 0;
+  const emo = ['😄', '🙂', '😐', '😕', '😢'];
+  const card = `<div style="margin:0 auto;width:800px;border-radius:44px;background:#fff;padding:44px;box-shadow:0 40px 110px rgba(60,70,160,.2);transform:translateX(${shake}px) scale(${0.75 + 0.25 * ck}) rotate(${no * -3}deg);opacity:${clamp(ck) * (1 - 0.35 * no)}">
+    <div style="font-weight:700;font-size:26px;color:#8a8fa3;letter-spacing:.06em">ЕЖЕДНЕВНЫЙ ЧЕК-ИН</div>
+    <div style="font-weight:800;font-size:44px;line-height:1.2;color:#0c1124;margin-top:14px">Как ваше эмоциональное состояние сегодня?</div>
+    <div style="display:flex;justify-content:space-between;margin-top:34px">${emo.map((e, i) => `<div style="width:122px;height:122px;border-radius:30px;background:#f2f3f8;display:grid;place-items:center;font-size:66px;transform:translateY(${Math.sin(T * 5 + i) * 4}px)">${e}</div>`).join('')}</div>
+    <div style="margin-top:30px;height:78px;border-radius:22px;background:#e9ecf6;color:#8a8fa3;display:grid;place-items:center;font-size:30px;font-weight:700">Далее</div></div>`;
+  h.push(layer(720, card));
+  if (no > 0) {
+    // red strike + stamp
+    h.push(`<svg style="position:absolute;left:0;top:0" width="1080" height="1920"><line x1="150" y1="1260" x2="${150 + 780 * ease(no)}" y2="${1260 - 520 * ease(no)}" stroke="#ff3b30" stroke-width="22" stroke-linecap="round"/></svg>`);
+    const st = back(p(24.6, 24.9));
+    h.push(layer(905, `<div style="text-align:center"><span style="display:inline-block;font-family:Oswald;font-weight:700;font-size:120px;color:#ff3b30;border:10px solid #ff3b30;border-radius:28px;padding:0 40px;transform:rotate(-12deg) scale(${2 - st});opacity:${clamp(st)};background:rgba(255,255,255,.85)">НЕТ</span></div>`));
+  }
+  return h.join('');
+}
+
+// ---------- scene I: so I made my own (25.2 … 26.24)
+function logoTile(size, k, extra = '') {
+  return `<div style="width:${size}px;height:${size}px;margin:0 auto;border-radius:${size * 0.25}px;background:linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae);display:grid;place-items:center;transform:scale(${k});box-shadow:0 0 90px rgba(164,139,250,.55);${extra}">
+    <svg width="${size * 0.58}" height="${size * 0.58}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5.5" width="17" height="15" rx="4"/><path d="M8.5 3.5v3.5M15.5 3.5v3.5"/><path d="M12 9.6c.25 2.1 1.3 3.2 4 4.2-2.7 1-3.75 2.1-4 4.2-.25-2.1-1.3-3.2-4-4.2 2.7-1 3.75-2.1 4-4.2Z" fill="#fff" stroke="none"/></svg></div>`;
+}
+function sceneI() {
+  const h = [];
+  const k = back(p(25.22, 25.6));
+  const rings = [0, 0.18, 0.36].map((d) => {
+    const r = clamp((T - 25.25 - d) / 0.9);
+    if (r <= 0 || r >= 1) return '';
+    return `<circle cx="540" cy="760" r="${150 + ease(r) * 420}" fill="none" stroke="url(#rgi)" stroke-width="${8 * (1 - r) + 1}" opacity="${(1 - r) * 0.8}"/>`;
+  }).join('');
+  h.push(`<svg style="position:absolute;left:0;top:0" width="1080" height="1920"><defs><linearGradient id="rgi" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7a9dfe"/><stop offset=".5" stop-color="#a48bfa"/><stop offset="1" stop-color="#f48eae"/></linearGradient></defs>${rings}</svg>`);
+  h.push(layer(620, logoTile(280, k, `transform:scale(${k}) rotate(${(1 - clamp(k)) * -14}deg)`)));
+  const t2 = back(p(25.5, 25.85));
+  h.push(layer(1000, `<div class="H" style="font-size:140px;color:#fff;opacity:${clamp(t2)};transform:translateY(${(1 - t2) * 40}px)">Я сделал <span class="grad">свой</span></div>`));
+  return h.join('');
+}
+
+// ---------- scene J: the iPhone shortcut demo (26.24 … 33.4)
+function phone(inner, x, y, s, pressed) {
+  return `<div style="position:absolute;left:${x}px;top:${y}px;width:560px;height:1150px;transform:scale(${s});transform-origin:50% 0">
+    <div style="position:absolute;left:-9px;top:250px;width:12px;height:84px;border-radius:6px;background:${pressed ? 'linear-gradient(#7a9dfe,#a48bfa)' : '#2a2d38'};box-shadow:${pressed ? '0 0 30px #a48bfa' : 'none'};transform:translateX(${pressed ? 5 : 0}px)"></div>
+    <div style="position:absolute;left:-9px;top:360px;width:12px;height:120px;border-radius:6px;background:#2a2d38"></div>
+    <div style="position:absolute;left:-9px;top:500px;width:12px;height:120px;border-radius:6px;background:#2a2d38"></div>
+    <div style="position:absolute;right:-9px;top:380px;width:12px;height:170px;border-radius:6px;background:#2a2d38"></div>
+    <div style="position:absolute;inset:0;border-radius:92px;background:#15171f;padding:14px;box-shadow:0 0 0 2px #2f3240, 0 60px 140px rgba(0,0,0,.6), 0 0 120px rgba(122,157,254,.18)">
+      <div style="position:relative;width:100%;height:100%;border-radius:80px;overflow:hidden;background:#0b0e1c">${inner}</div></div></div>`;
+}
+function homeScreen(blur) {
+  const apps = Array.from({ length: 20 }, (_, i) => {
+    const isOurs = i === 6;
+    return `<div style="width:104px;height:104px;border-radius:26px;${isOurs ? 'background:linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae)' : `background:rgba(255,255,255,${0.1 + (i * 37 % 7) / 60})`}"></div>`;
+  }).join('');
+  return `<div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 20%,#3a4ea8,transparent 55%),radial-gradient(circle at 80% 70%,#7a4a8f,transparent 55%),#141830"></div>
+    <div style="position:absolute;left:34px;right:34px;top:150px;display:grid;grid-template-columns:repeat(4,104px);justify-content:space-between;row-gap:52px;filter:blur(${blur}px)">${apps}</div>
+    <div style="position:absolute;left:24px;right:24px;bottom:24px;height:150px;border-radius:52px;background:rgba(255,255,255,.14);filter:blur(${blur}px)"></div>
+    <div style="position:absolute;top:34px;left:60px;font-weight:700;font-size:30px;color:#fff">15:20</div>
+    <div style="position:absolute;top:34px;right:56px;width:50px;height:24px;border-radius:7px;border:2.5px solid rgba(255,255,255,.8)"><div style="margin:2px;width:34px;height:15px;border-radius:3px;background:#fff"></div></div>`;
+}
+function sceneJ() {
+  const h = [];
+  const intro = out(p(26.24, 26.6));
+  const lift = ease(p(30.8, 31.35)); // phone moves up for the parsed tags
+  const px = 260, py = 330 - lift * 120, ps = (0.94 + 0.06 * intro) * (1 - 0.18 * lift);
+  const pressed = T > 26.42 && T < 26.95;
+  const dictK = out(p(26.9, 27.25)) * (1 - ease(p(29.75, 30.05)));
+  const thinking = T > 29.8 && T < 30.18;
+  const banner = back(p(30.18, 30.55));
+  // inner screen
+  let inner = homeScreen(dictK > 0.05 || banner > 0 ? 8 : 0);
+  // dynamic island
+  const islandW = 170 + dictK * 300, islandH = 50 + dictK * 6;
+  inner += `<div style="position:absolute;left:50%;top:22px;width:${islandW}px;height:${islandH}px;margin-left:${-islandW / 2}px;border-radius:30px;background:#000;display:flex;align-items:center;justify-content:space-between;padding:0 20px">
+    ${dictK > 0.4 ? `<div style="width:30px;height:30px;border-radius:50%;background:#ff3b30;opacity:${0.6 + 0.4 * Math.sin(T * 8)}"></div><div style="display:flex;gap:4px;align-items:center">${Array.from({ length: 9 }, (_, i) => { const r = window.RMS[Math.floor(T * 30) + i] || 0; return `<div style="width:5px;height:${6 + r * 26}px;border-radius:3px;background:#ff8fa3"></div>`; }).join('')}</div>` : ''}</div>`;
+  // dictation panel (the shortcut's "Диктовка")
+  if (dictK > 0 || thinking) {
+    const said = window.WORDS.filter((w) => w.p >= 23 && w.p <= 24 && T >= w.s).map((w) => w.t.replace(/[«»]/g, '')).join(' ');
+    inner += `<div style="position:absolute;left:22px;right:22px;top:${100 - (1 - dictK) * 40}px;border-radius:44px;background:rgba(30,32,44,.92);padding:28px 30px 34px;opacity:${thinking ? 1 : dictK};backdrop-filter:blur(20px)">
+      <div style="display:flex;align-items:center;gap:14px"><div style="width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae);display:grid;place-items:center">${icon('spark', 26, '#fff')}</div><div style="font-weight:700;font-size:28px;color:#fff">План</div><div style="margin-left:auto;font-size:24px;color:rgba(255,255,255,.5)">${thinking ? 'Думаю…' : 'Слушаю…'}</div></div>
+      <div style="margin-top:20px;min-height:120px;font-size:31px;line-height:1.35;font-weight:600;color:#fff">${said || '<span style="color:rgba(255,255,255,.35)">Говорите…</span>'}${!thinking && Math.floor(T * 3) % 2 ? '<span style="color:#a48bfa">|</span>' : ''}</div>
+      <div style="margin:20px auto 0;width:96px;height:96px;border-radius:50%;border:5px solid rgba(255,255,255,.85);display:grid;place-items:center">${thinking ? `<div style="width:44px;height:44px;border-radius:50%;border:5px solid rgba(255,255,255,.3);border-top-color:#fff;transform:rotate(${T * 720}deg)"></div>` : '<div style="width:40px;height:40px;border-radius:10px;background:#ff3b30"></div>'}</div></div>`;
+  }
+  // the result notification
+  if (banner > 0) {
+    const hl = (at) => T >= at ? 'background:rgba(143,176,255,.28);border-radius:8px;' : '';
+    inner += `<div style="position:absolute;left:18px;right:18px;top:${-160 + 260 * banner}px;border-radius:40px;background:rgba(245,246,252,.96);padding:24px 26px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+      <div style="display:flex;align-items:center;gap:12px"><div style="width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae);display:grid;place-items:center">${icon('spark', 24, '#fff')}</div><div style="font-weight:700;font-size:24px;color:#6b7083;letter-spacing:.04em">КОМАНДЫ</div><div style="margin-left:auto;font-size:22px;color:#8a8fa3">сейчас</div></div>
+      <div style="margin-top:14px;font-weight:800;font-size:30px;color:#0c1124">✅ Созвон</div>
+      <div style="margin-top:6px;font-size:27px;line-height:1.45;color:#2b3045;font-weight:600"><span style="${hl(31.56)}padding:0 4px">завтра</span>, <span style="${hl(32.16)}padding:0 4px">15:00–16:00</span><br>🔔 <span style="${hl(32.66)}padding:0 4px">Напомню за час</span></div></div>`;
+  }
+  h.push(phone(inner, px, py, ps, pressed));
+  // side-button callout
+  const cb = out(p(26.3, 26.55)) * (1 - p(27.1, 27.3));
+  if (cb > 0) {
+    h.push(`<div style="position:absolute;left:${px - 250}px;top:${py + 235 * ps}px;opacity:${cb};transform:translateX(${(1 - cb) * -30}px)">
+      <div class="pill" style="font-size:26px;color:#fff;background:linear-gradient(90deg,#4f6fff,#8b5cf6);box-shadow:0 10px 40px rgba(79,111,255,.5)">${icon('bolt', 30, '#fff')}Кнопка действия</div></div>`);
+  }
+  // "you speak" card over the phone, with the live waveform
+  const sp = out(p(27.3, 27.6)) * (1 - p(29.75, 29.95));
+  if (sp > 0) {
+    const said = window.WORDS.filter((w) => w.p >= 23 && w.p <= 24);
+    const txt = said.map((w) => `<span style="color:${T >= w.s ? '#fff' : 'rgba(255,255,255,.3)'}">${w.t}</span>`).join(' ');
+    const bars = Array.from({ length: 34 }, (_, i) => { const r = window.RMS[Math.max(0, Math.floor(T * 30) - 17 + i)] || 0; return `<div style="width:8px;height:${8 + r * 70}px;border-radius:4px;background:linear-gradient(#7a9dfe,#f48eae)"></div>`; }).join('');
+    h.push(layer(1130, `<div style="margin:0 auto;width:900px;border-radius:40px;background:rgba(14,18,38,.86);border:2px solid rgba(143,176,255,.35);padding:28px 40px 34px;text-align:center;transform:translateY(${(1 - sp) * 40}px);opacity:${sp};box-shadow:0 30px 90px rgba(0,0,0,.5)">
+      <div style="display:inline-block;font-weight:800;font-size:22px;letter-spacing:.14em;color:#8fb0ff;border:2px solid rgba(143,176,255,.4);border-radius:999px;padding:6px 18px">ГОВОРИШЬ ГОЛОСОМ</div>
+      <div style="margin-top:18px;font-weight:800;font-size:46px;line-height:1.25">${txt}</div>
+      <div style="display:flex;gap:6px;justify-content:center;align-items:center;height:80px;margin-top:14px">${bars}</div></div>`));
+  }
+  // "ВСЁ." with a check badge
+  const all = back(p(30.2, 30.5)) * (1 - p(30.85, 31.05));
+  if (all > 0) {
+    h.push(layer(1060, `<div style="display:flex;align-items:center;justify-content:center;gap:30px;transform:scale(${0.6 + 0.4 * all});opacity:${clamp(all)}">
+      <div style="width:150px;height:150px;border-radius:50%;background:linear-gradient(135deg,#7a9dfe,#a48bfa);display:grid;place-items:center;box-shadow:0 0 70px rgba(122,157,254,.6)"><svg width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg></div>
+      <div class="H" style="font-size:210px;color:#fff;text-shadow:0 0 60px rgba(143,176,255,.6)">Всё.</div></div>`));
+  }
+  // what it understood
+  const tags = [[31.56, 'cal', 'Дата', 'завтра'], [32.16, 'clock', 'Время', '15:00–16:00'], [32.66, 'bell', 'Напоминание', 'за 1 час']];
+  tags.forEach(([at, ic, l, v], i) => {
+    const k = back(p(at, at + 0.3));
+    if (k <= 0) return;
+    h.push(layer(1100 + i * 112, `<div style="margin:0 auto;width:760px;height:96px;border-radius:28px;background:rgba(255,255,255,.07);border:2px solid rgba(143,176,255,.3);display:flex;align-items:center;gap:22px;padding:0 30px;transform:translateX(${(1 - k) * 80}px) scale(${0.9 + 0.1 * k});opacity:${clamp(k)}">
+      ${icon(ic, 46, '#8fb0ff', 2.2)}<div style="font-weight:800;font-size:26px;letter-spacing:.1em;color:rgba(255,255,255,.6)">${l.toUpperCase()}</div><div style="margin-left:auto;font-weight:800;font-size:38px;color:#fff">${v}</div></div>`));
+  });
+  return h.join('');
+}
+
+// ---------- scene K: became part of my life (33.4 … 35.1)
+function sceneK() {
+  const h = [];
+  const k = back(p(33.45, 33.8));
+  const k2 = back(p(34.1, 34.45));
+  h.push(layer(280, `<div class="H" style="font-size:118px;color:#fff;opacity:${clamp(k)}">Стал <span class="grad">частью</span><br><span style="opacity:${clamp(k2)}">жизни</span></div>`));
+  const days = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
+  const filled = Math.floor(clamp((T - 33.6) / 1.3) * 28);
+  const cells = Array.from({ length: 28 }, (_, i) => {
+    const on = i < filled;
+    const pop = on ? back(clamp((T - 33.6 - (i / 28) * 1.3) / 0.2)) : 1;
+    return `<div style="width:100px;height:100px;border-radius:24px;background:${on ? 'linear-gradient(135deg,#4f6fff,#8b5cf6)' : 'rgba(255,255,255,.06)'};border:1.5px solid rgba(255,255,255,${on ? 0 : 0.1});display:grid;place-items:center;transform:scale(${pop})">${on ? '<svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>' : ''}</div>`;
+  }).join('');
+  h.push(layer(640, `<div style="display:grid;grid-template-columns:repeat(7,100px);gap:16px;justify-content:center">${days.map((d) => `<div style="text-align:center;font-weight:800;font-size:24px;color:rgba(255,255,255,.55)">${d}</div>`).join('')}${cells}</div>`));
+  return h.join('');
+}
+
+// ---------- scene L: the reason is simple (35.1 … 37.92)
+function sceneL() {
+  const lines = [['Причина простая —', 35.18, 35.95], ['я делал его', 36.18, 36.75], ['под свою проблему', 36.8, 37.45]];
+  const rows = lines.map(([s, a, b], i) => {
+    const n = Math.floor(clamp((T - a) / (b - a)) * s.length);
+    const txt = s.slice(0, n);
+    const cursor = T >= a && (T < b + 0.3 || i === 2) && Math.floor(T * 3) % 2 === 0;
+    const mark = i === 2 ? ease(p(37.4, 37.65)) : 0;
+    return `<div style="position:relative;display:inline-block;font-weight:800;font-size:${i === 2 ? 76 : 66}px;line-height:1.3;color:${i === 2 && mark > 0.5 ? '#0b0b18' : '#fff'}">
+      ${mark > 0 ? `<div style="position:absolute;left:-14px;width:calc(${mark * 100}% + 28px);top:6px;bottom:2px;border-radius:14px;background:linear-gradient(100deg,#7a9dfe,#a48bfa 55%,#f48eae);z-index:-1"></div>` : ''}${txt}${cursor ? '<span style="color:#a48bfa">▍</span>' : ''}</div>`;
+  }).join('<br>');
+  return `<div style="position:absolute;left:90px;top:640px;isolation:isolate">${rows}</div>`;
+}
+
+// ---------- scene M: want to try? comment «план» (37.92 … end) — light
+function sceneM() {
+  const h = [];
+  const k = back(p(38.0, 38.35));
+  const k2 = back(p(39.2, 39.5));
+  const float = Math.sin(T * 2.4) * 6;
+  h.push(layer(220, `<div class="H" style="font-size:112px;color:#0c1124;opacity:${clamp(k)};transform:scale(${0.8 + 0.2 * k})">Хочешь<br>протестировать?</div>`));
+  if (k2 > 0) {
+    const sh = 100 - ((T - 39.2) * 70) % 300;
+    h.push(layer(560 + float, `<div style="text-align:center"><div class="H" style="font-size:80px;color:#0c1124;opacity:${clamp(k2)}">Напиши</div>
+      <div style="display:inline-block;margin-top:14px;font-family:Oswald;font-weight:700;font-size:150px;line-height:1.1;padding:4px 60px 14px;border-radius:44px;color:#fff;background:linear-gradient(110deg,#4f6fff,#8b5cf6 35%,#c7b6ff 48%,#e0578e 62%,#8b5cf6);background-size:300% 100%;background-position:${sh}% 0;box-shadow:0 30px 90px rgba(110,90,255,.45);transform:scale(${k2})">ПЛАН</div></div>`));
+  }
+  // comments sheet
+  const sheet = out(p(38.6, 39.0));
+  if (sheet > 0) {
+    const typed = 'план'.slice(0, Math.floor(clamp((T - 39.45) / 0.35) * 4));
+    const sent = T > 39.95;
+    const reply = back(p(40.5, 40.8));
+    h.push(`<div style="position:absolute;left:90px;right:90px;top:${1010 + (1 - sheet) * 500}px;border-radius:44px;background:#fff;padding:34px 36px;box-shadow:0 40px 110px rgba(60,70,160,.22)">
+      <div style="text-align:center;font-weight:800;font-size:30px;color:#0c1124">Комментарии</div>
+      ${sent ? `<div style="display:flex;gap:18px;margin-top:30px;transform:translateY(${(1 - out(p(39.95, 40.2))) * 20}px)"><div style="width:62px;height:62px;border-radius:50%;background:#d7dbea"></div><div><div style="font-size:22px;color:#8a8fa3;font-weight:600">ты · только что</div><div style="display:inline-block;margin-top:8px;padding:8px 22px;border-radius:14px;background:#4f6fff;color:#fff;font-weight:800;font-size:30px">ПЛАН</div></div></div>` : `<div style="margin-top:30px;height:62px;border-radius:14px;background:#f2f3f8;width:70%"></div><div style="margin-top:16px;height:62px;border-radius:14px;background:#f2f3f8;width:50%"></div>`}
+      ${reply > 0 ? `<div style="display:flex;gap:18px;margin-top:24px;transform:scale(${0.9 + 0.1 * reply});opacity:${clamp(reply)};transform-origin:0 0">${logoTile(62, 1, 'margin:0;box-shadow:none;border-radius:50%')}<div><div style="font-size:22px;color:#8a8fa3;font-weight:600">myliveplaners</div><div style="margin-top:6px;font-weight:700;font-size:30px;color:#0c1124">Держи ссылку 👇</div><div style="display:inline-flex;align-items:center;gap:10px;margin-top:10px;padding:10px 22px;border-radius:14px;border:2px solid #4f6fff;color:#4f6fff;font-weight:800;font-size:26px">Открыть «ПЛАН»</div></div></div>` : ''}
+      <div style="display:flex;align-items:center;gap:16px;margin-top:30px;height:78px;border-radius:39px;background:#f2f3f8;padding:0 14px 0 30px">
+        <div style="flex:1;font-size:28px;font-weight:600;color:${typed && !sent ? '#0c1124' : '#a3a8bb'}">${sent ? 'Добавьте комментарий…' : (typed ? typed + (Math.floor(T * 4) % 2 ? '|' : '') : 'Добавьте комментарий…')}</div>
+        <div style="width:58px;height:58px;border-radius:50%;background:#4f6fff;display:grid;place-items:center;transform:scale(${T > 39.85 && T < 40.0 ? 0.85 : 1})">${icon('send', 30, '#fff')}</div></div></div>`);
+  }
+  return h.join('');
+}
+
+const RENDER = [sceneA, sceneB, sceneC, sceneD, sceneE, sceneF, sceneG, sceneH, sceneI, sceneJ, sceneK, sceneL, sceneM];
+
+window.render = (t) => {
+  T = t;
+  const i = sceneAt(t);
+  const st = SCENES[i][0];
+  const tr = i > 0 ? clamp((t - st) / 0.28) : 1;
+  const zoom = 1 + (1 - out(tr)) * 0.07;
+  const blur = (1 - out(tr)) * 14;
+  const light = isLight(i);
+  // flash between scenes of different brightness
+  const flash = i > 0 && isLight(i) !== isLight(i - 1) ? (1 - out(clamp((t - st) / 0.22))) * 0.6 : 0;
+  // film grain + vignette ("filters")
+  const seed = Math.floor(t * 30) % 9;
+  document.getElementById('stage').innerHTML =
+    background(i) +
+    `<div style="position:absolute;inset:0;transform:scale(${zoom});filter:blur(${blur}px)">${RENDER[i]()}</div>` +
+    captions(light) +
+    `<div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(0,0,0,${light ? 0.12 : 0.45}))"></div>` +
+    `<svg style="position:absolute;inset:0;opacity:${light ? 0.07 : 0.1};mix-blend-mode:overlay" width="1080" height="1920"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="${seed}"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.4 0"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>` +
+    (flash > 0 ? `<div style="position:absolute;inset:0;background:#fff;opacity:${flash}"></div>` : '');
+};
+const q = new URLSearchParams(location.search);
+window.render(Number(q.get('t') || 0));
+</script>
+</body>
+</html>
