@@ -31,9 +31,9 @@
 <div id="stage"></div>
 <script src="timeline.js"></script>
 <script>
-const W = 1080, H = 1920, FPS = 30, DUR = 46.2;
+const W = 1080, H = 1920, FPS = 30, DUR = 44.4;
 // After the iPhone demo the voice pauses for GAP seconds while the app itself is shown.
-const GAP_AT = 33.35, GAP = 3;
+const GAP_AT = 33.35, GAP = 1.2;
 const voiceT = (t) => (t < GAP_AT ? t : t < GAP_AT + GAP ? null : t - GAP);
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const p = (a, b) => clamp((T - a) / (b - a));
@@ -64,7 +64,7 @@ const icon = (n, size, color = 'currentColor', sw = 2) =>
 // ---------- scenes: [start, kind]
 const SCENES = [
   [0, 'dark'], [3.62, 'light'], [5.58, 'dark'], [8.32, 'dark2'], [13.5, 'light'], [15.7, 'dark'],
-  [18.68, 'dark'], [21.95, 'light'], [25.3, 'dark'], [26.24, 'phone'], [33.4, 'show'], [38.1, 'dark'], [40.92, 'light'],
+  [18.68, 'dark'], [21.95, 'light'], [25.3, 'dark'], [26.24, 'phone'], [33.4, 'show'], [36.3, 'dark'], [39.12, 'light'],
 ];
 const sceneAt = (t) => { let i = 0; for (let k = 0; k < SCENES.length; k++) if (t >= SCENES[k][0]) i = k; return i; };
 const isLight = (i) => SCENES[i][1] === 'light';
@@ -192,7 +192,7 @@ function sceneD() {
   const head = out(p(8.32, 8.6));
   const seg = Array.from({ length: 7 }, (_, i) => `<div style="width:54px;height:8px;border-radius:4px;background:${i < taps ? 'linear-gradient(90deg,#7a9dfe,#a48bfa)' : 'rgba(255,255,255,.14)'}"></div>`).join('');
   const bump = taps ? back(clamp((T - TAPS[taps - 1]) / 0.25)) : 1;
-  h.push(`<div style="position:absolute;left:70px;top:250px;opacity:${head}"><div style="font-weight:800;font-size:28px;letter-spacing:.1em;color:#8fb0ff">КВЕСТ: ЗАПИСАТЬ СОЗВОН</div><div style="display:flex;gap:10px;margin-top:16px">${seg}</div></div>
+  h.push(`<div style="position:absolute;left:70px;top:250px;opacity:${head}"><div style="display:flex;gap:10px;margin-top:60px">${seg}</div></div>
     <div style="position:absolute;right:70px;top:226px;width:150px;height:150px;border-radius:30px;border:2px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);text-align:center;opacity:${head}">
       <div style="font-weight:700;font-size:20px;letter-spacing:.12em;color:rgba(255,255,255,.6);margin-top:18px">НАЖАТИЙ</div>
       <div style="font-family:Oswald;font-weight:700;font-size:80px;line-height:1;color:#fff;margin-top:6px;transform:scale(${0.75 + 0.25 * bump})">${taps}</div></div>`);
@@ -470,39 +470,38 @@ function sceneM() {
 
 // ---------- scene S: how it worked — the real app (33.4 … 38.1, no voice for the first 3 s)
 const SHOTS = [
+  // [from, screen, label, icon, highlight box (fractions of the screen)]
   [33.4, 'app/1-day.png', 'Уже в календаре', 'cal', [0.13, 0.605, 0.99, 0.69]],
-  [34.45, 'app/2-event.png', 'Напомнит за час', 'bell', [0.03, 0.515, 0.97, 0.705]],
-  [35.5, 'app/3-tasks.png', 'Задачи — тоже голосом', 'check', [0.02, 0.17, 0.98, 0.63]],
-  [36.55, 'app/4-assistant.png', 'Или просто напиши', 'spark', [0.03, 0.3, 0.93, 0.61]],
+  [35.0, 'app/3-tasks.png', 'И задачи тоже', 'check', [0.03, 0.235, 0.97, 0.5]],
 ];
 function sceneS() {
   const h = [];
   let k = 0;
   for (let j = 0; j < SHOTS.length; j++) if (T >= SHOTS[j][0]) k = j;
-  const [at, , label, ic] = SHOTS[k];
-  const sw = out(clamp((T - at) / 0.32)); // screen swipe-in
+  const [at, src, label, ic, [x0, y0, x1, y1]] = SHOTS[k];
+  const sw = out(clamp((T - at) / 0.3)); // swipe-in
   const tilt = (1 - out(p(33.4, 33.9))) * 14;
-  // phone with the current screen sliding over the previous one
-  const prev = k > 0 && sw < 1 ? `<img src="${SHOTS[k - 1][1]}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:translateX(${-sw * 35}%);filter:brightness(${1 - 0.5 * sw})">` : '';
-  const cur = `<img src="${SHOTS[k][1]}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:translateX(${k > 0 ? (1 - sw) * 100 : 0}%);box-shadow:-30px 0 60px rgba(0,0,0,.5)">`;
-  // highlight box around the thing that matters on this screen
-  const [x0, y0, x1, y1] = SHOTS[k][4];
+  // camera pushes in on the part that matters, so the screen reads at a glance
+  const z = 1 + 0.12 * ease(p(at + 0.25, at + 0.9));
+  const cx = (x0 + x1) / 2 * 100, cy = (y0 + y1) / 2 * 100;
   const hk = out(p(at + 0.3, at + 0.55));
   const pulse = 0.5 + 0.5 * Math.sin((T - at) * 7);
-  const box = hk > 0 ? `<div style="position:absolute;left:${x0 * 100}%;top:${y0 * 100}%;width:${(x1 - x0) * 100}%;height:${(y1 - y0) * 100}%;border-radius:22px;border:4px solid rgba(164,139,250,${0.6 + 0.4 * pulse});box-shadow:0 0 ${30 + 30 * pulse}px rgba(164,139,250,.7), inset 0 0 30px rgba(164,139,250,.25);transform:scale(${1.08 - 0.08 * hk});opacity:${hk}"></div>` : '';
-  const inner = prev + cur + box;
+  const box = hk > 0 ? `<div style="position:absolute;left:${x0 * 100}%;top:${y0 * 100}%;width:${(x1 - x0) * 100}%;height:${(y1 - y0) * 100}%;border-radius:18px;border:4px solid rgba(164,139,250,${0.6 + 0.4 * pulse});box-shadow:0 0 ${30 + 30 * pulse}px rgba(164,139,250,.7);opacity:${hk}"></div>` : '';
+  const dim = hk > 0 ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,${0.45 * hk});clip-path:polygon(0 0,100% 0,100% 100%,0 100%,0 ${y0 * 100}%,${x0 * 100}% ${y0 * 100}%,${x0 * 100}% ${y1 * 100}%,${x1 * 100}% ${y1 * 100}%,${x1 * 100}% ${y0 * 100}%,0 ${y0 * 100}%)"></div>` : '';
+  const screen = (img, extra) => `<div style="position:absolute;inset:0;${extra}"><img src="${img}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`;
+  const prev = k > 0 && sw < 1 ? screen(SHOTS[k - 1][1], `transform:translateX(${-sw * 35}%);filter:brightness(${1 - 0.5 * sw})`) + '</div>' : '';
+  const cur = screen(src, `transform:translateX(${k > 0 ? (1 - sw) * 100 : 0}%)`) +
+    `<div style="position:absolute;inset:0;transform:scale(${z});transform-origin:${cx}% ${cy}%"><img src="${src}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">${dim}${box}</div></div>`;
   const ps = 0.8 * (0.9 + 0.1 * out(p(33.4, 33.75)));
-  h.push(`<div style="position:absolute;inset:0;perspective:1800px"><div style="position:absolute;inset:0;transform:rotateY(${-tilt}deg) rotateX(${tilt * 0.4}deg)">${phone(inner, 260, 330, ps, false)}</div></div>`);
-  // label above the phone
+  h.push(`<div style="position:absolute;inset:0;perspective:1800px"><div style="position:absolute;inset:0;transform:rotateY(${-tilt}deg) rotateX(${tilt * 0.4}deg)">${phone(prev + cur, 260, 330, ps, false)}</div></div>`);
   const lk = back(clamp((T - at) / 0.35));
   h.push(layer(150, `<div style="text-align:center"><div style="display:inline-flex;align-items:center;gap:18px;padding:18px 34px;border-radius:999px;background:rgba(255,255,255,.08);border:2px solid rgba(143,176,255,.35);transform:scale(${0.7 + 0.3 * lk});opacity:${clamp(lk)}">${icon(ic, 46, '#8fb0ff', 2.2)}<span class="H" style="font-size:58px;color:#fff">${label}</span></div></div>`));
-  // the reminder arriving as a real notification, over the phone
-  const nb = back(p(34.85, 35.15)) * (1 - p(35.4, 35.55));
+  // the reminder arriving as a notification
+  const nb = back(p(34.15, 34.42)) * (1 - p(34.8, 34.95));
   if (nb > 0) {
     h.push(`<div style="position:absolute;left:150px;right:150px;top:${360 + (1 - nb) * -120}px;border-radius:36px;background:rgba(245,246,252,.97);padding:24px 28px;box-shadow:0 30px 80px rgba(0,0,0,.5);opacity:${clamp(nb)}">
       <div style="display:flex;align-items:center;gap:14px">${logoTile(48, 1, 'margin:0;box-shadow:none;border-radius:12px')}<div style="font-weight:700;font-size:24px;color:#6b7083;letter-spacing:.04em">ПЛАНЕР</div><div style="margin-left:auto;font-size:22px;color:#8a8fa3">14:00</div></div>
-      <div style="margin-top:12px;font-weight:800;font-size:32px;color:#0c1124">⏰ Через час: Созвон</div>
-      <div style="margin-top:4px;font-size:27px;color:#2b3045;font-weight:600">Завтра, 15:00–16:00</div></div>`);
+      <div style="margin-top:12px;font-weight:800;font-size:34px;color:#0c1124">⏰ Через час: Созвон</div></div>`);
   }
   return h.join('');
 }

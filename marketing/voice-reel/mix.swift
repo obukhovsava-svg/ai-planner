@@ -6,9 +6,9 @@ import AVFoundation
 import Foundation
 
 let SR = 48_000.0
-let DUR = 46.2
+let DUR = 44.4
 // After the iPhone demo the voice pauses for GAP seconds while the app is shown (same as reel.html).
-let GAP_AT = 33.35, GAP = 3.0
+let GAP_AT = 33.35, GAP = 1.2
 /// Times in the score are on the voice clock; RAW = true means "already video time" (the app showcase).
 var RAW = false
 let N = Int(SR * DUR)
@@ -265,65 +265,207 @@ func hum(_ at: Double, _ len: Double, gain: Float = 0.07) {
   }
 }
 
-// ---------------------------------------------------------------- the score (seconds, same clock as reel.html)
+// ---------------------------------------------------------------- more kinds, so every scene has its own sounds
+/// Error buzz (two short square bursts).
+func buzz(_ at: Double, gain: Float = 0.12) {
+  for k in 0..<2 { add(at + Double(k) * 0.11, 0.08, gain: gain) { t, _ in Float(sin(tau * 140 * t) > 0 ? 1 : -1) * Float(exp(-t * 18)) * 0.5 } }
+}
+/// Glassy tag tick.
+func glass(_ at: Double, _ midi: Double, gain: Float = 0.12) {
+  let f = note(midi)
+  add(at, 0.4, gain: gain) { t, _ in Float((sin(tau * f * t) + 0.5 * sin(tau * 3 * f * t) * exp(-t * 30)) * exp(-t * 11)) }
+}
+/// Muffled low thud.
+func thud(_ at: Double, gain: Float = 0.45) {
+  var lp = LP()
+  add(at, 0.4, gain: gain) { t, _ in Float(sin(tau * (60 * t + 40 * (1 - exp(-t * 25)) / 25)) * exp(-t * 10)) + lp.run(noise(), coef(300)) * Float(exp(-t * 25)) }
+}
+/// Paper / card sliding on a table.
+func paperSlide(_ at: Double, _ len: Double = 0.22, gain: Float = 0.16) {
+  var lp = LP(), hp = LP()
+  add(at, len, gain: gain) { _, x in let n = lp.run(noise(), coef(5000)); return (n - hp.run(n, coef(1500))) * Float(sin(Double.pi * pow(x, 0.6))) * 1.8 }
+}
+/// Crisp digital counter blip (no glide).
+func blip(_ at: Double, _ f: Double, gain: Float = 0.1) {
+  add(at, 0.05, gain: gain) { t, x in Float(sin(tau * f * t)) * Float(min(1, x * 20) * exp(-t * 60)) }
+}
+/// Big distorted sub drop.
+func subDrop(_ at: Double, gain: Float = 0.55) {
+  add(at, 1.6, gain: gain) { t, _ in
+    let ph = tau * (32 * t + 140 * (1 - exp(-t * 6)) / 6)
+    return Float(tanh(sin(ph) * 3 * exp(-t * 2.2)))
+  }
+}
+/// Crumple: crackly noise burst (an app "crushed").
+func crumple(_ at: Double, gain: Float = 0.16) {
+  add(at, 0.22, gain: gain) { _, x in noise() > 0.82 ? Float(1 - x) * 1.6 : noise() * 0.12 * Float(1 - x) }
+}
+/// Light bulb: filament click, a short electric buzz, a warm swell.
+func bulbOn(_ at: Double, gain: Float = 0.2) {
+  add(at, 0.03, gain: gain) { t, _ in noise() * Float(exp(-t * 500)) }
+  add(at + 0.02, 0.25, gain: gain * 0.35) { t, x in Float(sin(tau * 100 * t) > 0.6 ? 1 : 0) * Float(1 - x) * 0.6 }
+  add(at + 0.05, 1.2, gain: gain * 0.6) { t, x in Float((sin(tau * 523 * t) + 0.5 * sin(tau * 784 * t) + 0.3 * sin(tau * 1046 * t)) * min(1, x * 8) * exp(-t * 2.4)) * 0.4 }
+}
+/// Stomp: gated low hit with a short room.
+func stomp(_ at: Double, gain: Float = 0.3) {
+  var lp = LP()
+  add(at, 0.22, gain: gain) { t, _ in Float(sin(tau * (70 * t + 90 * (1 - exp(-t * 35)) / 35)) * exp(-t * 14)) + lp.run(noise(), coef(1800)) * Float(exp(-t * 30)) * 0.5 }
+}
+/// Electric zap.
+func zapE(_ at: Double, gain: Float = 0.14) {
+  var ph = 0.0
+  add(at, 0.3, gain: gain) { _, x in
+    ph += (1800 * pow(1 - x, 3) + 80 + Double(noise()) * 300) / SR
+    return Float(sin(tau * ph) > 0 ? 1 : -1) * Float(pow(1 - x, 2)) * 0.6
+  }
+}
+/// Muted UI pop (a card appearing).
+func softPop(_ at: Double, gain: Float = 0.12) {
+  var lp = LP()
+  add(at, 0.1, gain: gain) { t, _ in lp.run(noise(), coef(900)) * Float(exp(-t * 40)) * 2 + Float(sin(tau * 240 * t) * exp(-t * 35)) * 0.5 }
+}
+/// Heartbeat (lub-dub) for the awkward pause.
+func heartbeat(_ at: Double, gain: Float = 0.22) {
+  for (d, g) in [(0.0, 1.0), (0.16, 0.7)] {
+    add(at + d, 0.2, gain: gain * Float(g)) { t, _ in Float(sin(tau * 48 * t) * exp(-t * 22)) }
+  }
+}
+/// Rubber stamp: thud + paper slap.
+func stamp(_ at: Double, gain: Float = 0.4) {
+  var lp = LP()
+  add(at, 0.3, gain: gain) { t, _ in Float(sin(tau * 85 * t) * exp(-t * 18)) + lp.run(noise(), coef(3500)) * Float(exp(-t * 45)) * 0.9 }
+}
+/// "Braam": a low cinematic swell into a hit.
+func braam(_ at: Double, gain: Float = 0.22) {
+  var lp = LP(), p1 = 0.0, p2 = 0.0, p3 = 0.0
+  add(at - 0.35, 1.6, gain: gain) { t, x in
+    p1 += 55 / SR; p2 += 82.4 / SR; p3 += 110 / SR
+    let saw = Float((p1 - floor(p1)) + (p2 - floor(p2)) + (p3 - floor(p3)) - 1.5)
+    let env = Float(t < 0.35 ? pow(t / 0.35, 2) : exp(-(t - 0.35) * 2.2))
+    return lp.run(saw, coef(200 + 1600 * Double(env))) * env * 1.2
+  }
+}
+/// Glitter shimmer for highlights.
+func sparkle(_ at: Double, gain: Float = 0.05) {
+  for i in 0..<7 {
+    let f = note(96 + Double((i * 5) % 9))
+    add(at + Double(i) * 0.035, 0.12, pan: (i % 2 == 0 ? -0.4 : 0.4), gain: gain) { t, _ in Float(sin(tau * f * t) * exp(-t * 45)) }
+  }
+}
+/// Notification tri-tone (three quick soft notes).
+func triTone(_ at: Double, gain: Float = 0.1) {
+  for (i, m) in [88.0, 84, 91].enumerated() {
+    let f = note(m)
+    add(at + Double(i) * 0.1, 0.5, gain: gain) { t, _ in Float(sin(tau * f * t) * (1 - exp(-t * 300)) * exp(-t * 7)) }
+  }
+}
+/// Air dropping down (noise sweep falling).
+func airDrop(_ at: Double, gain: Float = 0.24) {
+  var lp = LP()
+  add(at - 0.3, 0.45, gain: gain) { _, x in lp.run(noise(), coef(6000 * pow(1 - x, 2) + 150)) * Float(sin(Double.pi * x)) * 2 }
+}
+/// Typewriter key.
+func typewriter(_ at: Double, gain: Float = 0.1) {
+  add(at, 0.06, pan: noise() * 0.2, gain: gain) { t, _ in noise() * Float(exp(-t * 250)) + Float(sin(tau * 130 * t) * exp(-t * 80)) * 0.8 }
+}
+/// Marker swiping across paper.
+func markerSwipe(_ at: Double, gain: Float = 0.14) {
+  var lp = LP(), hp = LP()
+  add(at, 0.28, gain: gain) { _, x in let n = lp.run(noise(), coef(2500 + 3000 * x)); return (n - hp.run(n, coef(1200))) * Float(sin(Double.pi * x)) * 2 }
+}
+/// High shimmering rise (into the call to action).
+func shimmerRise(_ at: Double, gain: Float = 0.14) {
+  var hp = LP()
+  add(at - 0.5, 0.55, gain: gain) { t, x in
+    let n = noise(); let h = n - hp.run(n, coef(4000))
+    return (h * 1.2 + Float(sin(tau * (1200 + 1800 * x) * t)) * 0.25) * Float(pow(x, 2))
+  }
+}
+/// Bright punchy impact.
+func impactBright(_ at: Double, gain: Float = 0.4) {
+  var hp = LP()
+  add(at, 0.5, gain: gain) { t, _ in
+    let n = noise(); let h = n - hp.run(n, coef(3000))
+    return Float(sin(tau * (90 * t + 120 * (1 - exp(-t * 40)) / 40)) * exp(-t * 9)) + h * Float(exp(-t * 18)) * 0.6
+  }
+}
+/// Soft muted phone keys.
+func softKey(_ at: Double, gain: Float = 0.08) {
+  var lp = LP()
+  add(at, 0.04, gain: gain) { t, _ in lp.run(noise(), coef(1500)) * Float(exp(-t * 200)) * 2.5 }
+}
+/// Message in: a glassy pluck.
+func messageIn(_ at: Double, gain: Float = 0.1) {
+  let f = note(93)
+  add(at, 0.6, gain: gain) { t, _ in Float((sin(tau * f * t) + 0.6 * sin(tau * 1.5 * f * t) * exp(-t * 12)) * (1 - exp(-t * 500)) * exp(-t * 6)) }
+}
+
+// ---------------------------------------------------------------- the score: each scene its own sounds (voice clock)
+// A — deleted all planners
 boom(0.02, gain: 0.55); glitch(0.02, gain: 0.08, bursts: 3)
-for (i, d) in [0.86, 1.14, 1.36, 1.62, 1.9, 2.2].enumerated() { glitch(d + 0.04, gain: 0.07, bursts: 2 + i % 2); click(d + 0.04, gain: 0.12) }
-reverseSnap(2.72); hit(2.75, gain: 0.22)
+for (i, d) in [0.86, 1.14, 1.36, 1.62, 1.9, 2.2].enumerated() { glitch(d + 0.04, gain: 0.08, bursts: 2 + i % 2) }
+reverseSnap(2.72)
+// B — the clock
 flashBloom(3.62)
 var tt = 3.82, gap = 0.24, tock = false
 while tt < 5.5 { tick(tt, tock: tock); tock.toggle(); tt += gap; gap = max(0.075, gap * 0.85) }
-swell(4.8, 0.4, gain: 0.1); hit(4.8, gain: 0.3)
+thud(4.8)
+// C — every thing becomes a separate task
 lowSwoosh(5.58)
-click(5.92, gain: 0.16)
-for i in 0..<5 { click(6.6 + Double(i) * 0.07, gain: 0.1) }
-swell(7.3, 0.45, gain: 0.12); hit(7.32, gain: 0.22)
+paperSlide(5.92)
+paperSlide(6.6, 0.45, gain: 0.2)
+hit(7.32, gain: 0.3)
+// D — seven taps
 cardFlip(8.32)
 for at in [8.4, 9.4, 10.08, 11.04, 11.45, 11.95, 12.8] { tap(at) }
 for i in 0..<6 { key(10.18 + Double(i) * 0.075) }
-for i in 0..<3 { click(11.1 + Double(i) * 0.05, gain: 0.07, bright: 5000) }
 shutter(12.85, gain: 0.16)
-zip(13.5); shutter(13.5, gain: 0.12)
-for i in 0..<7 { click(14.4 + Double(i) * 0.065, gain: 0.12 + Float(i) * 0.015) }
-swell(14.85, 0.5, gain: 0.14); boom(14.85, gain: 0.6)
+// E — seven
+zip(13.5)
+for i in 0..<7 { blip(14.4 + Double(i) * 0.065, note([72, 74, 76, 79, 81, 84, 86][i]), gain: 0.07) }
+subDrop(14.85)
+// F — one more app deleted, the light bulb
 rewind(15.7)
-for d in [16.2, 16.64, 17.14] { glitch(d + 0.04, gain: 0.08, bursts: 3); click(d + 0.04, gain: 0.12) }
-swell(17.95, 0.6, gain: 0.16); ding(17.95, 88, gain: 0.1); hit(17.97, gain: 0.25)
+for d in [16.2, 16.64, 17.14] { crumple(d + 0.04) }
+bulbOn(17.66)
+// G — planner + tasks + AI
 swishLR(18.68)
-for at in [19.0, 19.54, 20.5] { hit(at, gain: 0.2); click(at, gain: 0.12) }
-riser(21.1, 0.6); boom(21.1, gain: 0.45)
+for at in [19.0, 19.54, 20.5] { stomp(at) }
+riser(21.1, 0.6); zapE(21.1)
+// H — no silly questions (and the black-and-white moment)
 glitchCut(21.95)
-click(23.32, gain: 0.14)
-// «какое у меня эмоциональное состояние»: the brake, a low hum, two slow ticks, then the snap back
+softPop(23.32)
 brake(23.33)
 hum(23.35, 1.55)
-tick(23.85, tock: false, gain: 0.07); tick(24.4, tock: true, gain: 0.07)
-glitchCut(24.92, gain: 0.2); hit(24.98, gain: 0.45)
-swell(25.35, 0.5, gain: 0.16); boom(25.35, gain: 0.4)
+heartbeat(23.75); heartbeat(24.4, gain: 0.18)
+buzz(24.92); stamp(25.0)
+// I — I made my own
+braam(25.35)
+// J — the real iPhone
 warp(26.24)
 button(26.42)
 listen(26.92, start: true)
 listen(29.78, start: false)
-swell(30.2, 0.35, gain: 0.12); ding(30.2, 84, gain: 0.12); hit(30.22, gain: 0.3)
-for at in [31.56, 32.16, 32.66] { click(at, gain: 0.16); hit(at, gain: 0.1) }
-// the app showcase (video time, during the voice pause)
+swell(30.2, 0.35, gain: 0.12); ding(30.2, 84, gain: 0.12)
+for (i, at) in [31.56, 32.16, 32.66].enumerated() { glass(at, [81, 84, 88][i], gain: 0.1) }
+// S — the app (video time, during the voice pause)
 RAW = true
-whoosh(33.42, 0.5, gain: 0.24); thumpAir(33.45, gain: 0.25)
-for (k, at) in [33.4, 34.45, 35.5, 36.55].enumerated() {
-  if k == 1 { swishLR(at, gain: 0.16) }
-  if k == 2 { cardFlip(at, gain: 0.16) }
-  if k == 3 { zip(at, gain: 0.12) }
-  click(at + 0.35, gain: 0.14, bright: 3000); ding(at + 0.38, [96.0, 93, 98, 95][k], gain: 0.035)
-}
-ding(34.86, 88, gain: 0.1); ding(34.98, 91, gain: 0.08)
+whoosh(33.42, 0.5, gain: 0.24); thumpAir(33.45, gain: 0.22)
+sparkle(33.75)
+triTone(34.15)
+whoosh(35.0, 0.35, gain: 0.14)
+sparkle(35.35, gain: 0.04)
 RAW = false
-thumpAir(35.1)
-for (a, b, n) in [(35.18, 35.95, 9), (36.18, 36.75, 6), (36.8, 37.45, 8)] { for i in 0..<n { key(a + (b - a) * Double(i) / Double(n), gain: 0.08) } }
-swell(37.45, 0.3, gain: 0.1); hit(37.47, gain: 0.18)
-riseCut(37.92); flashBloom(37.95, gain: 0.12)
-swell(39.22, 0.4, gain: 0.12); boom(39.22, gain: 0.45)
-for i in 0..<4 { key(39.47 + Double(i) * 0.09, gain: 0.09) }
-tap(39.88, gain: 0.18); swooshUp(39.95)
-ding(40.52, 91, gain: 0.08)
+// L — the reason is simple
+airDrop(35.1)
+for (a, b, n) in [(35.18, 35.95, 9), (36.18, 36.75, 6), (36.8, 37.45, 8)] { for i in 0..<n { typewriter(a + (b - a) * Double(i) / Double(n)) } }
+markerSwipe(37.4)
+// M — comment «план»
+shimmerRise(37.92)
+impactBright(39.22)
+for i in 0..<4 { softKey(39.47 + Double(i) * 0.09) }
+swooshUp(39.95)
+messageIn(40.52)
 
 // ---------------------------------------------------------------- room: a light Schroeder reverb on the effects
 do {
