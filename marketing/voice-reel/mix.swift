@@ -32,154 +32,198 @@ func add(_ at: Double, _ len: Double, pan: Float = 0, gain: Float = 1, _ gen: (D
   }
 }
 
-// ---------------------------------------------------------------- sound kinds
-/// Air moving past: band-passed noise sweeping up or down.
-func whoosh(_ at: Double, _ len: Double = 0.45, up: Bool = true, gain: Float = 0.22) {
-  var lp: Float = 0, bp: Float = 0
-  add(at - len * 0.6, len, gain: gain) { _, x in
-    let f = up ? 300 + 2600 * x * x : 2900 - 2600 * x
-    let k = Float(2 * sin(Double.pi * f / SR))
-    let hp = noise() - lp - 0.6 * bp
-    bp += k * hp; lp += k * bp
-    let env = Float(sin(Double.pi * pow(x, up ? 1.4 : 0.7)))
-    return bp * env * env
+// ---------------------------------------------------------------- sound kinds (modern Reels palette)
+/// One-pole low-pass / high-pass helpers for shaping noise.
+struct LP { var y: Float = 0; mutating func run(_ x: Float, _ k: Float) -> Float { y += k * (x - y); return y } }
+func coef(_ f: Double) -> Float { Float(1 - exp(-tau * f / SR)) }
+
+/// Deep air whoosh: noise through an opening low-pass, doppler-ish swell, long tail.
+func whoosh(_ at: Double, _ len: Double = 0.55, gain: Float = 0.3) {
+  var lp1 = LP(), lp2 = LP(), hp = LP()
+  add(at - len * 0.55, len, gain: gain) { _, x in
+    let f = 180 + 2200 * pow(sin(Double.pi * x), 2.2)
+    let n = lp2.run(lp1.run(noise(), coef(f)), coef(f))
+    let h = n - hp.run(n, coef(90))
+    return h * Float(pow(sin(Double.pi * pow(x, 0.8)), 1.6)) * 2.2
   }
 }
-/// Low thump.
-func impact(_ at: Double, gain: Float = 0.5) {
-  add(at, 0.7, gain: gain) { t, _ in
-    let ph = tau * (42 * t + 110 * (1 - exp(-t * 26)) / 26)
-    return Float(sin(ph) * exp(-t * 6.5)) + noise() * Float(exp(-t * 60)) * 0.3
+/// Sub-bass boom (the "bass drop" hit under title slams).
+func boom(_ at: Double, gain: Float = 0.6, len: Double = 1.4) {
+  var lp = LP()
+  add(at, len, gain: gain) { t, _ in
+    let ph = tau * (38 * t + 70 * (1 - exp(-t * 18)) / 18)
+    let body = tanh(sin(ph) * 1.8 * exp(-t * 3.2))
+    let click = lp.run(noise(), coef(2500)) * Float(exp(-t * 90)) * 0.8
+    return Float(body) + click
   }
 }
-/// Bubble pop with a pitch glide.
-func pop(_ at: Double, _ f: Double, gain: Float = 0.2, pan: Float = 0) {
-  add(at, 0.16, pan: pan, gain: gain) { t, _ in
-    Float(sin(tau * f * (1 + 0.6 * exp(-t * 40)) * t) * exp(-t * 26))
+/// Punchy short impact (kick + snare noise), for text slams.
+func hit(_ at: Double, gain: Float = 0.4) {
+  var lp = LP()
+  add(at, 0.45, gain: gain) { t, _ in
+    let kick = sin(tau * (55 * t + 160 * (1 - exp(-t * 40)) / 40)) * exp(-t * 11)
+    let snare = lp.run(noise(), coef(5000)) * Float(exp(-t * 22)) * 0.55
+    return Float(tanh(kick * 1.5)) + snare
   }
 }
-/// "Delete": a falling blip.
-func bloop(_ at: Double, _ f: Double, gain: Float = 0.2) {
-  add(at, 0.22, gain: gain) { t, x in
-    Float(sin(tau * f * (1 - 0.45 * x) * t) * exp(-t * 14)) + Float(sin(tau * f * 2 * t) * exp(-t * 40)) * 0.25
-  }
-}
-/// Clock tick (alternating tick / tock).
-func tick(_ at: Double, tock: Bool, gain: Float = 0.16) {
-  let f = tock ? 1900.0 : 2600.0
-  add(at, 0.04, gain: gain) { t, _ in Float(sin(tau * f * t) * exp(-t * 180)) + noise() * Float(exp(-t * 400)) * 0.4 }
-}
-/// Screen tap: a soft click with a hint of pitch.
-func tap(_ at: Double, _ pitch: Double, gain: Float = 0.24) {
-  add(at, 0.09, gain: gain) { t, _ in
-    noise() * Float(exp(-t * 700)) * 0.6 + Float(sin(tau * pitch * t) * exp(-t * 55)) * 0.7
-  }
-}
-/// Keyboard key.
-func key(_ at: Double, gain: Float = 0.07) {
-  let p = 1500 + Double(noise()) * 500
-  add(at, 0.035, pan: noise() * 0.25, gain: gain) { t, _ in Float(sin(tau * p * t) * exp(-t * 260)) * 0.6 + noise() * Float(exp(-t * 520)) }
-}
-/// Bell-ish chime.
-func chime(_ at: Double, _ midi: [Double], step: Double = 0.09, gain: Float = 0.13, decay: Double = 5) {
-  for (i, m) in midi.enumerated() {
-    let f = note(m)
-    add(at + Double(i) * step, 1.0, pan: i % 2 == 0 ? -0.15 : 0.15, gain: gain) { t, _ in
-      Float((sin(tau * f * t) + 0.35 * sin(tau * 2.76 * f * t) * exp(-t * 7)) * exp(-t * decay))
+/// Digital glitch: chopped, bit-crushed bursts.
+func glitch(_ at: Double, gain: Float = 0.16, bursts: Int = 5) {
+  for i in 0..<bursts {
+    let f = [1800.0, 600, 3200, 900, 2400, 1200][i % 6]
+    let len = 0.018 + Double(i % 3) * 0.012
+    add(at + Double(i) * 0.034, len, pan: i % 2 == 0 ? -0.3 : 0.3, gain: gain) { t, _ in
+      let sq: Float = sin(tau * f * t) > 0 ? 1 : -1
+      let crushed = (noise() * 0.6 + sq * 0.4)
+      return Float(Int(crushed * 4)) / 4
     }
   }
 }
-/// Glittery sparkle.
-func sparkle(_ at: Double, count: Int = 8, gain: Float = 0.05) {
-  for i in 0..<count {
-    let f = note(96 + Double((i * 5) % 9))
-    add(at + Double(i) * 0.04, 0.12, pan: (i % 2 == 0 ? -0.4 : 0.4), gain: gain) { t, _ in Float(sin(tau * f * t) * exp(-t * 45)) }
+/// Dry UI tick (iOS-like): a tiny high-passed click, no pitch slide.
+func click(_ at: Double, gain: Float = 0.22, bright: Double = 4000) {
+  var lp = LP()
+  add(at, 0.03, gain: gain) { t, _ in
+    let n = noise()
+    let h = n - lp.run(n, coef(bright))
+    return h * Float(exp(-t * 600)) * 1.6
   }
 }
-/// Rising tension into the "quick capture" pill.
-func riser(_ at: Double, _ len: Double, gain: Float = 0.12) {
-  add(at, len, gain: gain) { t, x in
-    let f = 220 + 900 * x * x
-    return (Float(sin(tau * f * t)) * 0.35 + noise() * 0.5) * Float(x * x)
+/// Screen tap: click + soft low body.
+func tap(_ at: Double, gain: Float = 0.26) {
+  click(at, gain: gain)
+  add(at, 0.06, gain: gain * 0.5) { t, _ in Float(sin(tau * 160 * t) * exp(-t * 70)) }
+}
+/// Mechanical keyboard key (ASMR typing).
+func key(_ at: Double, gain: Float = 0.09) {
+  var lp = LP()
+  let b = 3000 + Double(noise()) * 1500
+  add(at, 0.05, pan: noise() * 0.25, gain: gain) { t, _ in
+    let n = noise(); let h = n - lp.run(n, coef(b))
+    return h * Float(exp(-t * 380)) * 1.4 + Float(sin(tau * 220 * t) * exp(-t * 90)) * 0.35
   }
 }
-/// Error buzz.
-func buzz(_ at: Double, gain: Float = 0.13) {
-  for k in 0..<2 {
-    add(at + Double(k) * 0.12, 0.09, gain: gain) { t, _ in Float(sin(tau * 140 * t) > 0 ? 1 : -1) * Float(exp(-t * 18)) * 0.5 }
+/// Clock tick: filtered click with a wooden knock.
+func tick(_ at: Double, tock: Bool, gain: Float = 0.16) {
+  click(at, gain: gain, bright: tock ? 2200 : 3500)
+  add(at, 0.05, gain: gain * 0.4) { t, _ in Float(sin(tau * (tock ? 900 : 1300) * t) * exp(-t * 120)) }
+}
+/// Reverse swell into an accent (noise rising, filter opening).
+func swell(_ at: Double, _ len: Double = 0.7, gain: Float = 0.2) {
+  var lp = LP()
+  add(at - len, len, gain: gain) { _, x in lp.run(noise(), coef(200 + 6000 * x * x)) * Float(pow(x, 2.4)) * 1.6 }
+}
+/// Riser: swell + rising filtered saw.
+func riser(_ at: Double, _ len: Double, gain: Float = 0.15) {
+  swell(at, len, gain: gain)
+  var lp = LP(), ph = 0.0
+  add(at - len, len, gain: gain * 0.5) { _, x in
+    ph += (80 + 500 * x * x) / SR
+    let saw = Float(2 * (ph - floor(ph)) - 1)
+    return lp.run(saw, coef(300 + 3000 * x)) * Float(x * x)
   }
 }
-/// Hardware button click.
-func button(_ at: Double, gain: Float = 0.35) {
-  add(at, 0.12, gain: gain) { t, _ in noise() * Float(exp(-t * 900)) + Float(sin(tau * 180 * t) * exp(-t * 60)) * 0.6 }
+/// Camera shutter.
+func shutter(_ at: Double, gain: Float = 0.2) {
+  click(at, gain: gain, bright: 2500); click(at + 0.07, gain: gain * 0.8, bright: 3500)
+  var lp = LP()
+  add(at, 0.12, gain: gain * 0.5) { t, _ in lp.run(noise(), coef(3000)) * Float(exp(-t * 40)) }
 }
-/// Listening starts / stops: two soft tones.
-func listen(_ at: Double, start: Bool, gain: Float = 0.14) {
-  let notes: [Double] = start ? [76, 83] : [83, 76]
+/// One clean modern "ding" (soft sine bell with a short attack).
+func ding(_ at: Double, _ midi: Double, gain: Float = 0.12) {
+  let f = note(midi)
+  add(at, 1.6, gain: gain) { t, _ in
+    Float((sin(tau * f * t) + 0.25 * sin(tau * 2 * f * t) * exp(-t * 4)) * (1 - exp(-t * 300)) * exp(-t * 2.6))
+  }
+}
+/// Hardware button press.
+func button(_ at: Double, gain: Float = 0.4) {
+  click(at, gain: gain, bright: 1500)
+  add(at, 0.09, gain: gain * 0.6) { t, _ in Float(sin(tau * 120 * t) * exp(-t * 60)) }
+}
+/// Listening starts / stops (iOS dictation-like soft blips).
+func listen(_ at: Double, start: Bool, gain: Float = 0.12) {
+  let notes: [Double] = start ? [79, 86] : [86, 79]
   for (i, m) in notes.enumerated() {
     let f = note(m)
-    add(at + Double(i) * 0.1, 0.35, gain: gain) { t, _ in Float(sin(tau * f * t) * (1 - exp(-t * 200)) * exp(-t * 9)) }
+    add(at + Double(i) * 0.085, 0.3, gain: gain) { t, _ in Float(sin(tau * f * t) * (1 - exp(-t * 400)) * exp(-t * 12)) }
   }
 }
-/// Glassy tag tick.
-func glass(_ at: Double, _ midi: Double, gain: Float = 0.12) {
-  let f = note(midi)
-  add(at, 0.4, gain: gain) { t, _ in Float((sin(tau * f * t) + 0.5 * sin(tau * 3 * f * t) * exp(-t * 30)) * exp(-t * 11)) }
-}
-/// Send: a short upward swoosh.
-func swooshUp(_ at: Double, gain: Float = 0.14) {
-  add(at, 0.25, gain: gain) { t, x in Float(sin(tau * (500 + 1500 * x) * t)) * Float(sin(Double.pi * x)) * 0.4 + noise() * Float(sin(Double.pi * x)) * 0.2 }
+/// Send: short airy swoosh up.
+func swooshUp(_ at: Double, gain: Float = 0.16) {
+  var lp = LP()
+  add(at, 0.28, gain: gain) { _, x in lp.run(noise(), coef(800 + 5000 * x)) * Float(sin(Double.pi * x)) * 1.5 }
 }
 
 // ---------------------------------------------------------------- the score (seconds, same clock as reel.html)
-impact(0.04, gain: 0.45); whoosh(0.3, 0.35, up: false, gain: 0.12)
-for (i, d) in [0.86, 1.14, 1.36, 1.62, 1.9, 2.2].enumerated() { bloop(d + 0.05, 720 - Double(i) * 55, gain: 0.17) }
-whoosh(2.72, 0.35, gain: 0.15); pop(2.95, 900, gain: 0.14)
-whoosh(3.62, 0.4, gain: 0.2); sparkle(3.66, count: 4, gain: 0.03)
+boom(0.02, gain: 0.55); glitch(0.02, gain: 0.08, bursts: 3)
+for (i, d) in [0.86, 1.14, 1.36, 1.62, 1.9, 2.2].enumerated() { glitch(d + 0.04, gain: 0.07, bursts: 2 + i % 2); click(d + 0.04, gain: 0.12) }
+whoosh(2.72, 0.5, gain: 0.25); hit(2.75, gain: 0.25)
+whoosh(3.62, 0.55, gain: 0.3)
 var tt = 3.82, gap = 0.24, tock = false
 while tt < 5.5 { tick(tt, tock: tock); tock.toggle(); tt += gap; gap = max(0.075, gap * 0.85) }
-impact(4.8, gain: 0.22)
-whoosh(5.58, 0.4, up: false, gain: 0.18)
-pop(5.92, 620, gain: 0.16)
-for i in 0..<5 { pop(6.6 + Double(i) * 0.08, 520 + Double(i) * 90, gain: 0.09, pan: Float(i - 2) * 0.15) }
-whoosh(7.3, 0.3, gain: 0.1)
-whoosh(8.32, 0.35, up: false, gain: 0.12)
-for (i, at) in [8.4, 9.4, 10.08, 11.04, 11.45, 11.95, 12.8].enumerated() { tap(at, 900 + Double(i) * 110) }
+hit(4.8, gain: 0.3)
+whoosh(5.58, 0.5, gain: 0.28)
+click(5.92, gain: 0.16)
+for i in 0..<5 { click(6.6 + Double(i) * 0.07, gain: 0.1) }
+swell(7.3, 0.45, gain: 0.12); hit(7.32, gain: 0.22)
+whoosh(8.32, 0.45, gain: 0.2)
+for at in [8.4, 9.4, 10.08, 11.04, 11.45, 11.95, 12.8] { tap(at) }
 for i in 0..<6 { key(10.18 + Double(i) * 0.075) }
-for i in 0..<3 { tick(11.1 + Double(i) * 0.05, tock: i % 2 == 1, gain: 0.07) }
-pop(11.97, 480, gain: 0.08)
-chime(12.95, [84, 88], step: 0.08, gain: 0.11, decay: 8)
-whoosh(13.5, 0.4, gain: 0.2)
-for i in 0..<7 { glass(14.4 + Double(i) * 0.065, [72, 74, 76, 79, 81, 84, 86][i], gain: 0.07) }
-impact(14.85, gain: 0.5)
-whoosh(15.7, 0.45, up: false, gain: 0.18)
-for (i, d) in [16.2, 16.64, 17.14].enumerated() { bloop(d + 0.04, [600, 520, 450][i], gain: 0.15) }
-chime(17.95, [91, 98], step: 0.05, gain: 0.12, decay: 3.5); sparkle(18.05, count: 7, gain: 0.04)
-whoosh(18.68, 0.4, gain: 0.18)
-for (i, at) in [19.0, 19.54, 20.5].enumerated() { pop(at, [420, 540, 680][i], gain: 0.2) }
-riser(20.55, 0.55); impact(21.1, gain: 0.25); sparkle(21.15, count: 5, gain: 0.04)
-whoosh(21.95, 0.4, up: false, gain: 0.18)
-glass(22.4, 79, gain: 0.07)
-pop(23.32, 700, gain: 0.12)
-buzz(24.45); impact(24.62, gain: 0.3)
-whoosh(25.2, 0.4, gain: 0.18); chime(25.3, [79, 86, 91], step: 0.06, gain: 0.08, decay: 4)
-whoosh(26.24, 0.35, up: false, gain: 0.12)
+for i in 0..<3 { click(11.1 + Double(i) * 0.05, gain: 0.07, bright: 5000) }
+shutter(12.85, gain: 0.16)
+whoosh(13.5, 0.55, gain: 0.3)
+for i in 0..<7 { click(14.4 + Double(i) * 0.065, gain: 0.12 + Float(i) * 0.015) }
+swell(14.85, 0.5, gain: 0.14); boom(14.85, gain: 0.6)
+whoosh(15.7, 0.55, gain: 0.28)
+for d in [16.2, 16.64, 17.14] { glitch(d + 0.04, gain: 0.08, bursts: 3); click(d + 0.04, gain: 0.12) }
+swell(17.95, 0.6, gain: 0.16); ding(17.95, 88, gain: 0.1); hit(17.97, gain: 0.25)
+whoosh(18.68, 0.5, gain: 0.26)
+for at in [19.0, 19.54, 20.5] { hit(at, gain: 0.2); click(at, gain: 0.12) }
+riser(21.1, 0.6); boom(21.1, gain: 0.45)
+whoosh(21.95, 0.55, gain: 0.28)
+click(23.32, gain: 0.14)
+glitch(24.45, gain: 0.14, bursts: 6); hit(24.62, gain: 0.45)
+whoosh(25.2, 0.5, gain: 0.26); swell(25.25, 0.4, gain: 0.12); boom(25.25, gain: 0.4)
+whoosh(26.24, 0.45, gain: 0.18)
 button(26.42)
 listen(26.92, start: true)
 listen(29.78, start: false)
-chime(30.2, [88, 84, 91], step: 0.11, gain: 0.12, decay: 6); impact(30.22, gain: 0.2)
-for (i, at) in [31.56, 32.16, 32.66].enumerated() { glass(at, [81, 84, 88][i], gain: 0.12) }
-whoosh(33.4, 0.4, gain: 0.16)
-for i in 0..<7 { tick(33.6 + Double(i) * 0.19, tock: i % 2 == 0, gain: 0.06) }
-whoosh(35.1, 0.35, up: false, gain: 0.12)
-for (a, b, n) in [(35.18, 35.95, 9), (36.18, 36.75, 6), (36.8, 37.45, 8)] { for i in 0..<n { key(a + (b - a) * Double(i) / Double(n), gain: 0.06) } }
-whoosh(37.45, 0.25, gain: 0.08)
-whoosh(37.92, 0.4, gain: 0.18)
-pop(39.22, 560, gain: 0.2); sparkle(39.3, count: 6, gain: 0.04)
-for i in 0..<4 { key(39.47 + Double(i) * 0.09, gain: 0.08) }
-tap(39.88, 1200, gain: 0.16); swooshUp(39.95)
-chime(40.52, [86, 91], step: 0.09, gain: 0.1, decay: 6)
-sparkle(42.2, count: 6, gain: 0.025)
+ding(30.2, 84, gain: 0.12); hit(30.22, gain: 0.3)
+for at in [31.56, 32.16, 32.66] { click(at, gain: 0.16); hit(at, gain: 0.1) }
+whoosh(33.4, 0.5, gain: 0.24)
+for i in 0..<7 { click(33.6 + Double(i) * 0.19, gain: 0.07) }
+whoosh(35.1, 0.45, gain: 0.18)
+for (a, b, n) in [(35.18, 35.95, 9), (36.18, 36.75, 6), (36.8, 37.45, 8)] { for i in 0..<n { key(a + (b - a) * Double(i) / Double(n), gain: 0.08) } }
+swell(37.45, 0.3, gain: 0.1); hit(37.47, gain: 0.18)
+whoosh(37.92, 0.55, gain: 0.28)
+swell(39.22, 0.4, gain: 0.12); boom(39.22, gain: 0.45)
+for i in 0..<4 { key(39.47 + Double(i) * 0.09, gain: 0.09) }
+tap(39.88, gain: 0.18); swooshUp(39.95)
+ding(40.52, 91, gain: 0.08)
+
+// ---------------------------------------------------------------- room: a light Schroeder reverb on the effects
+do {
+  let combs = [1557, 1617, 1491, 1422].map { Int(Double($0) * SR / 44_100) }
+  let aps = [225, 556].map { Int(Double($0) * SR / 44_100) }
+  for c in 0..<2 {
+    var wet = [Float](repeating: 0, count: N)
+    for (k, d) in combs.enumerated() {
+      let dl = d + c * 23 + k * 7
+      var buf = [Float](repeating: 0, count: dl); var idx = 0; var lpv: Float = 0
+      for n in 0..<N {
+        let y = buf[idx]
+        lpv = y * 0.6 + lpv * 0.4
+        buf[idx] = sfx[2 * n + c] + lpv * 0.78
+        idx = (idx + 1) % dl
+        wet[n] += y * 0.25
+      }
+    }
+    for d in aps {
+      var buf = [Float](repeating: 0, count: d); var idx = 0
+      for n in 0..<N { let b = buf[idx]; let y = -wet[n] + b; buf[idx] = wet[n] + b * 0.5; idx = (idx + 1) % d; wet[n] = y }
+    }
+    for n in 0..<N { sfx[2 * n + c] += wet[n] * 0.22 }
+  }
+}
 
 // ---------------------------------------------------------------- the voice: high-pass, compressor, level
 let vf = try AVAudioFile(forReading: URL(fileURLWithPath: CommandLine.arguments[1]))
