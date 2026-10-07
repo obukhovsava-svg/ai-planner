@@ -360,28 +360,9 @@ function sceneJ() {
   const dictK = out(p(26.9, 27.25)) * (1 - ease(p(29.75, 30.05)));
   const thinking = T > 29.8 && T < 30.18;
   const banner = back(p(30.18, 30.55));
-  // inner screen
-  let inner = homeScreen(dictK > 0.05 || banner > 0 ? 8 : 0);
-  // dynamic island
-  const islandW = 170 + dictK * 300, islandH = 50 + dictK * 6;
-  inner += `<div style="position:absolute;left:50%;top:22px;width:${islandW}px;height:${islandH}px;margin-left:${-islandW / 2}px;border-radius:30px;background:#000;display:flex;align-items:center;justify-content:space-between;padding:0 20px">
-    ${dictK > 0.4 ? `<div style="width:30px;height:30px;border-radius:50%;background:#ff3b30;opacity:${0.6 + 0.4 * Math.sin(T * 8)}"></div><div style="display:flex;gap:4px;align-items:center">${Array.from({ length: 9 }, (_, i) => { const r = window.RMS[Math.floor(T * 30) + i] || 0; return `<div style="width:5px;height:${6 + r * 26}px;border-radius:3px;background:#ff8fa3"></div>`; }).join('')}</div>` : ''}</div>`;
-  // dictation panel (the shortcut's "Диктовка")
-  if (dictK > 0 || thinking) {
-    const said = window.WORDS.filter((w) => w.p >= 23 && w.p <= 24 && T >= w.s).map((w) => w.t.replace(/[«»]/g, '')).join(' ');
-    inner += `<div style="position:absolute;left:22px;right:22px;top:${100 - (1 - dictK) * 40}px;border-radius:44px;background:rgba(30,32,44,.92);padding:28px 30px 34px;opacity:${thinking ? 1 : dictK};backdrop-filter:blur(20px)">
-      <div style="display:flex;align-items:center;gap:14px"><div style="width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae);display:grid;place-items:center">${icon('spark', 26, '#fff')}</div><div style="font-weight:700;font-size:28px;color:#fff">План</div><div style="margin-left:auto;font-size:24px;color:rgba(255,255,255,.5)">${thinking ? 'Думаю…' : 'Слушаю…'}</div></div>
-      <div style="margin-top:20px;min-height:120px;font-size:31px;line-height:1.35;font-weight:600;color:#fff">${said || '<span style="color:rgba(255,255,255,.35)">Говорите…</span>'}${!thinking && Math.floor(T * 3) % 2 ? '<span style="color:#a48bfa">|</span>' : ''}</div>
-      <div style="margin:20px auto 0;width:96px;height:96px;border-radius:50%;border:5px solid rgba(255,255,255,.85);display:grid;place-items:center">${thinking ? `<div style="width:44px;height:44px;border-radius:50%;border:5px solid rgba(255,255,255,.3);border-top-color:#fff;transform:rotate(${T * 720}deg)"></div>` : '<div style="width:40px;height:40px;border-radius:10px;background:#ff3b30"></div>'}</div></div>`;
-  }
-  // the result notification
-  if (banner > 0) {
-    const hl = (at) => T >= at ? 'background:rgba(143,176,255,.28);border-radius:8px;' : '';
-    inner += `<div style="position:absolute;left:18px;right:18px;top:${-160 + 260 * banner}px;border-radius:40px;background:rgba(245,246,252,.96);padding:24px 26px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
-      <div style="display:flex;align-items:center;gap:12px"><div style="width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae);display:grid;place-items:center">${icon('spark', 24, '#fff')}</div><div style="font-weight:700;font-size:24px;color:#6b7083;letter-spacing:.04em">КОМАНДЫ</div><div style="margin-left:auto;font-size:22px;color:#8a8fa3">сейчас</div></div>
-      <div style="margin-top:14px;font-weight:800;font-size:30px;color:#0c1124">✅ Созвон</div>
-      <div style="margin-top:6px;font-size:27px;line-height:1.45;color:#2b3045;font-weight:600"><span style="${hl(31.56)}padding:0 4px">завтра</span>, <span style="${hl(32.16)}padding:0 4px">15:00–16:00</span><br>🔔 <span style="${hl(32.66)}padding:0 4px">Напомню за час</span></div></div>`;
-  }
+  // the real iPhone: the user's screen recording, retimed to the voice (ipframes.swift)
+  const fi = Math.max(785, Math.min(1004, Math.round(T * 30)));
+  const inner = `<img src="ipf/v${String(fi).padStart(4, '0')}.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`;
   h.push(phone(inner, px, py, ps, pressed));
   // side-button callout
   const cb = out(p(26.3, 26.55)) * (1 - p(27.1, 27.3));
