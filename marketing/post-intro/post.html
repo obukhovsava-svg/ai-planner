@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Post — ПЛАН</title>
+<link rel="stylesheet" href="../voice-reel/fonts/fonts.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #222; font-family: 'Montserrat', sans-serif; -webkit-font-smoothing: antialiased; display: flex; gap: 40px; padding: 40px; width: max-content; }
+  .slide { position: relative; width: 1080px; height: 1350px; overflow: hidden; background: #060913; color: #fff; flex-shrink: 0; }
+  .light { background: #f3f4fa; color: #0c1124; }
+  .abs { position: absolute; }
+  .H { font-family: 'Oswald', sans-serif; font-weight: 700; text-transform: uppercase; line-height: 0.95; }
+  .grad { background: linear-gradient(100deg, #7a9dfe, #a48bfa 50%, #f48eae); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .gradD { background: linear-gradient(100deg, #4f6fff, #8b5cf6 55%, #e0578e); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .pill { display: inline-block; font-weight: 800; font-size: 26px; letter-spacing: .14em; border-radius: 999px; padding: 10px 24px; }
+  .glow1 { width: 1300px; height: 1300px; left: -110px; top: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(70,100,230,.45), rgba(40,60,160,.12) 45%, transparent 68%); }
+  .glow2 { width: 900px; height: 900px; right: -420px; top: -320px; border-radius: 50%; background: radial-gradient(circle, rgba(164,139,250,.3), transparent 65%); }
+  .glow3 { width: 900px; height: 900px; left: -460px; bottom: -300px; border-radius: 50%; background: radial-gradient(circle, rgba(244,142,174,.22), transparent 65%); }
+  .grain { inset: 0; opacity: .09; mix-blend-mode: overlay; }
+  .phone { position: absolute; border-radius: 74px; background: #15171f; padding: 12px; box-shadow: 0 0 0 2px #2f3240, 0 50px 120px rgba(0,0,0,.6), 0 0 120px rgba(122,157,254,.3); }
+  .phone .scr { position: relative; width: 100%; height: 100%; border-radius: 62px; overflow: hidden; }
+  .phone img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .tile { position: absolute; width: 132px; height: 132px; border-radius: 34px; display: grid; place-items: center; }
+  .badge { position: absolute; left: -11px; top: -11px; width: 40px; height: 40px; border-radius: 50%; background: #ff3b30; color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 30px; line-height: 1; }
+  .num { position: absolute; right: 54px; bottom: 46px; font-weight: 700; font-size: 24px; letter-spacing: .1em; opacity: .5; }
+  .row { display: flex; align-items: center; gap: 20px; height: 92px; padding: 0 30px; border-radius: 26px; background: rgba(255,255,255,.07); border: 2px solid rgba(143,176,255,.3); }
+  .row b { margin-left: auto; font-size: 36px; }
+  .row span { font-weight: 800; font-size: 24px; letter-spacing: .1em; color: rgba(255,255,255,.6); }
+  .feat { display: flex; align-items: center; gap: 22px; font-size: 38px; font-weight: 600; padding: 18px 0; border-bottom: 2px solid rgba(12,17,36,.08); }
+  .feat i { font-style: normal; width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; font-size: 34px; background: #fff; box-shadow: 0 6px 20px rgba(60,70,160,.12); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.4 0"/></filter></svg>
+
+<!-- 1 — hook -->
+<div class="slide" id="s1">
+  <div class="abs glow1"></div><div class="abs glow2"></div><div class="abs glow3"></div>
+  <div class="abs" style="left:0;right:0;top:110px;text-align:center;transform:rotate(-3deg)">
+    <div class="pill" style="color:#8fb0ff;border:2px solid rgba(143,176,255,.45);background:rgba(10,14,30,.6);margin-bottom:24px">AI-ПЛАНЕР · ГОЛОСОМ</div>
+    <div class="H" style="font-size:128px">Я удалил</div>
+    <div class="H grad" style="font-size:150px;filter:drop-shadow(0 0 40px rgba(164,139,250,.4))">все планеры</div>
+    <div class="H" style="font-size:96px;margin-top:10px;color:rgba(255,255,255,.92)">и сделал свой</div>
+  </div>
+  <div class="abs" style="left:330px;top:640px;width:420px;height:870px;perspective:1600px">
+    <div class="phone" style="inset:0;transform:rotateY(-16deg) rotateX(5deg) rotateZ(5deg)"><div class="scr"><img src="notif.jpg"><div class="abs" style="inset:0;background:linear-gradient(115deg,rgba(255,255,255,.16),transparent 35%)"></div></div></div>
+  </div>
+  <div class="tile" style="left:90px;top:760px;background:linear-gradient(145deg,#ff5a5f,#ff5a5fcc);transform:rotate(-15deg);filter:blur(1px)"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg><div class="badge">−</div></div>
+  <div class="tile" style="left:130px;top:1010px;width:108px;height:108px;border-radius:28px;background:linear-gradient(145deg,#3b82f6,#3b82f6cc);transform:rotate(12deg);filter:blur(2.5px);opacity:.85"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="m8 12.5 3 3 5-6.5"/></svg></div>
+  <div class="tile" style="left:840px;top:800px;width:118px;height:118px;border-radius:30px;background:linear-gradient(145deg,#f59e0b,#f59e0bcc);transform:rotate(18deg);filter:blur(1.5px)"><svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/></svg><div class="badge" style="width:36px;height:36px;font-size:26px">−</div></div>
+  <div class="tile" style="left:870px;top:1050px;width:96px;height:96px;border-radius:24px;background:linear-gradient(145deg,#8b5cf6,#8b5cf6cc);transform:rotate(-22deg);filter:blur(3px);opacity:.7"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16M15 4v16"/></svg></div>
+  <div class="abs" style="inset:0;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(0,0,0,.5))"></div>
+  <svg class="abs grain" width="1080" height="1350"><rect width="100%" height="100%" filter="url(#n)"/></svg>
+  <div class="num">1 / 3 →</div>
+</div>
+
+<!-- 2 — how it works -->
+<div class="slide" id="s2">
+  <div class="abs glow1" style="top:420px"></div><div class="abs glow2"></div>
+  <div class="abs" style="left:70px;right:70px;top:90px">
+    <div class="H" style="font-size:92px">Одна фраза</div>
+    <div class="H grad" style="font-size:92px">вместо 7 нажатий</div>
+  </div>
+  <!-- the spoken phrase -->
+  <div class="abs" style="left:70px;right:70px;top:330px;border-radius:36px;background:rgba(14,18,38,.85);border:2px solid rgba(143,176,255,.35);padding:30px 36px">
+    <div class="pill" style="font-size:20px;color:#8fb0ff;border:2px solid rgba(143,176,255,.4);padding:6px 16px">🎙 ГОВОРИШЬ</div>
+    <div style="margin-top:16px;font-weight:800;font-size:44px;line-height:1.25">«Созвон завтра с трёх до четырёх, напомни за час»</div>
+  </div>
+  <svg class="abs" style="left:504px;top:575px" width="72" height="60" viewBox="0 0 72 60" fill="none" stroke="#a48bfa" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path d="M36 6v44M18 34l18 18 18-18"/></svg>
+  <!-- what it understood -->
+  <div class="abs" style="left:70px;width:520px;top:660px;display:flex;flex-direction:column;gap:18px">
+    <div class="row"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8fb0ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg><span>ДАТА</span><b>завтра</b></div>
+    <div class="row"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8fb0ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>ВРЕМЯ</span><b>15–16</b></div>
+    <div class="row"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8fb0ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg><span>НАПОМНЮ</span><b>за час</b></div>
+    <div style="margin-top:14px;font-size:30px;line-height:1.4;color:rgba(255,255,255,.7);font-weight:600">Без форм, полей и<br>«выберите категорию».<br>Он сам всё понял.</div>
+  </div>
+  <!-- the real app -->
+  <div class="phone" style="left:640px;top:640px;width:380px;height:820px"><div class="scr"><img src="day.png" style="object-position:top"></div></div>
+  <div class="abs" style="left:658px;top:1128px;width:346px;height:66px;border-radius:16px;border:4px solid rgba(164,139,250,.95);box-shadow:0 0 40px rgba(164,139,250,.7)"></div>
+  <div class="abs" style="inset:0;background:radial-gradient(ellipse at 50% 45%,transparent 60%,rgba(0,0,0,.45))"></div>
+  <svg class="abs grain" width="1080" height="1350"><rect width="100%" height="100%" filter="url(#n)"/></svg>
+  <div class="num" style="right:auto;left:70px">2 / 3 →</div>
+</div>
+
+<!-- 3 — what it does + CTA -->
+<div class="slide light" id="s3">
+  <div class="abs" style="width:1100px;height:1100px;left:-300px;top:-420px;border-radius:50%;background:radial-gradient(circle,rgba(164,139,250,.3),transparent 65%)"></div>
+  <div class="abs" style="width:1000px;height:1000px;right:-380px;bottom:-260px;border-radius:50%;background:radial-gradient(circle,rgba(122,157,254,.28),transparent 65%)"></div>
+  <div class="abs" style="left:80px;right:80px;top:100px">
+    <div class="H" style="font-size:96px">Что умеет</div>
+    <div class="H gradD" style="font-size:96px">ПЛАН</div>
+    <div style="margin-top:40px">
+      <div class="feat"><i>🎙</i>Голос или текст — как удобно</div>
+      <div class="feat"><i>🗓</i>Календарь, повторы, смены 2/2</div>
+      <div class="feat"><i>✅</i>Задачи с датами и приоритетами</div>
+      <div class="feat"><i>🔔</i>Напоминания в Telegram и на iPhone</div>
+      <div class="feat" style="border:0"><i>☀️</i>Утренняя сводка дня</div>
+    </div>
+  </div>
+  <div class="abs" style="left:80px;right:80px;bottom:110px;text-align:center">
+    <div class="H" style="font-size:58px">Хочешь попробовать? Напиши</div>
+    <div style="display:inline-block;margin-top:18px;font-family:Oswald;font-weight:700;font-size:130px;line-height:1.1;padding:2px 60px 12px;border-radius:40px;color:#fff;background:linear-gradient(110deg,#4f6fff,#8b5cf6 55%,#e0578e);box-shadow:0 26px 80px rgba(110,90,255,.4)">ПЛАН</div>
+    <div style="margin-top:22px;font-size:32px;font-weight:600;color:rgba(12,17,36,.6)">в комментариях — пришлю ссылку. Бесплатно.</div>
+  </div>
+  <div class="num" style="color:#0c1124">3 / 3</div>
+</div>
+</body>
+</html>
