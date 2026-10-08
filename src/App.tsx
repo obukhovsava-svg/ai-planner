@@ -8,6 +8,7 @@ import { useTabSwipe } from '@/hooks/useTabSwipe';
 import { useServerSync } from '@/lib/sync';
 import { useShortcutInbox } from '@/lib/shortcut';
 import { useNativeReminders } from '@/lib/nativeReminders';
+import { useOverdueCleanup } from '@/lib/overdueCleanup';
 import { CalendarTab } from '@/features/calendar/CalendarTab';
 import { AssistantTab } from '@/features/assistant/AssistantTab';
 import { TasksTab } from '@/features/tasks/TasksTab';
@@ -38,6 +39,7 @@ export default function App() {
   useShortcutInbox();
   // iOS app: reminders become the app's own local notifications.
   useNativeReminders();
+  useOverdueCleanup();
   const shortcutOpen = useUIStore((s) => s.shortcutOpen);
   const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
 

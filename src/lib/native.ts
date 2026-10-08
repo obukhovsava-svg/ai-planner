@@ -48,6 +48,7 @@ export type NativeSpeechEvent =
   | { type: 'interim'; text: string }
   | { type: 'final'; text: string }
   | { type: 'error'; message: string }
+  | { type: 'level'; value: number }
   | { type: 'end' };
 
 export const isNative = (): boolean => Boolean(window.PlannerNative && window.webkit?.messageHandlers?.native);

@@ -1,4 +1,5 @@
 import AVFoundation
+import QuartzCore
 import Speech
 
 /// Russian speech-to-text for the assistant's microphone (Apple's recognizer, on-device when
@@ -8,6 +9,8 @@ final class Speech {
     case interim(String)
     case final(String)
     case error(String)
+    /// Mic loudness 0…1 (for the record button's waveform).
+    case level(Double)
     case end
   }
 
@@ -58,7 +61,10 @@ final class Speech {
     finished = false
 
     let input = engine.inputNode
-    Speech.installTap(on: input, feeding: request)
+    Speech.installTap(on: input, feeding: request) { [weak self] level in
+      guard let self, !self.finished else { return }
+      self.emit(.level(level))
+    }
     engine.prepare()
     try engine.start()
 
@@ -114,10 +120,20 @@ final class Speech {
   }
 
   // Audio and recognition callbacks arrive off the main thread: built outside the actor.
-  nonisolated private static func installTap(on input: AVAudioInputNode, feeding request: SFSpeechAudioBufferRecognitionRequest) {
+  nonisolated private static func installTap(on input: AVAudioInputNode, feeding request: SFSpeechAudioBufferRecognitionRequest, level: @escaping @MainActor (Double) -> Void) {
     input.removeTap(onBus: 0)
+    var last = 0.0
     input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { buffer, _ in
       request.append(buffer)
+      // RMS → a 0…1 level on a dB scale (−50 dB … −10 dB), ~20 updates a second.
+      let now = CACurrentMediaTime()
+      guard now - last > 0.05, let data = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return }
+      last = now
+      var sum: Float = 0
+      for i in 0..<Int(buffer.frameLength) { sum += data[i] * data[i] }
+      let db = 20 * log10(max(1e-7, sqrt(sum / Float(buffer.frameLength))))
+      let v = Double(min(1, max(0, (db + 50) / 40)))
+      DispatchQueue.main.async { level(v) }
     }
   }
 

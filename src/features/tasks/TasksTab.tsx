@@ -8,6 +8,7 @@ import { CATEGORY_META } from '@/lib/meta';
 import { haptic } from '@/lib/telegram';
 import { useFlip } from '@/hooks/useFlip';
 import { todayKey } from '@/lib/date';
+import { finishedLate, OVERDUE_FOLD_MS } from '@/lib/overdueCleanup';
 import { QuickAdd } from './QuickAdd';
 import { TaskItem } from './TaskItem';
 import { TaskSheet } from './TaskSheet';
@@ -80,6 +81,29 @@ export function TasksTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks]);
 
+  // A task finished after its deadline: once it has glided down, its row folds away
+  // (useOverdueCleanup then removes it).
+  useEffect(() => {
+    const timers = tasks
+      .filter((t) => finishedLate(t))
+      .map((t) =>
+        window.setTimeout(() => {
+          const row = list.current?.querySelector<HTMLElement>(`[data-flip-id="${t.id}"]`);
+          if (!row || row.dataset.folding) return;
+          row.dataset.folding = '1';
+          row.style.overflow = 'hidden';
+          row.animate(
+            [
+              { height: `${row.offsetHeight}px`, opacity: 1, transform: 'scale(1)' },
+              { height: '0px', opacity: 0, transform: 'scale(0.96)' },
+            ],
+            { duration: 320, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' },
+          );
+        }, Math.max(0, OVERDUE_FOLD_MS - (Date.now() - t.completedAt!))),
+      );
+    return () => timers.forEach((x) => window.clearTimeout(x));
+  }, [tasks]);
+
   const byId = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
   const visible = order
     .map((id) => byId.get(id))
@@ -115,7 +139,7 @@ export function TasksTab() {
 
         <div className="px-4 pt-4">
           {visible.length ? (
-            <div ref={list} className="overflow-hidden rounded-[16px] bg-surface [&>*:last-child_.sep]:hidden">
+            <div ref={list} className="overflow-hidden rounded-[16px] bg-surface [&>*:first-child_.sep]:hidden">
               {visible.map((t) => (
                 <div key={t.id} data-flip-id={t.id} className="relative bg-surface">
                   <TaskItem task={t} onOpen={setEditing} />

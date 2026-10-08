@@ -8,6 +8,8 @@ interface SheetProps {
   title: string;
   onClose(): void;
   children: ReactNode;
+  /** Editing sheets that save on close: a «Готово» button instead of the ✕. */
+  done?: boolean;
 }
 
 const EXIT_MS = 380;
@@ -19,7 +21,7 @@ const SPRING = 'var(--spring)';
  *    the finger and the dimmed backdrop fades with it; release fast or far to dismiss.
  *  • Closing always animates out, whether triggered by a gesture, a button or the parent.
  */
-export function Sheet({ open, title, onClose, children }: SheetProps) {
+export function Sheet({ open, title, onClose, children, done }: SheetProps) {
   const [mounted, setMounted] = useState(open);
   const panel = useRef<HTMLDivElement>(null);
   const backdrop = useRef<HTMLDivElement>(null);
@@ -220,14 +222,24 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
           <div className="mx-auto mb-2 h-[5px] w-9 rounded-full bg-faint/60" />
           <div className="flex items-center justify-between">
             <h2 className="text-[17px] font-semibold">{title}</h2>
-            <button
-              type="button"
-              aria-label="Закрыть"
-              onClick={() => onCloseRef.current()}
-              className="grid size-[30px] place-items-center rounded-full bg-surface-2 text-muted transition-transform active:scale-90"
-            >
-              <X className="size-4" strokeWidth={2.6} />
-            </button>
+            {done ? (
+              <button
+                type="button"
+                onClick={() => onCloseRef.current()}
+                className="-mr-1 px-1 text-[17px] font-semibold text-blue transition-opacity active:opacity-50"
+              >
+                Готово
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-label="Закрыть"
+                onClick={() => onCloseRef.current()}
+                className="grid size-[30px] place-items-center rounded-full bg-surface-2 text-muted transition-transform active:scale-90"
+              >
+                <X className="size-4" strokeWidth={2.6} />
+              </button>
+            )}
           </div>
         </div>
         <div className="px-4 pb-6 pt-2">{children}</div>

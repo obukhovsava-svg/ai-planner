@@ -48,18 +48,25 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
 
   if (!form) return null;
   const set = <K extends keyof EventDraft>(k: K, v: EventDraft[K]) => setForm({ ...form, [k]: v });
-  const invalid = !form.title.trim() || timeToMinutes(form.end) <= timeToMinutes(form.start);
-
+  /**
+   * Closing saves: a new event is added once it has a name (no name → nothing is created),
+   * an existing one is updated if anything changed. An end before the start becomes +1 h.
+   */
   const save = () => {
-    if (invalid) return;
+    const title = form.title.trim() || (form.id ? (draft?.title ?? '') : '');
+    if (!title) return onClose();
+    if (form.id && draft && JSON.stringify({ ...form, title }) === JSON.stringify(draft)) return onClose();
     const { id, occurrence, seriesDate, ...data } = form;
+    const end = timeToMinutes(data.end) > timeToMinutes(data.start) ? data.end : minutesToTime(Math.min(timeToMinutes(data.start) + 60, 23 * 60 + 59));
     // Editing one occurrence's date moves the whole series by the same number of days.
     const date = id && occurrence && seriesDate ? addDays(seriesDate, diffDays(data.date, occurrence)) : data.date;
     const repeat = data.repeat?.until && data.repeat.until < date ? { ...data.repeat, until: undefined } : data.repeat;
-    const payload = { ...data, date, repeat, title: data.title.trim() };
+    const payload = { ...data, end, date, repeat, title };
     if (id) updateEvent(id, payload);
-    else addEvent(payload);
-    haptic.notify('success');
+    else {
+      addEvent(payload);
+      haptic.notify('success');
+    }
     onClose();
   };
 
@@ -85,7 +92,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
   const isRecurringInstance = Boolean(form.id && form.repeat && form.occurrence);
 
   return (
-    <Sheet open={Boolean(draft)} title={form.id ? 'Событие' : 'Новое событие'} onClose={onClose}>
+    <Sheet open={Boolean(draft)} title={form.id ? 'Событие' : 'Новое событие'} onClose={save} done>
       <form
         className="flex flex-col gap-4"
         onSubmit={(e) => {
@@ -128,7 +135,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
           </label>
         </div>
         {timeToMinutes(form.end) <= timeToMinutes(form.start) && (
-          <p className="-mt-2 text-xs text-red">Конец должен быть позже начала</p>
+          <p className="-mt-2 px-4 text-[13px] text-muted">Конец раньше начала — сохраню на час позже начала</p>
         )}
 
         <div className="overflow-hidden rounded-[16px] bg-surface">
@@ -194,25 +201,16 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
             </button>
           </div>
         ) : (
-          <div className="flex gap-3 pt-1">
-            {form.id && (
-              <button
-                type="button"
-                onClick={() => (isRecurringInstance ? setConfirmDelete(true) : removeAll())}
-                aria-label="Удалить событие"
-                className="grid size-[50px] shrink-0 place-items-center rounded-full bg-surface text-red transition-transform duration-300 ease-spring active:scale-95"
-              >
-                <Trash2 className="size-5" />
-              </button>
-            )}
+          form.id && (
             <button
-              type="submit"
-              disabled={invalid}
-              className="h-[50px] flex-1 rounded-full bg-blue text-[17px] font-semibold text-white transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] active:opacity-80 disabled:opacity-30"
+              type="button"
+              onClick={() => (isRecurringInstance ? setConfirmDelete(true) : removeAll())}
+              className="mt-1 flex h-[50px] items-center justify-center gap-2 rounded-[14px] bg-surface text-[17px] text-red transition-colors active:bg-surface-2"
             >
-              {form.id ? 'Сохранить' : 'Добавить'}
+              <Trash2 className="size-[18px]" />
+              Удалить событие
             </button>
-          </div>
+          )
         )}
       </form>
 

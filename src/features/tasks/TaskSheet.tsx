@@ -45,16 +45,22 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
 
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setForm({ ...form, [k]: v });
 
+  /** Closing saves (an emptied title keeps the old one). */
+  const close = () => {
+    if (task && form.id === task.id) {
+      const next = { ...form, title: form.title.trim() || task.title };
+      if (JSON.stringify(next) !== JSON.stringify(task)) updateTask(form.id, next);
+    }
+    onClose();
+  };
+
   return (
-    <Sheet open={Boolean(task)} title="Задача" onClose={onClose}>
+    <Sheet open={Boolean(task)} title="Задача" onClose={close} done>
       <form
         className="flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!form.title.trim()) return;
-          updateTask(form.id, { ...form, title: form.title.trim() });
-          haptic.notify('success');
-          onClose();
+          close();
         }}
       >
         <input className={`${fieldClass} font-medium`} value={form.title} onChange={(e) => set('title', e.target.value)} />
@@ -131,28 +137,19 @@ export function TaskSheet({ task, onClose }: { task: Task | null; onClose(): voi
           </div>
         </div>
 
-        <div className="flex gap-3 pt-1">
-          <button
-            type="button"
-            aria-label="Удалить задачу"
-            onClick={() => {
-              const removed = deleteTask(form.id);
-              haptic.notify('warning');
-              onClose();
-              if (removed) showToast('Задача удалена', { label: 'Отменить', run: () => restoreTask(removed) });
-            }}
-            className="grid size-[50px] shrink-0 place-items-center rounded-full bg-surface text-red transition-transform duration-300 ease-spring active:scale-95"
-          >
-            <Trash2 className="size-5" />
-          </button>
-          <button
-            type="submit"
-            disabled={!form.title.trim()}
-            className="h-[50px] flex-1 rounded-full bg-blue text-[17px] font-semibold text-white transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] active:opacity-80 disabled:opacity-30"
-          >
-            Сохранить
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            const removed = deleteTask(form.id);
+            haptic.notify('warning');
+            onClose();
+            if (removed) showToast('Задача удалена', { label: 'Отменить', run: () => restoreTask(removed) });
+          }}
+          className="mt-1 flex h-[50px] items-center justify-center gap-2 rounded-[14px] bg-surface text-[17px] text-red transition-colors active:bg-surface-2"
+        >
+          <Trash2 className="size-[18px]" />
+          Удалить задачу
+        </button>
       </form>
       <DatePickerSheet
         open={picker}

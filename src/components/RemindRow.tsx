@@ -6,6 +6,10 @@ import { addDays, todayKey } from '@/lib/date';
 import { haptic } from '@/lib/telegram';
 import { DatePickerSheet } from './DatePickerSheet';
 import { Switch } from './Switch';
+import { isNative } from '@/lib/native';
+
+/** Who reminds you: the iOS app itself, or the Telegram bot. */
+const WHO = isNative() ? 'Придёт уведомление' : 'Бот напишет';
 
 interface RemindRowProps {
   value?: Reminder;
@@ -96,7 +100,7 @@ export function RemindRow({ value, onChange, hasDate, timeMissing, date }: Remin
                 className="rounded-[8px] bg-surface-2 px-2.5 py-1 text-[17px] text-blue outline-none"
               />
             </label>
-            <p className="mt-2 text-[13px] text-muted">Бот напишет {atLabel(value.at).toLowerCase()}.</p>
+            <p className="mt-2 text-[13px] text-muted">{WHO} {atLabel(value.at).toLowerCase()}.</p>
           </div>
         );
       })()}
@@ -165,7 +169,7 @@ export function RemindRow({ value, onChange, hasDate, timeMissing, date }: Remin
               </button>
             </div>
           )}
-          <p className="mt-2 text-[13px] text-muted">Бот напишет {offsetLabel(offset)}.</p>
+          <p className="mt-2 text-[13px] text-muted">{WHO} {offsetLabel(offset)}.</p>
         </div>
       )}
 

@@ -232,8 +232,14 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
           unresolved.push(a);
           break;
         }
-        touchTask(hit.item.id, { done: true, completedAt: now });
-        lines.push(`отметил «${hit.item.title}» выполненной`);
+        // Finished after its deadline → it leaves the list right away (same rule as in the app).
+        if (hit.item.date && hit.item.date < today) {
+          remove(hit);
+          lines.push(`отметил «${hit.item.title}» выполненной и убрал из просроченных`);
+        } else {
+          touchTask(hit.item.id, { done: true, completedAt: now });
+          lines.push(`отметил «${hit.item.title}» выполненной`);
+        }
         break;
       }
       case 'delete': {

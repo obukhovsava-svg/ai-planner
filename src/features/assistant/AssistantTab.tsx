@@ -134,7 +134,7 @@ export function AssistantTab() {
         {/* voice orb — steps aside while the keyboard is up */}
         <Collapse open={!typing}>
           <div className="flex shrink-0 flex-col items-center gap-1 pt-1">
-            <VoiceOrb size={showHero ? 104 : 84} listening={listening} onPress={toggleMic} />
+            <VoiceOrb size={showHero ? 92 : 72} listening={listening} level={speech.level} visible={!typing} onPress={toggleMic} />
             <div className="flex min-h-6 items-center px-6 text-center">
               {listening ? (
                 <p key="interim" className={`animate-fade-in max-w-full truncate text-[17px] ${speech.interim ? 'text-fg' : 'text-shimmer'}`}>

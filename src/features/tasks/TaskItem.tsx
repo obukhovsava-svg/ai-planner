@@ -78,7 +78,7 @@ export function TaskItem({ task, showDate = true, onOpen }: TaskItemProps) {
           {task.note && !task.done && <p className="mt-0.5 line-clamp-2 whitespace-pre-line text-[14px] leading-snug text-faint">{task.note}</p>}
         </button>
 
-        <span className="sep absolute bottom-0 left-[52px] right-0 h-[0.5px] bg-line" />
+        <span className="sep absolute left-[52px] right-0 top-0 h-0 border-t-[0.5px] border-line" />
       </div>
     </SwipeableRow>
   );

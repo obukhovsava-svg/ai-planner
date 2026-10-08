@@ -70,7 +70,8 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
   }
 
   private func send(speech event: Speech.Event) {
-    let payload: [String: String] = switch event {
+    let payload: [String: Any] = switch event {
+    case .level(let v): ["type": "level", "value": (v * 100).rounded() / 100]
     case .interim(let t): ["type": "interim", "text": t]
     case .final(let t): ["type": "final", "text": t]
     case .error(let m): ["type": "error", "message": m]
@@ -168,6 +169,8 @@ struct PlannerWebView: UIViewRepresentable {
     // The page itself never scrolls (its lists scroll inside it): no dragging the whole interface
     // around, and WebKit's "scroll the focused field into view" can't shift it either.
     webView.scrollView.isScrollEnabled = false
+    webView.scrollView.showsVerticalScrollIndicator = false
+    webView.scrollView.showsHorizontalScrollIndicator = false
     pin = webView.scrollView.observe(\.contentOffset, options: [.new]) { scroll, _ in
       MainActor.assumeIsolated {
         if scroll.contentOffset != .zero { scroll.contentOffset = .zero }

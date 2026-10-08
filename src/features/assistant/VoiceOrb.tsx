@@ -1,31 +1,87 @@
-import { Mic } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 interface VoiceOrbProps {
   listening: boolean;
-  /** Diameter in px. */
+  /** Diameter in px (changes animate). */
   size?: number;
+  /** Mic loudness 0…1 while listening (the iOS app sends it); without it the bars move on their own. */
+  level?: { current: number | undefined };
+  /** false → the button shrinks and fades away (e.g. while the keyboard is up). */
+  visible?: boolean;
   onPress(): void;
 }
 
+/** Bar shape at rest, centre tallest — like the waveform in Voice Memos. */
+const SHAPE = [0.42, 0.7, 1, 0.7, 0.42];
+
 /**
- * Siri-style orb: soft colour blobs drifting inside a glass sphere.
- * Calm and slow when idle; brighter, faster and slightly larger while listening.
+ * The record button: one solid colour (the text colour of the theme), the microphone and the
+ * waveform cut out of it in the background colour. Idle shows the mic; while listening the mic
+ * dissolves into five bars that follow the voice, and a soft halo breathes with the loudness.
  */
-export function VoiceOrb({ listening, size = 120, onPress }: VoiceOrbProps) {
-  const icon = Math.round(size * 0.3);
-  // The glow lives inside this box (no blur filter, nothing overflowing), so no ancestor
-  // can ever clip it into a rectangle — that is what produced the "square edges" on iOS.
-  const box = Math.round(size * 1.6);
+export function VoiceOrb({ listening, size = 104, level, visible = true, onPress }: VoiceOrbProps) {
+  const bars = useRef<(HTMLSpanElement | null)[]>([]);
+  const halo = useRef<HTMLSpanElement>(null);
+  const fallback = useRef<number | undefined>(undefined);
+  const levelRef = level ?? fallback;
+
+  // Bars and halo follow the voice at display rate, written straight to the DOM (no re-renders).
+  useEffect(() => {
+    if (!listening) {
+      bars.current.forEach((b) => b && (b.style.transform = 'scaleY(0.18)'));
+      if (halo.current) halo.current.style.transform = 'scale(0.86)';
+      return;
+    }
+    let raf = 0;
+    let smooth = 0;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const t = (now - t0) / 1000;
+      // Real loudness from the app, or a calm speech-like rhythm in the browser.
+      const target = levelRef.current ?? 0.35 + 0.3 * Math.sin(t * 5.3) * Math.sin(t * 1.7 + 1) + 0.15 * Math.sin(t * 11.1);
+      smooth += (Math.max(0, Math.min(1, target)) - smooth) * 0.25;
+      bars.current.forEach((b, i) => {
+        if (!b) return;
+        const wobble = 0.82 + 0.18 * Math.sin(t * (7 + i * 1.3) + i * 1.9);
+        const h = 0.18 + 0.82 * Math.min(1, SHAPE[i] * (0.25 + smooth * 1.1) * wobble);
+        b.style.transform = `scaleY(${h.toFixed(3)})`;
+      });
+      if (halo.current) halo.current.style.transform = `scale(${(1.08 + smooth * 0.32).toFixed(3)})`;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [listening, levelRef]);
+
+  const icon = size * 0.36;
+  const barW = Math.max(3, size * 0.058);
+  const barH = size * 0.38;
+
   return (
-    <div className="relative grid place-items-center" style={{ width: box, height: box }}>
-      {/* ambient glow: layered radial gradients */}
+    <div
+      className="orb-in relative grid place-items-center"
+      style={{
+        width: size * 1.5,
+        height: size * 1.5,
+        transform: visible ? 'scale(1)' : 'scale(0.6)',
+        opacity: visible ? 1 : 0,
+        filter: visible ? 'none' : 'blur(6px)',
+        transition: visible
+          ? 'transform 0.55s cubic-bezier(.34,1.56,.64,1) 0.1s, opacity 0.3s ease 0.1s, filter 0.3s ease 0.1s'
+          : 'transform 0.25s cubic-bezier(.4,0,1,1), opacity 0.2s ease, filter 0.2s ease',
+      }}
+    >
+      {/* halo: the same colour, faint, breathing with the voice */}
       <span
-        className="pointer-events-none absolute inset-0 rounded-full transition-[opacity,transform] duration-700 ease-spring"
+        ref={halo}
+        aria-hidden
+        className="pointer-events-none absolute rounded-full bg-fg"
         style={{
-          background:
-            'radial-gradient(closest-side, rgb(167 139 250 / 0.45), rgb(91 140 255 / 0.25) 55%, rgb(255 143 163 / 0.12) 75%, transparent 100%)',
-          opacity: listening ? 1 : 0.45,
-          transform: `scale(${listening ? 1 : 0.8})`,
+          width: size,
+          height: size,
+          opacity: listening ? 0.1 : 0,
+          transform: 'scale(0.86)',
+          transition: listening ? 'opacity 0.4s ease' : 'opacity 0.3s ease, transform 0.5s var(--spring)',
         }}
       />
       <button
@@ -33,57 +89,46 @@ export function VoiceOrb({ listening, size = 120, onPress }: VoiceOrbProps) {
         onClick={onPress}
         aria-label={listening ? 'Остановить запись' : 'Начать голосовой ввод'}
         aria-pressed={listening}
-        className={`relative isolate overflow-hidden rounded-full [clip-path:circle(50%)] [-webkit-mask-image:-webkit-radial-gradient(white,black)] [transform:translateZ(0)] bg-white shadow-[inset_0_0_0_0.5px_rgb(255_255_255/0.6),0_10px_30px_-10px_rgb(91_140_255/0.5)] transition-transform duration-700 ease-spring active:scale-95 dark:bg-[#101018] ${
-          listening ? 'scale-[1.08]' : 'animate-breathe'
-        }`}
+        className="relative grid place-items-center rounded-full bg-fg text-bg shadow-[0_8px_24px_-8px_rgb(0_0_0/0.35)] outline-none transition-[width,height,transform] duration-500 ease-[cubic-bezier(.34,1.56,.64,1)] active:scale-[0.9] active:duration-150 [-webkit-tap-highlight-color:transparent]"
         style={{ width: size, height: size }}
       >
-        {/* drifting colour blobs */}
-        <span className={`absolute inset-0 ${listening ? 'animate-spin-slow' : ''}`}>
-          <span
-            className="absolute left-[15%] top-[10%] size-[70%] rounded-full bg-[var(--ai-1)] opacity-80 blur-[18px]"
-            style={{ animation: `blob-a ${listening ? 3.2 : 9}s ease-in-out infinite` }}
-          />
-          <span
-            className="absolute bottom-[8%] right-[10%] size-[65%] rounded-full bg-[var(--ai-3)] opacity-75 blur-[18px]"
-            style={{ animation: `blob-b ${listening ? 3.8 : 11}s ease-in-out infinite` }}
-          />
-          <span
-            className="absolute left-[25%] top-[30%] size-[55%] rounded-full bg-[var(--ai-2)] opacity-70 blur-[16px]"
-            style={{ animation: `blob-c ${listening ? 2.8 : 8}s ease-in-out infinite` }}
-          />
-        </span>
-        {/* glass highlight */}
-        <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_35%_22%,rgb(255_255_255/0.55),transparent_45%)]" />
-        <span className="absolute inset-0 rounded-full shadow-[inset_0_-8px_20px_rgb(0_0_0/0.08),inset_0_0_0_1px_rgb(255_255_255/0.25)]" />
-        {/* glyph */}
-        <span className="absolute inset-0 grid place-items-center text-white drop-shadow-[0_1px_4px_rgb(0_0_0/0.25)]">
-          {listening ? (
-            <Bars size={icon} />
-          ) : (
-            <Mic style={{ width: icon, height: icon }} strokeWidth={2.2} />
-          )}
+        {/* microphone (SF "mic.fill"-like) */}
+        <svg
+          aria-hidden
+          viewBox="0 0 24 24"
+          width={icon}
+          height={icon}
+          className="absolute"
+          style={{
+            opacity: listening ? 0 : 1,
+            transform: listening ? 'scale(0.4)' : 'scale(1)',
+            filter: listening ? 'blur(3px)' : 'none',
+            transition: 'opacity 0.25s ease, transform 0.45s cubic-bezier(.34,1.56,.64,1), filter 0.25s ease',
+          }}
+        >
+          <rect x="8.6" y="2" width="6.8" height="12.4" rx="3.4" fill="currentColor" />
+          <path d="M5.4 11.1a6.6 6.6 0 0 0 13.2 0M12 17.8v3.4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        {/* waveform */}
+        <span aria-hidden className="absolute flex items-center" style={{ gap: barW * 0.75, height: barH }}>
+          {SHAPE.map((_, i) => (
+            <span
+              key={i}
+              ref={(el) => {
+                bars.current[i] = el;
+              }}
+              className="rounded-full bg-current"
+              style={{
+                width: barW,
+                height: '100%',
+                transform: 'scaleY(0.18)',
+                opacity: listening ? 1 : 0,
+                transition: `transform 90ms linear, opacity 0.25s ease ${listening ? 0.08 + Math.abs(i - 2) * 0.04 : 0}s`,
+              }}
+            />
+          ))}
         </span>
       </button>
     </div>
-  );
-}
-
-/** Five rounded bars that pulse while listening. */
-function Bars({ size }: { size: number }) {
-  return (
-    <span className="flex items-center gap-[3px]" style={{ height: size }} aria-hidden>
-      {[0.5, 0.85, 1, 0.75, 0.45].map((h, i) => (
-        <span
-          key={i}
-          className="w-[3.5px] rounded-full bg-white"
-          style={{
-            height: `${h * 100}%`,
-            animation: `voice-bar 0.9s ease-in-out ${i * 0.11}s infinite alternate`,
-          }}
-        />
-      ))}
-      <style>{'@keyframes voice-bar{from{transform:scaleY(.35)}to{transform:scaleY(1)}}'}</style>
-    </span>
   );
 }

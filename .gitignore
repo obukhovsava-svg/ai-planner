@@ -13,3 +13,5 @@ shortcut/*.unsigned.shortcut
 dist-ios
 # Xcode per-user state
 xcuserdata/
+qa/node_modules/
+qa/shots/

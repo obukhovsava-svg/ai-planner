@@ -57,6 +57,8 @@ export function useSpeechRecognition({ onFinal }: Options) {
   const [error, setError] = useState<string | null>(null);
   const rec = useRef<SpeechRecognitionLike | null>(null);
   const finalText = useRef('');
+  /** Mic loudness 0…1 from the iOS app (undefined in the browser) — a ref, so it never re-renders. */
+  const level = useRef<number | undefined>(undefined);
   const demoTimer = useRef<number[]>([]);
   const onFinalRef = useRef(onFinal);
   onFinalRef.current = onFinal;
@@ -107,7 +109,8 @@ export function useSpeechRecognition({ onFinal }: Options) {
     // iOS app: Apple's on-device speech recognition through the bridge.
     if (native) {
       window.__plannerSpeech = (e) => {
-        if (e.type === 'interim') setInterim(e.text);
+        if (e.type === 'level') level.current = e.value;
+        else if (e.type === 'interim') setInterim(e.text);
         else if (e.type === 'final') {
           setInterim('');
           setStatus('idle');
@@ -116,6 +119,7 @@ export function useSpeechRecognition({ onFinal }: Options) {
           setError(e.message);
           setStatus('error');
         } else {
+          level.current = undefined;
           setInterim('');
           setStatus((s) => (s === 'error' ? s : 'idle'));
         }
@@ -175,5 +179,5 @@ export function useSpeechRecognition({ onFinal }: Options) {
     [],
   );
 
-  return { supported, status, interim, error, start, stop };
+  return { supported, status, interim, error, level, start, stop };
 }
