@@ -31,7 +31,7 @@ export function useFlip(container: RefObject<HTMLElement | null>) {
     // and glides over the others, which simply slide up to fill its place.
     const far = moves.reduce<(typeof moves)[number] | null>((m, x) => (!m || Math.abs(x.delta) > Math.abs(m.delta) ? x : m), null);
     for (const { child, delta } of moves) {
-      const lead = child === far && moves.length > 1 && Math.abs(delta) > child.offsetHeight * 1.5;
+      const lead = child === far?.child && moves.length > 1 && Math.abs(delta) > child.offsetHeight * 1.5;
       const anim = lead
         ? child.animate(
             [
