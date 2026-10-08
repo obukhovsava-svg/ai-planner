@@ -6,6 +6,8 @@ import SwiftUI
 @main
 struct PlannerApp: App {
   @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  /// The theme chosen in the planner ("light" / "dark"; empty = follow the system).
+  @AppStorage("theme") private var theme = ""
 
   var body: some Scene {
     WindowGroup {
@@ -14,6 +16,7 @@ struct PlannerApp: App {
         // still shrinks the view — so the page fits above it instead of growing a scrollable gap.
         .ignoresSafeArea(.container)
         .background(Color(uiColor: .systemGroupedBackground))
+        .preferredColorScheme(theme == "dark" ? .dark : theme == "light" ? .light : nil)
         // A tap on the home-screen widget: planerapp://d/2026-10-06 → that day's plan.
         .onOpenURL { url in
           if url.host == "d" { Bridge.shared.open("d:" + url.lastPathComponent) }

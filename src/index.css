@@ -95,15 +95,10 @@ body {
   touch-action: manipulation;
 }
 
-/* An app, not a web page: no scroll bars anywhere (iOS WebView, Telegram on Android, desktop). */
+/* An app, not a web page: no scroll bars. Only the standard property here — styling
+   ::-webkit-scrollbar on every element makes WebKit drop fast (composited) scrolling. */
 * {
   scrollbar-width: none;
-}
-*::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-  background: transparent;
 }
 
 button {

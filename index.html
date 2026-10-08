@@ -10,8 +10,23 @@
     <meta name="theme-color" content="#F2F2F7" />
     <title>AI Planner</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%232563EB' d='M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z'/></svg>" />
+    <!-- First paint already in the right theme: no white flash before the app loads. -->
+    <style>
+      html { background: #f2f2f7; }
+      html.dark { background: #000; }
+    </style>
     <!-- Official Telegram WebApp bridge. Outside Telegram it is a harmless no-op; src/lib/telegram.ts mocks the rest. -->
     <script src="https://telegram.org/js/telegram-web-app.js?59"></script>
+    <script>
+      (function () {
+        try {
+          var s = JSON.parse(localStorage.getItem('planner:ui') || '{}').state || {};
+          var tg = window.Telegram && Telegram.WebApp && Telegram.WebApp.initData ? Telegram.WebApp.colorScheme : null;
+          var dark = s.themeOverride ? s.themeOverride === 'dark' : tg ? tg === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

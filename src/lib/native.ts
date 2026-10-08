@@ -17,6 +17,8 @@ type NativeMessage =
   | { type: 'open'; url: string }
   | { type: 'reminders'; items: { id: string; at: number; title: string; body: string; open: string }[] }
   | { type: 'speech'; action: 'start' | 'stop' | 'cancel' }
+  /** The chosen theme, so the app starts in it (no flash): null = follow the system. */
+  | { type: 'theme'; mode: 'light' | 'dark' | null }
   | { type: 'widget'; snapshot: WidgetSnapshot };
 
 /** What the home-screen widget shows: the next week, day by day (the widget can't run this code). */

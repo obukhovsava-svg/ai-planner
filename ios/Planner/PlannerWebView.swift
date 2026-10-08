@@ -39,6 +39,9 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
       if let raw = body["snapshot"], let data = try? JSONSerialization.data(withJSONObject: raw, options: .sortedKeys) {
         WidgetStore.save(data)
       }
+    case "theme":
+      // Read by PlannerApp (@AppStorage) → the window starts in this theme next time, no flash.
+      UserDefaults.standard.set(body["mode"] as? String ?? "", forKey: "theme")
     case "speech":
       switch body["action"] as? String {
       case "start": speech.start()

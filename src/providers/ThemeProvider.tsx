@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import type { ThemeMode } from '@/types';
 import { useUIStore } from '@/store/useUIStore';
 import { getTelegramColorScheme, haptic, onTelegramThemeChange, syncTelegramChrome } from '@/lib/telegram';
+import { postNative } from '@/lib/native';
 
 interface ThemeContextValue {
   theme: ThemeMode;
@@ -40,6 +41,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const theme = override ?? autoTheme;
+
+  // iOS app: remember the choice natively, so the next launch starts in this theme.
+  useEffect(() => postNative({ type: 'theme', mode: override }), [override]);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
