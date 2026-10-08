@@ -273,6 +273,11 @@ async function onTelegramUpdate(update: any, env: Env) {
     if (!ok) await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: 'Откройте планер хотя бы раз, чтобы я увидел ваше расписание 👇', reply_markup: openButton(env) });
     return;
   }
+  if (text.startsWith('/stats')) {
+    if (!env.ADMIN_CHAT_ID || String(msg.chat.id) !== env.ADMIN_CHAT_ID) return; // admin only; others get nothing
+    await tg(env, 'sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', text: await statsText(env) });
+    return;
+  }
   if (text.startsWith('/myid')) {
     await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `Ваш chat id: ${msg.chat.id}` });
     return;
@@ -283,6 +288,96 @@ async function onTelegramUpdate(update: any, env: Env) {
     text: 'Всё планирование — внутри приложения. Откройте планер и скажите ассистенту, что добавить 👇\n\n/today — план на сегодня, /tomorrow — на завтра',
     reply_markup: openButton(env),
   });
+}
+
+/* ------------------------------------------------------------ Usage stats (/stats, admin only) */
+
+let statsReady = false;
+async function ensureStats(env: Env) {
+  if (statsReady) return;
+  await env.DB.batch([
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS seen (user_id TEXT PRIMARY KEY, first_at INTEGER NOT NULL, last_at INTEGER NOT NULL)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS metrics (day TEXT NOT NULL, key TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (day, key))'),
+  ]);
+  statsReady = true;
+}
+
+/** Days are counted in Moscow time — the admin's clock. */
+const MSK = 3 * 3600_000;
+const mskDay = (ms = Date.now()) => new Date(ms + MSK).toISOString().slice(0, 10);
+const mskDayStart = (daysAgo = 0) => Date.parse(`${mskDay(Date.now() - daysAgo * 86_400_000)}T00:00:00Z`) - MSK;
+
+/** Counts an event of the day (e.g. a Shortcut run) and/or marks the user as seen. Never fails the request. */
+async function track(env: Env, key: string | null, user?: string | null) {
+  try {
+    await ensureStats(env);
+    const now = Date.now();
+    const stmts: D1Stmt[] = [];
+    if (key) stmts.push(env.DB.prepare('INSERT INTO metrics (day, key, n) VALUES (?1, ?2, 1) ON CONFLICT (day, key) DO UPDATE SET n = n + 1').bind(mskDay(now), key));
+    if (user && user !== 'anon')
+      stmts.push(env.DB.prepare('INSERT INTO seen (user_id, first_at, last_at) VALUES (?1, ?2, ?2) ON CONFLICT (user_id) DO UPDATE SET last_at = ?2').bind(user, now));
+    if (stmts.length) await env.DB.batch(stmts);
+  } catch {
+    /* stats are best-effort */
+  }
+}
+
+async function statsText(env: Env): Promise<string> {
+  await ensureStats(env);
+  await ensureDigestTables(env);
+  const today = mskDayStart(0), week = mskDayStart(6);
+  const one = async <T,>(sql: string, ...args: unknown[]) => (await env.DB.prepare(sql).bind(...args).all<T>()).results[0];
+  const users = await one<{ total: number; app: number }>("SELECT COUNT(*) total, COALESCE(SUM(user_id LIKE 'dev:%'), 0) app FROM state");
+  const seen = await one<{ newToday: number; newWeek: number; actToday: number; actWeek: number }>(
+    'SELECT COALESCE(SUM(first_at >= ?1), 0) newToday, COALESCE(SUM(first_at >= ?2), 0) newWeek, COALESCE(SUM(last_at >= ?1), 0) actToday, COALESCE(SUM(last_at >= ?2), 0) actWeek FROM seen',
+    today,
+    week,
+  );
+  const metric = async (key: string) =>
+    one<{ d: number; w: number }>('SELECT COALESCE(SUM(CASE WHEN day = ?2 THEN n END), 0) d, COALESCE(SUM(CASE WHEN day >= ?3 THEN n END), 0) w FROM metrics WHERE key = ?1', key, mskDay(), mskDay(week));
+  const shortcut = await metric('shortcut');
+  const ai = await metric('ai');
+  const linked = await one<{ n: number }>('SELECT COUNT(*) n FROM users');
+  const digest = await one<{ n: number }>('SELECT COUNT(*) n FROM digest WHERE morning = 1 OR evening = 1');
+  const feedback = await one<{ n: number }>('SELECT COUNT(*) n FROM feedback');
+
+  // What people keep in the planner (items that still exist).
+  const { results } = await env.DB.prepare('SELECT doc FROM state').all<{ doc: string }>();
+  let ev = 0, tk = 0, done = 0, evToday = 0, tkToday = 0, week7 = 0;
+  for (const r of results) {
+    try {
+      const d = JSON.parse(r.doc) as { tasks?: { createdAt?: number; done?: boolean }[]; events?: { createdAt?: number }[] };
+      for (const e of d.events ?? []) {
+        ev++;
+        if ((e.createdAt ?? 0) >= today) evToday++;
+        if ((e.createdAt ?? 0) >= week) week7++;
+      }
+      for (const t of d.tasks ?? []) {
+        tk++;
+        if (t.done) done++;
+        if ((t.createdAt ?? 0) >= today) tkToday++;
+        if ((t.createdAt ?? 0) >= week) week7++;
+      }
+    } catch {
+      /* skip a broken doc */
+    }
+  }
+
+  return [
+    `📊 <b>Статистика ПЛАН</b> · ${new Date(Date.now() + MSK).toISOString().slice(11, 16)} МСК`,
+    '',
+    `👥 Пользователей: <b>${users.total}</b> (Telegram ${users.total - users.app} · iPhone ${users.app})`,
+    `🆕 Новых: сегодня <b>${seen.newToday}</b> · за 7 дней ${seen.newWeek}`,
+    `🔥 Активных: сегодня <b>${seen.actToday}</b> · за 7 дней ${seen.actWeek}`,
+    '',
+    `📅 Добавлено сегодня: <b>${evToday + tkToday}</b> (событий ${evToday}, задач ${tkToday})`,
+    `За 7 дней: ${week7} · всего в планерах: ${ev + tk} (событий ${ev}, задач ${tk}, выполнено ${done})`,
+    '',
+    `🎙 Кнопка iPhone: сегодня <b>${shortcut.d}</b> · за 7 дней ${shortcut.w} (подключили ${linked.n})`,
+    `✨ Запросов к ИИ: сегодня ${ai.d} · за 7 дней ${ai.w}`,
+    `☀️ Сводку включили: ${digest.n}`,
+    `💬 Отзывов: ${feedback.n}`,
+  ].join('\n');
 }
 
 /* ------------------------------------------------------------ Calendar subscription (iPhone / Mac / Google) */
@@ -658,14 +753,15 @@ export default {
         allowed_updates: ['message'],
         drop_pending_updates: true,
       });
-      // The bot's command menu.
-      await tg(env, 'setMyCommands', {
-        commands: [
-          { command: 'today', description: 'План на сегодня' },
-          { command: 'tomorrow', description: 'План на завтра' },
-          { command: 'start', description: 'Открыть планер' },
-        ],
-      });
+      // The bot's command menu (+ /stats in the admin's chat only).
+      const commands = [
+        { command: 'today', description: 'План на сегодня' },
+        { command: 'tomorrow', description: 'План на завтра' },
+        { command: 'start', description: 'Открыть планер' },
+      ];
+      await tg(env, 'setMyCommands', { commands });
+      if (env.ADMIN_CHAT_ID)
+        await tg(env, 'setMyCommands', { commands: [...commands, { command: 'stats', description: 'Статистика (только вам)' }], scope: { type: 'chat', chat_id: Number(env.ADMIN_CHAT_ID) } });
       return json({ ok: result.ok, description: result.description }, 200, headers);
     }
 
@@ -682,6 +778,7 @@ export default {
       if (JSON.stringify(merged).length > MAX_DOC) return json({ error: 'too_large' }, 413, headers);
       await saveDoc(env, user, merged, tz);
       await env.DB.prepare('UPDATE users SET tz = ?2 WHERE user_id = ?1').bind(user, tz).run();
+      ctx.waitUntil(track(env, null, user));
       return json({ doc: merged }, 200, headers);
     }
 
@@ -744,6 +841,7 @@ export default {
       const plain = (t: string, status = 200) => new Response(t, { status, headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' } });
       if (!u) return plain('Неверный ключ. Скопируйте ссылку заново: планер → Ассистент → «Кнопка на iPhone».', 401);
       if (rateLimited(`s:${u.user_id}`)) return plain('Слишком много запросов, подождите минуту.', 429);
+      ctx.waitUntil(track(env, 'shortcut', u.user_id));
       const raw = await request.text();
       let text = raw;
       try {
@@ -828,6 +926,7 @@ export default {
     const user = await authUser(request, env);
     if (!user) return json({ error: 'unauthorized' }, 401, headers);
     if (rateLimited(user)) return json({ error: 'rate_limited' }, 429, headers);
+    ctx.waitUntil(track(env, 'ai', user));
 
     let body: { text?: string; today?: string; weekday?: string; time?: string; items?: string };
     try {
