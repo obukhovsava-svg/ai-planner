@@ -48,7 +48,7 @@ export function AssistantTab() {
   const scroller = useRef<HTMLDivElement>(null);
   // The orb ↔ glow morph when the keyboard comes and goes (see spread / gather below).
   const root = useRef<HTMLDivElement>(null);
-  const content = useRef<HTMLDivElement>(null);
+  const inputBox = useRef<HTMLDivElement>(null);
   const orbBtn = useRef<HTMLButtonElement>(null);
   const orbWrap = useRef<HTMLDivElement>(null);
   const ghost = useRef<HTMLDivElement>(null);
@@ -110,16 +110,18 @@ export function AssistantTab() {
    * transform / opacity only, so the layout can switch at once underneath without a single janky frame.
    */
   const cancelMorph = () => [ghost.current, band.current, band.current?.firstElementChild as HTMLElement | null, orbWrap.current].forEach((el) => el?.getAnimations().forEach((a) => a.cancel()));
+  // Ghost and band live in the input block, so they ride up and down with the field as the
+  // keyboard moves it; the band is a thin glowing line just above the field.
   const placeGhost = () => {
-    const btn = orbBtn.current, r0 = root.current, c = content.current, g = ghost.current, b = band.current;
-    if (!btn || !r0 || !c || !g || !b) return null;
-    const r = btn.getBoundingClientRect(), box = r0.getBoundingClientRect(), top = c.getBoundingClientRect().top;
+    const btn = orbBtn.current, box = inputBox.current, g = ghost.current, b = band.current;
+    if (!btn || !box || !g || !b) return null;
+    const r = btn.getBoundingClientRect(), bx = box.getBoundingClientRect();
     if (!r.width) return null;
-    const size = r.width, x = r.left - box.left, y = r.top - box.top;
+    const size = r.width, x = r.left - bx.left, y = r.top - bx.top;
     Object.assign(g.style, { width: `${size}px`, height: `${size}px`, left: `${x}px`, top: `${y}px` });
-    const bandW = box.width - 32, bandH = 14, by = top - box.top + 6;
-    Object.assign(b.style, { left: '16px', width: `${bandW}px`, top: `${by}px`, height: `${bandH}px` });
-    return { dx: box.width / 2 - (x + size / 2), dy: by + bandH / 2 - (y + size / 2), sx: bandW / size, sy: bandH / size };
+    const bandW = bx.width - 40, bandH = 8, by = -4;
+    Object.assign(b.style, { left: '20px', width: `${bandW}px`, top: `${by}px`, height: `${bandH}px` });
+    return { dx: bx.width / 2 - (x + size / 2), dy: by + bandH / 2 - (y + size / 2), sx: bandW / size, sy: bandH / size };
   };
   const spread = () => {
     cancelMorph();
@@ -192,20 +194,6 @@ export function AssistantTab() {
 
   return (
     <div ref={root} className="relative flex h-full flex-col">
-      {/* morph overlay: the orb's double and the glow band */}
-      <div ref={ghost} aria-hidden className="pointer-events-none absolute z-30 will-change-transform" style={{ opacity: 0, left: 0, top: 0 }}>
-        <div className="absolute inset-0 grid place-items-center rounded-full bg-fg text-bg">
-          <MicGlyph size={33} />
-        </div>
-        <div
-          className="absolute inset-0 rounded-full opacity-0"
-          style={{ background: 'radial-gradient(closest-side, var(--ai-2), var(--ai-1) 60%, transparent)', filter: 'blur(4px)' }}
-        />
-      </div>
-      <div ref={band} aria-hidden className="pointer-events-none absolute z-20 overflow-hidden rounded-full will-change-transform" style={{ opacity: 0 }}>
-        <div className="absolute inset-y-0 left-0 w-1/3" style={{ background: 'linear-gradient(90deg, transparent, rgb(255 255 255 / 0.95), transparent)', filter: 'blur(3px)' }} />
-        <div className="absolute inset-0 -z-10 rounded-full" style={{ background: 'linear-gradient(90deg, transparent, var(--ai-1) 18%, var(--ai-2) 50%, var(--ai-3) 82%, transparent)', filter: 'blur(5px)' }} />
-      </div>
       <Header
         title="Ассистент"
         subtitle={
@@ -222,7 +210,7 @@ export function AssistantTab() {
 
       {/* Idle: welcome + orb in the middle. With a conversation the orb moves to the top
           and the messages scroll below it. */}
-      <div ref={content} className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="transition-[flex-grow] duration-700 ease-spring" style={{ flexGrow: showHero ? 1 : 0 }} />
 
         <Collapse open={showHero}>
@@ -271,7 +259,21 @@ export function AssistantTab() {
       </div>
 
       {/* text field — steps aside while listening */}
-      <div className="pb-tabbar shrink-0 px-4">
+      <div ref={inputBox} className="pb-tabbar relative shrink-0 px-4">
+        {/* morph overlay: the orb's double and the glow band */}
+        <div ref={ghost} aria-hidden className="pointer-events-none absolute z-30 will-change-transform" style={{ opacity: 0, left: 0, top: 0 }}>
+          <div className="absolute inset-0 grid place-items-center rounded-full bg-fg text-bg">
+            <MicGlyph size={33} />
+          </div>
+          <div
+            className="absolute inset-0 rounded-full opacity-0"
+            style={{ background: 'radial-gradient(closest-side, var(--ai-2), var(--ai-1) 60%, transparent)', filter: 'blur(4px)' }}
+          />
+        </div>
+        <div ref={band} aria-hidden className="pointer-events-none absolute z-20 overflow-hidden rounded-full will-change-transform" style={{ opacity: 0 }}>
+          <div className="absolute inset-y-0 left-0 w-1/3" style={{ background: 'linear-gradient(90deg, transparent, rgb(255 255 255 / 0.95), transparent)', filter: 'blur(3px)' }} />
+          <div className="absolute inset-0 -z-10 rounded-full" style={{ background: 'linear-gradient(90deg, transparent, var(--ai-1) 18%, var(--ai-2) 50%, var(--ai-3) 82%, transparent)', filter: 'blur(3px)' }} />
+        </div>
         <div
           className="transition-[opacity,transform] duration-500 ease-spring"
           style={{ opacity: listening ? 0 : 1, transform: listening ? 'translateY(12px) scale(0.97)' : 'none', pointerEvents: listening ? 'none' : undefined }}
