@@ -21,7 +21,8 @@ const track = () => page.evaluate(() => {
     const oVis = orb && !orb.closest('[aria-hidden="true"]') && Number(getComputedStyle(oWrap).opacity) > 0.5;
     const el = gOp > 0.3 ? ghost : oVis ? orb : null;
     const r = el?.getBoundingClientRect();
-    window.__trk.push({ t: Math.round(performance.now() - t0), who: el === ghost ? 'ghost' : el ? 'orb' : '-', y: r ? Math.round(r.top + r.height / 2) : null });
+    const field = document.querySelector('input[placeholder^="Или"]')?.getBoundingClientRect();
+    window.__trk.push({ t: Math.round(performance.now() - t0), who: el === ghost ? 'ghost' : el ? 'orb' : '-', y: r ? Math.round(r.top + r.height / 2) : null, bottom: r ? Math.round(r.bottom) : null, field: field ? Math.round(field.bottom) : null, vh: Math.round(window.visualViewport?.height ?? innerHeight) });
     if (window.__trkOn) requestAnimationFrame(loop);
   };
   window.__trkOn = true; requestAnimationFrame(loop);
@@ -38,6 +39,8 @@ const analyse = (name, trk, expect) => {
     if (dir && s !== dir) reversals++;
     dir = s;
   }
+  const over = ys.filter((p) => p.bottom > p.vh + 2).length; // drawn below the visible screen = over the keyboard
+  console.log(`   over the keyboard: ${over} frames ${over ? 'FAIL' : 'PASS'}`);
   console.log(`${name}: frames ${trk.length}, visible ${ys.length}, direction changes ${reversals}, jumps>80px ${jumps}  ${reversals <= expect ? 'PASS' : 'FAIL'}`);
   console.log('   ', ys.filter((_, i) => i % 3 === 0).map((p) => `${p.who[0]}${p.y}`).join(' '));
 };

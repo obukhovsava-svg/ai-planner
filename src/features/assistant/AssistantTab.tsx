@@ -149,35 +149,57 @@ export function AssistantTab() {
     const o = { x: g.offsetLeft, y: g.offsetTop, w: g.offsetWidth, h: g.offsetHeight };
     return `translate(${l.x + l.w / 2 - (o.x + o.w / 2)}px, ${l.y + l.h / 2 - (o.y + o.h / 2)}px) scale(${l.w / o.w}, ${l.h / o.h})`;
   };
+  const meltRaf = useRef(0);
+  const stopMelt = () => cancelAnimationFrame(meltRaf.current);
+  const smooth = (a: number, b: number, x: number) => {
+    const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
+  /**
+   * The orb melts straight down into the line above the field. The field is still moving up with
+   * the keyboard, so the line's position is re-read every frame and the double homes in on it.
+   */
   const melt = () => {
     const g = ghost.current, b = band.current;
     if (!g || !b || !inputBox.current) return;
     melted.current = true;
-    const l = placeBand();
-    const end = toLine(l);
-    const fill = 'forwards' as const;
-    g.animate(
-      [
-        { transform: 'none', opacity: 1 },
-        { transform: 'scale(1.08, 0.9)', opacity: 1, offset: 0.18 },
-        { transform: end, opacity: 0 },
-      ],
-      { duration: 620, easing: SPRING, fill },
-    );
-    (g.children[0] as HTMLElement).animate([{ opacity: 1 }, { opacity: 1, offset: 0.15 }, { opacity: 0, offset: 0.55 }, { opacity: 0 }], { duration: 620, fill });
-    (g.children[1] as HTMLElement).animate([{ opacity: 0 }, { opacity: 1, offset: 0.45 }, { opacity: 1 }], { duration: 620, fill });
-    b.animate(
-      [
-        { opacity: 0, transform: 'scaleX(0.35)' },
-        { opacity: 1, transform: 'scaleX(1.02)', offset: 0.55 },
-        { opacity: 0.6, transform: 'scaleX(1)' },
-      ],
-      { duration: 900, delay: 260, easing: SPRING, fill },
-    );
-    (b.firstElementChild as HTMLElement).animate(
-      [{ transform: 'translateX(-120%)', opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: `translateX(${l.w * 1.1}px)`, opacity: 0 }],
-      { duration: 900, delay: 460, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill },
-    );
+    stopMelt();
+    const solid = g.children[0] as HTMLElement, glow = g.children[1] as HTMLElement, shine = b.firstElementChild as HTMLElement;
+    const t0 = performance.now();
+    const D = 600;
+    let bandOn = false, shineOn = false;
+    const step = (now: number) => {
+      const x = Math.min(1, (now - t0) / D);
+      const e = 1 - Math.pow(1 - x, 3.2);
+      const l = placeBand();
+      const o = { x: g.offsetLeft, y: g.offsetTop, w: g.offsetWidth, h: g.offsetHeight };
+      const dx = (l.x + l.w / 2 - (o.x + o.w / 2)) * e, dy = (l.y + l.h / 2 - (o.y + o.h / 2)) * e;
+      g.style.transform = `translate(${dx}px, ${dy}px) scale(${1 + (l.w / o.w - 1) * e}, ${1 + (l.h / o.h - 1) * e})`;
+      g.style.opacity = String(1 - smooth(0.55, 1, x));
+      solid.style.opacity = String(1 - smooth(0.12, 0.5, x));
+      glow.style.opacity = String(smooth(0.05, 0.4, x));
+      if (!bandOn && x > 0.4) {
+        bandOn = true;
+        b.animate(
+          [
+            { opacity: 0, transform: 'scaleX(0.35)' },
+            { opacity: 1, transform: 'scaleX(1.02)', offset: 0.55 },
+            { opacity: 0.6, transform: 'scaleX(1)' },
+          ],
+          { duration: 900, easing: SPRING, fill: 'forwards' },
+        );
+      }
+      if (!shineOn && x > 0.75) {
+        shineOn = true;
+        shine.animate([{ transform: 'translateX(-120%)', opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: `translateX(${l.w * 1.1}px)`, opacity: 0 }], {
+          duration: 900,
+          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          fill: 'forwards',
+        });
+      }
+      if (x < 1) meltRaf.current = requestAnimationFrame(step);
+    };
+    meltRaf.current = requestAnimationFrame(step);
   };
   /**
    * Runs `cb` once the screen has stopped moving: the keyboard has finished sliding and the
@@ -207,15 +229,24 @@ export function AssistantTab() {
     raf = requestAnimationFrame(tick);
     pending.current = () => cancelAnimationFrame(raf);
   };
-  useEffect(() => () => pending.current(), []);
+  useEffect(
+    () => () => {
+      pending.current();
+      stopMelt();
+    },
+    [],
+  );
   const onFieldFocus = () => {
     if (!TOUCH || !hold()) return;
     melted.current = false;
-    setTyping(true); // the layout makes room at once; the double keeps the orb's place
-    whenSettled(150, melt);
+    setTyping(true); // the layout makes room at once; the double takes over from the orb
+    melt();
+    // after the melt the line keeps riding with the field until the keyboard is fully up
+    whenSettled(150, () => {}, () => melted.current && band.current && inputBox.current && placeBand());
   };
   const onFieldBlur = () => {
     if (!TOUCH) return;
+    stopMelt();
     // The line follows the field down while the keyboard leaves and the tab bar returns.
     whenSettled(220, () => setTyping(false), () => melted.current && band.current && inputBox.current && placeBand());
   };
@@ -232,7 +263,10 @@ export function AssistantTab() {
     const fill = 'forwards' as const;
     const wasMelted = melted.current;
     melted.current = false;
+    stopMelt();
     cancelMorph();
+    (g.children[0] as HTMLElement).style.opacity = '';
+    (g.children[1] as HTMLElement).style.opacity = '';
     const o = rel(btn);
     Object.assign(g.style, { left: `${o.x}px`, top: `${o.y}px`, width: `${o.w}px`, height: `${o.h}px`, opacity: '0', transform: 'none' });
     w.style.opacity = '0';
