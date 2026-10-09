@@ -2,7 +2,7 @@
 import puppeteer from 'puppeteer-core';
 import { mkdirSync } from 'fs';
 mkdirSync('shots', { recursive: true });
-const today = new Date(); const key = (d) => d.toISOString().slice(0, 10);
+const today = new Date(); const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const yest = key(new Date(Date.now() - 86400000)), tmr = key(new Date(Date.now() + 86400000)), tod = key(today);
 const now = Date.now();
 const tk = (id, title, extra = {}) => ({ id, title, done: false, priority: 'medium', category: 'personal', createdAt: now, updatedAt: now, ...extra });

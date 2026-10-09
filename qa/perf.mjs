@@ -1,6 +1,6 @@
 // Smoothness test: frame times during key interactions, CPU throttled ×4 (≈ a phone).
 import puppeteer from 'puppeteer-core';
-const now = Date.now(); const key = (d) => d.toISOString().slice(0, 10);
+const now = Date.now(); const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const tod = key(new Date()), tmr = key(new Date(now + 86400000)), yest = key(new Date(now - 86400000));
 const tk = (i, extra = {}) => ({ id: 't' + i, title: ['Купить продукты', 'Оплатить интернет', 'Позвонить маме', 'Отправить отчёт', 'Записаться к врачу', 'Забрать посылку', 'Подготовить презентацию', 'Тренировка'][i % 8] + (i > 7 ? ' ' + i : ''), done: false, priority: 'medium', category: 'personal', createdAt: now - i, updatedAt: now, date: i % 3 ? tod : tmr, ...extra });
 const tasks = Array.from({ length: 24 }, (_, i) => tk(i));

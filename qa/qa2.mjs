@@ -1,5 +1,5 @@
 import puppeteer from 'puppeteer-core';
-const now = Date.now(); const key = (d) => d.toISOString().slice(0, 10);
+const now = Date.now(); const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const tod = key(new Date()), tmr = key(new Date(now + 86400000));
 const tk = (id, title, extra = {}) => ({ id, title, done: false, priority: 'medium', category: 'personal', createdAt: now, updatedAt: now, ...extra });
 const ev = (id, title, date, start, end, color, extra = {}) => ({ id, title, date, start, end, color, createdAt: now, updatedAt: now, ...extra });
