@@ -53,7 +53,6 @@ export function AssistantTab() {
   const orbWrap = useRef<HTMLDivElement>(null);
   const ghost = useRef<HTMLDivElement>(null);
   const band = useRef<HTMLDivElement>(null);
-  const morph = useRef<{ dx: number; dy: number; sx: number; sy: number } | null>(null);
 
   const exchanges = useMemo(() => {
     const out: Exchange[] = [];
@@ -105,55 +104,120 @@ export function AssistantTab() {
   };
 
   /**
-   * Keyboard up: the orb melts upwards into a soft glow along the top, a highlight runs across
-   * it (Gemini-style); keyboard down: the glow gathers back into the orb. Drawn by an overlay with
-   * transform / opacity only, so the layout can switch at once underneath without a single janky frame.
+   * Keyboard up: the orb holds still while the keyboard slides in, then melts down into a thin
+   * glowing line right above the field, a highlight running across it (Gemini-style).
+   * Keyboard down: the line rides down with the field; once the keyboard and the tab bar are back,
+   * it gathers into the orb in one move. Drawn by an overlay (transform / opacity only) anchored to
+   * the top of the tab, which never moves — so the layout can switch underneath without janky frames.
    */
-  const cancelMorph = () => [ghost.current, band.current, band.current?.firstElementChild as HTMLElement | null, orbWrap.current].forEach((el) => el?.getAnimations().forEach((a) => a.cancel()));
-  // Ghost and band live in the input block, so they ride up and down with the field as the
-  // keyboard moves it; the band is a thin glowing line just above the field.
-  const placeGhost = () => {
-    const btn = orbBtn.current, box = inputBox.current, g = ghost.current, b = band.current;
-    if (!btn || !box || !g || !b) return null;
-    const r = btn.getBoundingClientRect(), bx = box.getBoundingClientRect();
-    if (!r.width) return null;
-    const size = r.width, x = r.left - bx.left, y = r.top - bx.top;
-    Object.assign(g.style, { width: `${size}px`, height: `${size}px`, left: `${x}px`, top: `${y}px` });
-    const bandW = bx.width - 40, bandH = 8, by = -4;
-    Object.assign(b.style, { left: '20px', width: `${bandW}px`, top: `${by}px`, height: `${bandH}px` });
-    return { dx: bx.width / 2 - (x + size / 2), dy: by + bandH / 2 - (y + size / 2), sx: bandW / size, sy: bandH / size };
+  const SPRING = 'cubic-bezier(0.32, 0.72, 0, 1)';
+  const melted = useRef(false);
+  const cancelMorph = () =>
+    [ghost.current, ghost.current?.children[0], ghost.current?.children[1], band.current, band.current?.firstElementChild, orbWrap.current].forEach((el) =>
+      (el as HTMLElement | null | undefined)?.getAnimations().forEach((a) => a.cancel()),
+    );
+  /** Rect of `el` relative to the tab. */
+  const rel = (el: Element) => {
+    const r = el.getBoundingClientRect(), b = root.current!.getBoundingClientRect();
+    return { x: r.left - b.left, y: r.top - b.top, w: r.width, h: r.height };
   };
-  const spread = () => {
+  /** Where the glowing line sits: just above the text field. */
+  const line = () => {
+    const f = rel(inputBox.current!);
+    return { x: 20, y: f.y - 4, w: f.w - 40, h: 8 };
+  };
+  const placeBand = () => {
+    const l = line();
+    Object.assign(band.current!.style, { left: `${l.x}px`, top: `${l.y}px`, width: `${l.w}px`, height: `${l.h}px` });
+    return l;
+  };
+  /** The double takes the orb's exact place (solid, mic glyph), standing still. */
+  const hold = () => {
+    const btn = orbBtn.current, g = ghost.current;
+    if (!btn || !g || !root.current) return false;
+    const o = rel(btn);
+    if (!o.w) return false;
     cancelMorph();
-    const m = placeGhost();
-    morph.current = m;
-    if (!m) return;
-    const g = ghost.current!, b = band.current!, shine = b.firstElementChild as HTMLElement;
-    const ease = 'cubic-bezier(0.32, 0.72, 0, 1)';
+    Object.assign(g.style, { left: `${o.x}px`, top: `${o.y}px`, width: `${o.w}px`, height: `${o.h}px`, opacity: '1', transform: 'none' });
+    (g.children[0] as HTMLElement).style.opacity = '1';
+    (g.children[1] as HTMLElement).style.opacity = '0';
+    return true;
+  };
+  /** Ghost box → line: translate + scale between the two centres. */
+  const toLine = (l: ReturnType<typeof line>) => {
+    const g = ghost.current!;
+    const o = { x: g.offsetLeft, y: g.offsetTop, w: g.offsetWidth, h: g.offsetHeight };
+    return `translate(${l.x + l.w / 2 - (o.x + o.w / 2)}px, ${l.y + l.h / 2 - (o.y + o.h / 2)}px) scale(${l.w / o.w}, ${l.h / o.h})`;
+  };
+  const melt = () => {
+    const g = ghost.current, b = band.current;
+    if (!g || !b || !inputBox.current) return;
+    melted.current = true;
+    const l = placeBand();
+    const end = toLine(l);
+    const fill = 'forwards' as const;
     g.animate(
       [
         { transform: 'none', opacity: 1 },
-        { transform: `translate(${m.dx * 0.2}px, ${m.dy * 0.3}px) scale(1.12, 0.86)`, opacity: 1, offset: 0.3 },
-        { transform: `translate(${m.dx}px, ${m.dy}px) scale(${m.sx}, ${m.sy})`, opacity: 0 },
+        { transform: 'scale(1.08, 0.9)', opacity: 1, offset: 0.18 },
+        { transform: end, opacity: 0 },
       ],
-      { duration: 560, easing: ease, fill: 'forwards' },
+      { duration: 620, easing: SPRING, fill },
     );
-    (g.children[0] as HTMLElement).animate([{ opacity: 1 }, { opacity: 0, offset: 0.45 }, { opacity: 0 }], { duration: 560, fill: 'forwards' });
-    (g.children[1] as HTMLElement).animate([{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1 }], { duration: 560, fill: 'forwards' });
+    (g.children[0] as HTMLElement).animate([{ opacity: 1 }, { opacity: 1, offset: 0.15 }, { opacity: 0, offset: 0.55 }, { opacity: 0 }], { duration: 620, fill });
+    (g.children[1] as HTMLElement).animate([{ opacity: 0 }, { opacity: 1, offset: 0.45 }, { opacity: 1 }], { duration: 620, fill });
     b.animate(
       [
         { opacity: 0, transform: 'scaleX(0.35)' },
         { opacity: 1, transform: 'scaleX(1.02)', offset: 0.55 },
-        { opacity: 0.55, transform: 'scaleX(1)' },
+        { opacity: 0.6, transform: 'scaleX(1)' },
       ],
-      { duration: 900, delay: 220, easing: ease, fill: 'forwards' },
+      { duration: 900, delay: 260, easing: SPRING, fill },
     );
-    shine.animate([{ transform: 'translateX(-120%)', opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: `translateX(${b.offsetWidth * 1.1}px)`, opacity: 0 }], {
-      duration: 900,
-      delay: 420,
-      easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-      fill: 'forwards',
-    });
+    (b.firstElementChild as HTMLElement).animate(
+      [{ transform: 'translateX(-120%)', opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: `translateX(${l.w * 1.1}px)`, opacity: 0 }],
+      { duration: 900, delay: 460, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill },
+    );
+  };
+  /**
+   * Runs `cb` once the screen has stopped moving: the keyboard has finished sliding and the
+   * tab bar is back (the field's position and the viewport height hold still for a moment).
+   * `frame` runs on every frame until then.
+   */
+  const pending = useRef<() => void>(() => {});
+  const whenSettled = (min: number, cb: () => void, frame?: () => void) => {
+    pending.current();
+    const start = performance.now();
+    let last = '';
+    let still = start;
+    let raf = 0;
+    const tick = () => {
+      const now = performance.now();
+      frame?.();
+      const pos = `${window.visualViewport?.height ?? innerHeight}:${Math.round(inputBox.current?.getBoundingClientRect().top ?? 0)}`;
+      if (pos !== last) {
+        last = pos;
+        still = now;
+      }
+      if ((now - start >= min && now - still >= 120) || now - start > 1000) {
+        pending.current = () => {};
+        cb();
+      } else raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    pending.current = () => cancelAnimationFrame(raf);
+  };
+  useEffect(() => () => pending.current(), []);
+  const onFieldFocus = () => {
+    if (!TOUCH || !hold()) return;
+    melted.current = false;
+    setTyping(true); // the layout makes room at once; the double keeps the orb's place
+    whenSettled(150, melt);
+  };
+  const onFieldBlur = () => {
+    if (!TOUCH) return;
+    // The line follows the field down while the keyboard leaves and the tab bar returns.
+    whenSettled(220, () => setTyping(false), () => melted.current && band.current && inputBox.current && placeBand());
   };
   const wasTyping = useRef(false);
   useLayoutEffect(() => {
@@ -162,31 +226,38 @@ export function AssistantTab() {
       return;
     }
     wasTyping.current = false;
-    // Keyboard down: the orb is back in the layout (invisible) — fly the glow into it.
+    // Everything has settled; the orb is back in the layout (hidden) — the line gathers into it.
+    const g = ghost.current, b = band.current, w = orbWrap.current, btn = orbBtn.current;
+    if (!g || !b || !w || !btn) return;
+    const fill = 'forwards' as const;
+    const wasMelted = melted.current;
+    melted.current = false;
     cancelMorph();
-    const m = placeGhost();
-    const g = ghost.current, b = band.current, w = orbWrap.current;
-    if (!m || !g || !b || !w) return;
+    const o = rel(btn);
+    Object.assign(g.style, { left: `${o.x}px`, top: `${o.y}px`, width: `${o.w}px`, height: `${o.h}px`, opacity: '0', transform: 'none' });
     w.style.opacity = '0';
-    const ease = 'cubic-bezier(0.34, 1.25, 0.64, 1)';
-    b.animate([{ opacity: 0.55, transform: 'scaleX(1)' }, { opacity: 0, transform: 'scaleX(0.3)' }], { duration: 320, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
-    const fly = g.animate(
+    const show = () => {
+      w.style.opacity = '';
+      g.style.opacity = '0';
+      [g, g.children[0], g.children[1]].forEach((el) => (el as HTMLElement).getAnimations().forEach((a) => a.cancel()));
+    };
+    if (!wasMelted) {
+      // Closed before it melted: the orb simply fades back in its place.
+      w.animate([{ opacity: 0, transform: 'scale(0.9)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: SPRING }).finished.then(show, show);
+      return;
+    }
+    const from = toLine({ x: b.offsetLeft, y: b.offsetTop, w: b.offsetWidth, h: b.offsetHeight });
+    b.animate([{ opacity: 0.6, transform: 'scaleX(1)' }, { opacity: 0, transform: 'scaleX(0.3)' }], { duration: 300, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill });
+    g.animate(
       [
-        { transform: `translate(${m.dx}px, ${m.dy}px) scale(${m.sx}, ${m.sy})`, opacity: 0 },
-        { transform: `translate(${m.dx * 0.3}px, ${m.dy * 0.35}px) scale(0.9, 1.1)`, opacity: 1, offset: 0.55 },
+        { transform: from, opacity: 0 },
+        { transform: 'scale(0.94, 1.06)', opacity: 1, offset: 0.72 },
         { transform: 'none', opacity: 1 },
       ],
-      { duration: 620, easing: ease, fill: 'forwards' },
-    );
-    (g.children[0] as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: 620, fill: 'forwards' });
-    (g.children[1] as HTMLElement).animate([{ opacity: 1 }, { opacity: 1, offset: 0.4 }, { opacity: 0 }], { duration: 620, fill: 'forwards' });
-    fly.finished
-      .then(() => {
-        w.style.opacity = '';
-        g.getAnimations().forEach((a) => a.cancel());
-        Array.from(g.children).forEach((c) => (c as HTMLElement).getAnimations().forEach((a) => a.cancel()));
-      })
-      .catch(() => (w.style.opacity = ''));
+      { duration: 640, easing: SPRING, fill },
+    ).finished.then(show, show);
+    (g.children[0] as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: 0.4 }, { opacity: 1 }], { duration: 640, fill });
+    (g.children[1] as HTMLElement).animate([{ opacity: 1 }, { opacity: 1, offset: 0.45 }, { opacity: 0 }], { duration: 640, fill });
   }, [typing]);
 
   // The hero stays while listening, so the orb doesn't move when tapped.
@@ -194,6 +265,20 @@ export function AssistantTab() {
 
   return (
     <div ref={root} className="relative flex h-full flex-col">
+      {/* morph overlay: the orb's double and the glow band */}
+      <div ref={ghost} aria-hidden className="pointer-events-none absolute z-30 origin-center will-change-transform" style={{ opacity: 0, left: 0, top: 0 }}>
+        <div className="absolute inset-0 grid place-items-center rounded-full bg-fg text-bg">
+          <MicGlyph size={33} />
+        </div>
+        <div
+          className="absolute inset-0 rounded-full opacity-0"
+          style={{ background: 'radial-gradient(closest-side, var(--ai-2), var(--ai-1) 60%, transparent)', filter: 'blur(4px)' }}
+        />
+      </div>
+      <div ref={band} aria-hidden className="pointer-events-none absolute z-40 overflow-hidden rounded-full will-change-transform" style={{ opacity: 0 }}>
+        <div className="absolute inset-y-0 left-0 w-1/3" style={{ background: 'linear-gradient(90deg, transparent, rgb(255 255 255 / 0.95), transparent)', filter: 'blur(3px)' }} />
+        <div className="absolute inset-0 -z-10 rounded-full" style={{ background: 'linear-gradient(90deg, transparent, var(--ai-1) 18%, var(--ai-2) 50%, var(--ai-3) 82%, transparent)', filter: 'blur(3px)' }} />
+      </div>
       <Header
         title="Ассистент"
         subtitle={
@@ -260,20 +345,6 @@ export function AssistantTab() {
 
       {/* text field — steps aside while listening */}
       <div ref={inputBox} className="pb-tabbar relative shrink-0 px-4">
-        {/* morph overlay: the orb's double and the glow band */}
-        <div ref={ghost} aria-hidden className="pointer-events-none absolute z-30 will-change-transform" style={{ opacity: 0, left: 0, top: 0 }}>
-          <div className="absolute inset-0 grid place-items-center rounded-full bg-fg text-bg">
-            <MicGlyph size={33} />
-          </div>
-          <div
-            className="absolute inset-0 rounded-full opacity-0"
-            style={{ background: 'radial-gradient(closest-side, var(--ai-2), var(--ai-1) 60%, transparent)', filter: 'blur(4px)' }}
-          />
-        </div>
-        <div ref={band} aria-hidden className="pointer-events-none absolute z-20 overflow-hidden rounded-full will-change-transform" style={{ opacity: 0 }}>
-          <div className="absolute inset-y-0 left-0 w-1/3" style={{ background: 'linear-gradient(90deg, transparent, rgb(255 255 255 / 0.95), transparent)', filter: 'blur(3px)' }} />
-          <div className="absolute inset-0 -z-10 rounded-full" style={{ background: 'linear-gradient(90deg, transparent, var(--ai-1) 18%, var(--ai-2) 50%, var(--ai-3) 82%, transparent)', filter: 'blur(3px)' }} />
-        </div>
         <div
           className="transition-[opacity,transform] duration-500 ease-spring"
           style={{ opacity: listening ? 0 : 1, transform: listening ? 'translateY(12px) scale(0.97)' : 'none', pointerEvents: listening ? 'none' : undefined }}
@@ -289,12 +360,8 @@ export function AssistantTab() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onFocus={() => {
-                if (!TOUCH) return;
-                spread();
-                setTyping(true);
-              }}
-              onBlur={() => setTyping(false)}
+              onFocus={onFieldFocus}
+              onBlur={onFieldBlur}
               placeholder="Или напишите…"
               enterKeyHint="send"
               tabIndex={listening ? -1 : 0}
