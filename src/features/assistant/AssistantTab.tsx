@@ -166,7 +166,7 @@ export function AssistantTab() {
     stopMelt();
     const solid = g.children[0] as HTMLElement, glow = g.children[1] as HTMLElement, shine = b.firstElementChild as HTMLElement;
     const t0 = performance.now();
-    const D = 600;
+    const D = 680;
     let bandOn = false, shineOn = false;
     const step = (now: number) => {
       const x = Math.min(1, (now - t0) / D);
@@ -174,11 +174,16 @@ export function AssistantTab() {
       const l = placeBand();
       const o = { x: g.offsetLeft, y: g.offsetTop, w: g.offsetWidth, h: g.offsetHeight };
       const dx = (l.x + l.w / 2 - (o.x + o.w / 2)) * e, dy = (l.y + l.h / 2 - (o.y + o.h / 2)) * e;
-      g.style.transform = `translate(${dx}px, ${dy}px) scale(${1 + (l.w / o.w - 1) * e}, ${1 + (l.h / o.h - 1) * e})`;
-      g.style.opacity = String(1 - smooth(0.55, 1, x));
-      solid.style.opacity = String(1 - smooth(0.12, 0.5, x));
-      glow.style.opacity = String(smooth(0.05, 0.4, x));
-      if (!bandOn && x > 0.4) {
+      // First it softens into a glowing ball (a gentle bloom, still round), travels down,
+      // and only near the field stretches out into the line — a melt, never a squash.
+      const bloom = 1 + 0.18 * smooth(0, 0.3, x) * (1 - smooth(0.45, 0.8, x));
+      const sx = bloom + (l.w / o.w - 1) * smooth(0.45, 1, x);
+      const sy = bloom + (l.h / o.h - bloom) * smooth(0.55, 1, x);
+      g.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+      g.style.opacity = String(1 - smooth(0.7, 1, x));
+      solid.style.opacity = String(1 - smooth(0, 0.32, x));
+      glow.style.opacity = String(smooth(0, 0.28, x));
+      if (!bandOn && x > 0.5) {
         bandOn = true;
         b.animate(
           [
