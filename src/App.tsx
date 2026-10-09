@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TabId } from '@/types';
 import { TabBar } from '@/components/TabBar';
 import { Toast } from '@/components/Toast';
@@ -30,10 +30,20 @@ const SCREENS: Record<TabId, () => React.JSX.Element> = {
 export default function App() {
   const tab = useUIStore((s) => s.tab);
   const setTab = useUIStore((s) => s.setTab);
-  const Screen = SCREENS[tab];
-  // Listeners live on the stable outer box (<main> is re-created on every tab change).
+  // Listeners live on the stable outer box.
   const shell = useRef<HTMLDivElement>(null);
   const prev = useRef<TabId>(tab);
+  // Screens are built once and then only shown / hidden — switching never rebuilds a whole tab
+  // (that was a 250–400 ms freeze on a phone). The others are built in the background after start.
+  const [built, setBuilt] = useState<TabId[]>([tab]);
+  const panes = useRef<Partial<Record<TabId, HTMLElement | null>>>({});
+  useEffect(() => {
+    if (!built.includes(tab)) setBuilt((b) => [...b, tab]);
+  }, [tab, built]);
+  useEffect(() => {
+    const t = window.setTimeout(() => setBuilt([...TAB_ORDER]), 1200);
+    return () => window.clearTimeout(t);
+  }, []);
   // Data lives on the server too: two-way sync (reminders are computed there).
   useServerSync();
   useShortcutInbox();
@@ -50,10 +60,19 @@ export default function App() {
     for (const t of p.tasks) if (t.done && (t.completedAt ?? t.createdAt) < cutoff) p.deleteTask(t.id);
   }, []);
 
-  // Slide the new screen in from the side it is on.
-  const dir = TAB_ORDER.indexOf(tab) - TAB_ORDER.indexOf(prev.current);
-  prev.current = tab;
-  const enter = dir > 0 ? 'animate-slide-right' : dir < 0 ? 'animate-slide-left' : 'animate-fade-in';
+  // Slide the new screen in from the side it is on (compositor-only: transform + opacity).
+  useLayoutEffect(() => {
+    const dir = TAB_ORDER.indexOf(tab) - TAB_ORDER.indexOf(prev.current);
+    prev.current = tab;
+    if (!dir) return;
+    panes.current[tab]?.animate(
+      [
+        { transform: `translateX(${dir > 0 ? 40 : -40}px)`, opacity: 0.4 },
+        { transform: 'none', opacity: 1 },
+      ],
+      { duration: 450, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' },
+    );
+  }, [tab]);
 
   const onSwipe = useCallback(
     (d: 'left' | 'right') => {
@@ -70,9 +89,26 @@ export default function App() {
 
   return (
     <div ref={shell} className="app-height relative mx-auto flex max-w-md flex-col overflow-hidden bg-bg">
-      <main key={tab} className={`${enter} min-h-0 flex-1`}>
-        <Screen />
-      </main>
+      <div className="relative min-h-0 flex-1">
+        {TAB_ORDER.filter((t) => built.includes(t) || t === tab).map((t) => {
+          const Screen = SCREENS[t];
+          const on = t === tab;
+          return (
+            <main
+              key={t}
+              ref={(el) => {
+                panes.current[t] = el;
+              }}
+              aria-hidden={!on}
+              inert={!on}
+              className="absolute inset-0"
+              style={{ visibility: on ? 'visible' : 'hidden', contentVisibility: on ? 'visible' : 'hidden', zIndex: on ? 1 : 0 }}
+            >
+              <Screen />
+            </main>
+          );
+        })}
+      </div>
       <Toast />
       <TabBar />
       <SettingsSheet />

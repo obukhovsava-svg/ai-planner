@@ -8,7 +8,7 @@ import { aiStatus } from '@/lib/ai';
 import { ChatBubble } from './ChatBubble';
 import { handleUtterance } from './brain';
 import { useSpeechRecognition } from './useSpeechRecognition';
-import { VoiceOrb } from './VoiceOrb';
+import { MicGlyph, VoiceOrb } from './VoiceOrb';
 
 /** How long a completed action stays on screen before it dissolves. */
 const DISMISS_AFTER = 6000;
@@ -46,6 +46,14 @@ export function AssistantTab() {
   const ai = useSyncExternalStore(aiStatus.subscribe, aiStatus.get);
   const showToast = useUIStore((s) => s.showToast);
   const scroller = useRef<HTMLDivElement>(null);
+  // The orb ↔ glow morph when the keyboard comes and goes (see spread / gather below).
+  const root = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const orbBtn = useRef<HTMLButtonElement>(null);
+  const orbWrap = useRef<HTMLDivElement>(null);
+  const ghost = useRef<HTMLDivElement>(null);
+  const band = useRef<HTMLDivElement>(null);
+  const morph = useRef<{ dx: number; dy: number; sx: number; sy: number } | null>(null);
 
   const exchanges = useMemo(() => {
     const out: Exchange[] = [];
@@ -96,11 +104,108 @@ export function AssistantTab() {
     else speech.start();
   };
 
+  /**
+   * Keyboard up: the orb melts upwards into a soft glow along the top, a highlight runs across
+   * it (Gemini-style); keyboard down: the glow gathers back into the orb. Drawn by an overlay with
+   * transform / opacity only, so the layout can switch at once underneath without a single janky frame.
+   */
+  const cancelMorph = () => [ghost.current, band.current, band.current?.firstElementChild as HTMLElement | null, orbWrap.current].forEach((el) => el?.getAnimations().forEach((a) => a.cancel()));
+  const placeGhost = () => {
+    const btn = orbBtn.current, r0 = root.current, c = content.current, g = ghost.current, b = band.current;
+    if (!btn || !r0 || !c || !g || !b) return null;
+    const r = btn.getBoundingClientRect(), box = r0.getBoundingClientRect(), top = c.getBoundingClientRect().top;
+    if (!r.width) return null;
+    const size = r.width, x = r.left - box.left, y = r.top - box.top;
+    Object.assign(g.style, { width: `${size}px`, height: `${size}px`, left: `${x}px`, top: `${y}px` });
+    const bandW = box.width - 32, bandH = 14, by = top - box.top + 6;
+    Object.assign(b.style, { left: '16px', width: `${bandW}px`, top: `${by}px`, height: `${bandH}px` });
+    return { dx: box.width / 2 - (x + size / 2), dy: by + bandH / 2 - (y + size / 2), sx: bandW / size, sy: bandH / size };
+  };
+  const spread = () => {
+    cancelMorph();
+    const m = placeGhost();
+    morph.current = m;
+    if (!m) return;
+    const g = ghost.current!, b = band.current!, shine = b.firstElementChild as HTMLElement;
+    const ease = 'cubic-bezier(0.32, 0.72, 0, 1)';
+    g.animate(
+      [
+        { transform: 'none', opacity: 1 },
+        { transform: `translate(${m.dx * 0.2}px, ${m.dy * 0.3}px) scale(1.12, 0.86)`, opacity: 1, offset: 0.3 },
+        { transform: `translate(${m.dx}px, ${m.dy}px) scale(${m.sx}, ${m.sy})`, opacity: 0 },
+      ],
+      { duration: 560, easing: ease, fill: 'forwards' },
+    );
+    (g.children[0] as HTMLElement).animate([{ opacity: 1 }, { opacity: 0, offset: 0.45 }, { opacity: 0 }], { duration: 560, fill: 'forwards' });
+    (g.children[1] as HTMLElement).animate([{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1 }], { duration: 560, fill: 'forwards' });
+    b.animate(
+      [
+        { opacity: 0, transform: 'scaleX(0.35)' },
+        { opacity: 1, transform: 'scaleX(1.02)', offset: 0.55 },
+        { opacity: 0.55, transform: 'scaleX(1)' },
+      ],
+      { duration: 900, delay: 220, easing: ease, fill: 'forwards' },
+    );
+    shine.animate([{ transform: 'translateX(-120%)', opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: `translateX(${b.offsetWidth * 1.1}px)`, opacity: 0 }], {
+      duration: 900,
+      delay: 420,
+      easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      fill: 'forwards',
+    });
+  };
+  const wasTyping = useRef(false);
+  useLayoutEffect(() => {
+    if (typing || !wasTyping.current) {
+      wasTyping.current = typing;
+      return;
+    }
+    wasTyping.current = false;
+    // Keyboard down: the orb is back in the layout (invisible) — fly the glow into it.
+    cancelMorph();
+    const m = placeGhost();
+    const g = ghost.current, b = band.current, w = orbWrap.current;
+    if (!m || !g || !b || !w) return;
+    w.style.opacity = '0';
+    const ease = 'cubic-bezier(0.34, 1.25, 0.64, 1)';
+    b.animate([{ opacity: 0.55, transform: 'scaleX(1)' }, { opacity: 0, transform: 'scaleX(0.3)' }], { duration: 320, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
+    const fly = g.animate(
+      [
+        { transform: `translate(${m.dx}px, ${m.dy}px) scale(${m.sx}, ${m.sy})`, opacity: 0 },
+        { transform: `translate(${m.dx * 0.3}px, ${m.dy * 0.35}px) scale(0.9, 1.1)`, opacity: 1, offset: 0.55 },
+        { transform: 'none', opacity: 1 },
+      ],
+      { duration: 620, easing: ease, fill: 'forwards' },
+    );
+    (g.children[0] as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: 620, fill: 'forwards' });
+    (g.children[1] as HTMLElement).animate([{ opacity: 1 }, { opacity: 1, offset: 0.4 }, { opacity: 0 }], { duration: 620, fill: 'forwards' });
+    fly.finished
+      .then(() => {
+        w.style.opacity = '';
+        g.getAnimations().forEach((a) => a.cancel());
+        Array.from(g.children).forEach((c) => (c as HTMLElement).getAnimations().forEach((a) => a.cancel()));
+      })
+      .catch(() => (w.style.opacity = ''));
+  }, [typing]);
+
   // The hero stays while listening, so the orb doesn't move when tapped.
   const showHero = !visible && !thinking;
 
   return (
-    <div className="flex h-full flex-col">
+    <div ref={root} className="relative flex h-full flex-col">
+      {/* morph overlay: the orb's double and the glow band */}
+      <div ref={ghost} aria-hidden className="pointer-events-none absolute z-30 will-change-transform" style={{ opacity: 0, left: 0, top: 0 }}>
+        <div className="absolute inset-0 grid place-items-center rounded-full bg-fg text-bg">
+          <MicGlyph size={33} />
+        </div>
+        <div
+          className="absolute inset-0 rounded-full opacity-0"
+          style={{ background: 'radial-gradient(closest-side, var(--ai-2), var(--ai-1) 60%, transparent)', filter: 'blur(4px)' }}
+        />
+      </div>
+      <div ref={band} aria-hidden className="pointer-events-none absolute z-20 overflow-hidden rounded-full will-change-transform" style={{ opacity: 0 }}>
+        <div className="absolute inset-y-0 left-0 w-1/3" style={{ background: 'linear-gradient(90deg, transparent, rgb(255 255 255 / 0.95), transparent)', filter: 'blur(3px)' }} />
+        <div className="absolute inset-0 -z-10 rounded-full" style={{ background: 'linear-gradient(90deg, transparent, var(--ai-1) 18%, var(--ai-2) 50%, var(--ai-3) 82%, transparent)', filter: 'blur(5px)' }} />
+      </div>
       <Header
         title="Ассистент"
         subtitle={
@@ -117,7 +222,7 @@ export function AssistantTab() {
 
       {/* Idle: welcome + orb in the middle. With a conversation the orb moves to the top
           and the messages scroll below it. */}
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div ref={content} className="flex min-h-0 flex-1 flex-col">
         <div className="transition-[flex-grow] duration-700 ease-spring" style={{ flexGrow: showHero ? 1 : 0 }} />
 
         <Collapse open={showHero}>
@@ -132,9 +237,9 @@ export function AssistantTab() {
         </Collapse>
 
         {/* voice orb — steps aside while the keyboard is up */}
-        <Collapse open={!typing}>
-          <div className="flex shrink-0 flex-col items-center gap-1 pt-1">
-            <VoiceOrb size={showHero ? 92 : 72} listening={listening} level={speech.level} visible={!typing} onPress={toggleMic} />
+        <Collapse open={!typing} instant={TOUCH}>
+          <div ref={orbWrap} className="flex shrink-0 flex-col items-center gap-1 pt-1">
+            <VoiceOrb ref={orbBtn} size={showHero ? 92 : 72} listening={listening} level={speech.level} onPress={toggleMic} />
             <div className="flex min-h-6 items-center px-6 text-center">
               {listening ? (
                 <p key="interim" className={`animate-fade-in max-w-full truncate text-[17px] ${speech.interim ? 'text-fg' : 'text-shimmer'}`}>
@@ -182,7 +287,11 @@ export function AssistantTab() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onFocus={() => TOUCH && setTyping(true)}
+              onFocus={() => {
+                if (!TOUCH) return;
+                spread();
+                setTyping(true);
+              }}
               onBlur={() => setTyping(false)}
               placeholder="Или напишите…"
               enterKeyHint="send"
@@ -273,7 +382,7 @@ function Thinking() {
  * showing: take the space first, then fade in — so a clipped edge is never visible.
  * Uses max-height (animatable everywhere, incl. older iOS WebViews).
  */
-function Collapse({ open, children }: { open: boolean; children: ReactNode }) {
+function Collapse({ open, children, instant }: { open: boolean; children: ReactNode; instant?: boolean }) {
   const inner = useRef<HTMLDivElement>(null);
   const [h, setH] = useState<number | undefined>(undefined);
   useLayoutEffect(() => {
@@ -292,9 +401,13 @@ function Collapse({ open, children }: { open: boolean; children: ReactNode }) {
         opacity: open ? 1 : 0,
         overflow: 'hidden',
         pointerEvents: open ? undefined : 'none',
-        transition: open
-          ? 'max-height 0.42s var(--spring), opacity 0.35s ease 0.18s'
-          : 'opacity 0.22s ease, max-height 0.42s var(--spring) 0.16s',
+        // instant: the keyboard is resizing the screen anyway — switch the layout in one step
+        // (the orb ↔ glow morph is drawn on top), instead of animating heights frame by frame.
+        transition: instant
+          ? 'none'
+          : open
+            ? 'max-height 0.42s var(--spring), opacity 0.35s ease 0.18s'
+            : 'opacity 0.22s ease, max-height 0.42s var(--spring) 0.16s',
       }}
     >
       <div ref={inner}>{children}</div>
