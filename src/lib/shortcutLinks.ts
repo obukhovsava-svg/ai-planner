@@ -5,7 +5,7 @@
  */
 export const SHORTCUT_LINKS = {
   /** «Обои ПЛАН» → «Установить обои» (+ automations: every morning, after closing the app). */
-  wallpaper: '',
+  wallpaper: 'https://www.icloud.com/shortcuts/0089142e767e4fa6958f1a33e8db4434',
   /** Telegram version of «Обои ПЛАН»: fetches the drawn wallpaper by the personal link → «Установить обои». */
   wallpaperTelegram: 'https://www.icloud.com/shortcuts/b703e3dd94ad4efca89c9a2ad9f44752',
   /** Telegram version of the voice button «Планер» (asks for the personal link on install). */
