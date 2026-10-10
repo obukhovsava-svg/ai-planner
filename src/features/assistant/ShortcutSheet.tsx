@@ -113,7 +113,7 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
                 <div>
                   <p className="text-[16px] font-semibold">Установите команду</p>
                   <p className="mt-0.5 text-[14px] leading-snug text-muted">
-                    Откроется Safari и скачает файл → нажмите на него (или «Открыть в „Командах“») → «Добавить команду» → вставьте ссылку.
+                    Откроются «Команды» → вставьте скопированную ссылку → «Добавить команду».
                   </p>
                 </div>
               </div>
@@ -121,7 +121,7 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
                 type="button"
                 onClick={() => {
                   haptic.impact('medium');
-                  openExternal(FILE_URL);
+                  openExternal(SHORTCUT_LINKS.voiceTelegram || FILE_URL);
                 }}
                 className="flex w-full items-center justify-center gap-1.5 border-t-[0.5px] border-line bg-blue py-3 text-[16px] font-semibold text-white transition-opacity active:opacity-80"
               >
