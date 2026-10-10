@@ -724,6 +724,44 @@ async function sendDue(env: Env) {
   }
 }
 
+/** Runs one dictated phrase on the user's server copy; returns the answer for the notification. */
+async function runShortcut(env: Env, user: string, tz: number, text: string): Promise<{ answer: string; doc: PlannerDoc | null }> {
+  // The Shortcut waits for the result and shows it as an iPhone notification.
+  const now = localNow(tz);
+  // Simple phrases: offline rules, instantly. Otherwise the model.
+  const r = rulesFirst(text, tz) ?? (await llm(env, text, now.today, now.weekday, now.time, ''));
+  const actions = r.ok ? (r.data.actions ?? []).map((a: any) => guardNoteMode(a, text)) : null;
+
+  // Run it on the server copy right away; only what needs the user goes to the app.
+  let changed = false;
+  let savedDoc: PlannerDoc | null = null;
+  let lines: string[] = [];
+  let unresolved: any[] | null = actions;
+  if (actions?.length) {
+    const stored = await loadDoc(env, user);
+    const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), nowMinutes: timeToMinutes(now.time), newId: () => crypto.randomUUID() });
+    lines = res.lines;
+    unresolved = res.unresolved;
+    changed = JSON.stringify(res.doc) !== JSON.stringify(stored.doc);
+    if (changed) await saveDoc(env, user, res.doc, stored.tz ?? tz);
+    savedDoc = res.doc;
+  }
+  if (!actions || unresolved?.length) {
+    await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
+      .bind(user, text, actions ? JSON.stringify(unresolved) : null, Date.now())
+      .run();
+  }
+  const body = lines.join('; ');
+  const pending = !actions || unresolved?.length ? 'Нужно уточнение — вопрос ждёт в ассистенте.' : '';
+  // "Готово ✅" only when something changed; answers to questions (schedule, a note) come as they are.
+  const answer = lines.length
+    ? `${changed ? 'Готово ✅ ' : ''}${body.charAt(0).toUpperCase()}${body.slice(1)}${/[.:]$/.test(body) ? '' : '.'}${pending ? ` ${pending}` : ''}`
+    : r.ok && r.data.reply && !unresolved?.length
+      ? String(r.data.reply)
+      : `Нужно уточнение — вопрос ждёт в ассистенте.`;
+  return { answer, doc: changed ? savedDoc : null };
+}
+
 export default {
   async scheduled(controller: { cron?: string }, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
     ctx.waitUntil(controller.cron === '0 3 * * *' ? rollAllReminders(env) : Promise.all([sendDue(env), sendDigests(env)]));
@@ -854,38 +892,30 @@ export default {
       text = text.slice(0, MAX_TEXT).trim();
       if (!text) return plain('Не расслышал — попробуйте ещё раз.', 400);
 
-      // The Shortcut waits for the result and shows it as an iPhone notification.
-      const now = localNow(u.tz ?? 0);
-      // Simple phrases: offline rules, instantly. Otherwise the model.
-      const r = rulesFirst(text, u.tz ?? 0) ?? (await llm(env, text, now.today, now.weekday, now.time, ''));
-      const actions = r.ok ? (r.data.actions ?? []).map((a: any) => guardNoteMode(a, text)) : null;
+      return plain((await runShortcut(env, u.user_id, u.tz ?? 0, text)).answer);
+    }
 
-      // Run it on the server copy right away; only what needs the user goes to the app.
-      let changed = false;
-      let lines: string[] = [];
-      let unresolved: any[] | null = actions;
-      if (actions?.length) {
-        const stored = await loadDoc(env, u.user_id);
-        const res = execute(stored.doc, actions, { today: now.today, now: Date.now(), nowMinutes: timeToMinutes(now.time), newId: () => crypto.randomUUID() });
-        lines = res.lines;
-        unresolved = res.unresolved;
-        changed = JSON.stringify(res.doc) !== JSON.stringify(stored.doc);
-        if (changed) await saveDoc(env, u.user_id, res.doc, stored.tz ?? u.tz ?? 0);
-      }
-      if (!actions || unresolved?.length) {
-        await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
-          .bind(u.user_id, text, actions ? JSON.stringify(unresolved) : null, Date.now())
-          .run();
-      }
-      const body = lines.join('; ');
-      const pending = !actions || unresolved?.length ? 'Нужно уточнение — вопрос ждёт в ассистенте.' : '';
-      // "Готово ✅" only when something changed; answers to questions (schedule, a note) come as they are.
-      const answer = lines.length
-        ? `${changed ? 'Готово ✅ ' : ''}${body.charAt(0).toUpperCase()}${body.slice(1)}${/[.:]$/.test(body) ? '' : '.'}${pending ? ` ${pending}` : ''}`
-        : r.ok && r.data.reply && !unresolved?.length
-          ? String(r.data.reply)
-          : `Нужно уточнение — вопрос ждёт в ассистенте.`;
-      return plain(answer);
+    // The iOS app's «Добавить в ПЛАН» (App Intent, works with the app closed): same as above, the
+    // account is the device key; answers with the text and the fresh list of local reminders.
+    if (request.method === 'POST' && url.pathname === '/shortcut/device') {
+      const user = await authUser(request, env);
+      if (!user || !isDeviceUser(user)) return json({ error: 'unauthorized' }, 401, headers);
+      if (rateLimited(`s:${user}`)) return json({ error: 'rate_limited' }, 429, headers);
+      ctx.waitUntil(track(env, 'shortcut', user));
+      const body = (await request.json().catch(() => ({}))) as { text?: string; tz?: number };
+      const text = String(body.text ?? '').slice(0, MAX_TEXT).trim();
+      if (!text) return json({ answer: 'Не расслышал — попробуйте ещё раз.', reminders: null }, 200, headers);
+      const tz = Number.isFinite(body.tz) ? Math.round(body.tz!) : 0;
+      const res = await runShortcut(env, user, tz, text);
+      const reminders = res.doc
+        ? reminderInstances(res.doc.events, res.doc.tasks, { today: localNow(tz).today, tz })
+            .slice(0, 60)
+            .map((r) => {
+              const [title, ...rest] = r.text.split('\n');
+              return { id: r.rid, at: r.at, title: title.replace(/^⏰\s*/, ''), body: rest.join('\n'), open: r.rid };
+            })
+        : null;
+      return json({ answer: res.answer, reminders }, 200, headers);
     }
 
     // Personal key for the Shortcut (issued to the signed-in Mini App user).

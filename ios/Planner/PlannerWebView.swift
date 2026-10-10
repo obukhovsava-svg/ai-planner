@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PhotosUI
 import WebKit
 
 /// The connection between the interface and iOS: messages from the page
@@ -38,6 +39,14 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
     case "widget":
       if let raw = body["snapshot"], let data = try? JSONSerialization.data(withJSONObject: raw, options: .sortedKeys) {
         WidgetStore.save(data)
+      }
+    case "wallpaper":
+      switch body["action"] as? String {
+      case "pick": pickWallpaperPhoto()
+      case "reset":
+        WallpaperStore.reset()
+        sendWallpaperState()
+      default: sendWallpaperState()
       }
     case "theme":
       // Read by PlannerApp (@AppStorage) → the window starts in this theme next time, no flash.
@@ -215,5 +224,42 @@ extension WKWebView {
       subclass = made
     }
     if let subclass { object_setClass(content, subclass) }
+  }
+}
+
+
+// MARK: - Wallpaper photo
+
+extension Bridge: PHPickerViewControllerDelegate {
+  func pickWallpaperPhoto() {
+    var config = PHPickerConfiguration()
+    config.filter = .images
+    config.selectionLimit = 1
+    let picker = PHPickerViewController(configuration: config)
+    picker.delegate = self
+    var top = webView?.window?.rootViewController
+    while let presented = top?.presentedViewController { top = presented }
+    top?.present(picker, animated: true)
+  }
+
+  func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+    picker.dismiss(animated: true)
+    guard let provider = results.first?.itemProvider, provider.canLoadObject(ofClass: UIImage.self) else { return }
+    provider.loadObject(ofClass: UIImage.self) { object, _ in
+      guard let image = object as? UIImage else { return }
+      Task { @MainActor in
+        WallpaperStore.save(image)
+        self.sendWallpaperState()
+      }
+    }
+  }
+
+  /// Tells the page whether a photo is set and sends a small preview of the wallpaper.
+  func sendWallpaperState() {
+    let preview = WallpaperRenderer.render(scale: 1)?.jpegData(compressionQuality: 0.8).map { "data:image/jpeg;base64,\($0.base64EncodedString())" }
+    var payload: [String: Any] = ["hasPhoto": WallpaperStore.hasPhoto]
+    if let preview { payload["preview"] = preview }
+    guard let data = try? JSONSerialization.data(withJSONObject: payload), let json = String(data: data, encoding: .utf8) else { return }
+    call("window.__plannerWallpaper && window.__plannerWallpaper(\(json))")
   }
 }

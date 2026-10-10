@@ -5,6 +5,7 @@ import { getShortcutLink } from '@/lib/shortcut';
 import { haptic, openExternal } from '@/lib/telegram';
 import { hasServerAuth } from '@/lib/auth';
 import { isNative } from '@/lib/native';
+import { SHORTCUT_LINKS } from '@/lib/shortcutLinks';
 
 /** The signed Shortcut file, served next to the app; Safari hands it to «Команды». */
 // In the iOS app the page is served from the app bundle, so point Safari at the published copy.
@@ -51,7 +52,31 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
           Нажали кнопку на экране «Домой» → продиктовали → ассистент всё записал, а бот прислал «Готово ✅». Работает, даже когда планер закрыт.
         </p>
 
-        {!inTelegram ? (
+        {isNative() ? (
+          // iOS app: «Добавить в ПЛАН» is built in — Siri and the Action button work right away;
+          // the ready-made Shortcut adds a Home Screen icon in one tap.
+          <>
+            <div className="rounded-[16px] bg-surface px-4 py-3.5 text-[15px] leading-snug">
+              Уже работает: скажите <b>«Привет, Siri, добавь в Планер»</b> или назначьте Кнопке действия: Настройки → Кнопка действия → Команда →
+              «Планер: Добавить в план».
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                haptic.impact('medium');
+                openExternal(SHORTCUT_LINKS.voice || 'shortcuts://');
+              }}
+              className="flex h-[50px] items-center justify-center gap-2 rounded-[14px] bg-blue text-[17px] font-semibold text-white active:opacity-80"
+            >
+              <Download className="size-4" strokeWidth={2.4} /> Добавить кнопку на экран «Домой»
+            </button>
+            <p className="px-1 text-[13px] leading-snug text-muted">
+              {SHORTCUT_LINKS.voice
+                ? 'Откроются «Команды» → «Добавить команду». Потом удерживайте её → «Поделиться» → «На экран „Домой“».'
+                : 'В «Командах»: «+» → действие «Добавить в ПЛАН» → «Поделиться» → «На экран „Домой“».'}
+            </p>
+          </>
+        ) : !inTelegram ? (
           <p className="rounded-[16px] bg-surface px-4 py-3.5 text-[15px]">Откройте планер в Telegram, чтобы получить личную ссылку.</p>
         ) : (
           <>

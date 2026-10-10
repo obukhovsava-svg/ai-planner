@@ -16,6 +16,8 @@ nonisolated struct WidgetSnapshot: Codable, Sendable {
     let title: String
     let time: String?
     let done: Bool
+    /// High priority (marked «!» on the wallpaper).
+    var hi: Bool? = nil
   }
 
   struct Day: Codable, Sendable {
@@ -27,6 +29,7 @@ nonisolated struct WidgetSnapshot: Codable, Sendable {
   struct Late: Codable, Hashable, Sendable {
     let title: String
     let date: String
+    var hi: Bool? = nil
   }
 
   struct Inbox: Codable, Hashable, Sendable {
