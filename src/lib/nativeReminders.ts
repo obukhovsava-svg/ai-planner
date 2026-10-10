@@ -52,7 +52,7 @@ function widgetSnapshot(): WidgetSnapshot {
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 10)
     .map((t) => ({ title: t.title }));
-  return { days, overdue: late.length, late: late.slice(0, 10), inbox };
+  return { days, overdue: late.length, late: late.slice(0, 10), inbox, at: Date.now() };
 }
 
 export function useNativeReminders() {
@@ -64,7 +64,11 @@ export function useNativeReminders() {
       timer = window.setTimeout(push, 800);
     });
     // Recurring items roll forward: refresh when the app comes back to the foreground.
-    const onVisible = () => document.visibilityState === 'visible' && push();
+    // Coming back: recurring items roll forward. Leaving: send what's pending right away.
+    const onVisible = () => {
+      window.clearTimeout(timer);
+      push();
+    };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       unsub();

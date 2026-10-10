@@ -971,7 +971,7 @@ export default {
       const tz = Number.isFinite(body.tz) ? Math.round(body.tz!) : 0;
       const res = await runShortcut(env, user, tz, text);
       const reminders = res.doc ? nativeReminders(res.doc, tz) : null;
-      const snapshot = res.doc ? widgetSnapshot(res.doc, localNow(tz).today) : null;
+      const snapshot = res.doc ? { ...widgetSnapshot(res.doc, localNow(tz).today), at: Date.now() } : null;
       return json({ answer: res.answer, reminders, snapshot }, 200, headers);
     }
 
@@ -983,7 +983,9 @@ export default {
       const body = (await request.json().catch(() => ({}))) as { tz?: number };
       const stored = await loadDoc(env, user);
       const tz = Number.isFinite(body.tz) ? Math.round(body.tz!) : (stored.tz ?? 0);
-      return json({ snapshot: widgetSnapshot(stored.doc, localNow(tz).today), reminders: nativeReminders(stored.doc, tz) }, 200, headers);
+      const { results } = await env.DB.prepare('SELECT updated_at FROM state WHERE user_id = ?1').bind(user).all<{ updated_at: number }>();
+      const at = results[0]?.updated_at ?? 0;
+      return json({ snapshot: { ...widgetSnapshot(stored.doc, localNow(tz).today), at }, reminders: nativeReminders(stored.doc, tz), at }, 200, headers);
     }
 
     // The Mini App uploads the drawn wallpaper for a day (body: JPEG as base64 text, ?day=YYYY-MM-DD).

@@ -25,9 +25,12 @@ enum BackgroundSync {
     return true
   }
 
-  /// Saves the widget snapshot (same format the page sends) and reschedules local reminders.
+  /// Saves the widget snapshot (same format the page sends) and reschedules local reminders —
+  /// unless what's on the phone is newer (a change made in the app that hasn't reached the server).
   @MainActor
   static func apply(snapshot: Any?, reminders: Any?) {
+    let serverAt = ((snapshot as? [String: Any])?["at"] as? NSNumber)?.doubleValue ?? 0
+    if let local = WidgetStore.loadedAt(), local > serverAt + 1000 { return }
     if let snapshot, let data = try? JSONSerialization.data(withJSONObject: snapshot, options: .sortedKeys) {
       WidgetStore.save(data)
     }

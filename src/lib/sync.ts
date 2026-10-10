@@ -21,7 +21,7 @@ const localDoc = (): PlannerDoc => {
   return { tasks, events, deleted };
 };
 
-export async function syncNow() {
+export async function syncNow(leaving = false) {
   if (!hasServerAuth()) return;
   if (inFlight) {
     again = true;
@@ -34,6 +34,8 @@ export async function syncNow() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ doc, tz: new Date().getTimezoneOffset() }),
+      // leaving the app: let the request finish even if the page gets suspended
+      keepalive: leaving,
     });
     if (!res.ok) return;
     const merged = (await res.json()).doc as PlannerDoc;
@@ -70,7 +72,15 @@ export function useServerSync() {
       if (JSON.stringify(localDoc()) === lastSynced) return;
       schedule();
     });
-    const onVisible = () => document.visibilityState === 'visible' && syncNow();
+    // Back in the app → pull; leaving it → push unsent changes right now (the wallpaper Shortcut
+    // or Telegram may read the server copy a second later).
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') syncNow();
+      else if (JSON.stringify(localDoc()) !== lastSynced) {
+        window.clearTimeout(timer);
+        syncNow(true);
+      }
+    };
     document.addEventListener('visibilitychange', onVisible);
     const tick = window.setInterval(() => document.visibilityState === 'visible' && syncNow(), 30_000);
     return () => {

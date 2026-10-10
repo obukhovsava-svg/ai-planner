@@ -76,9 +76,25 @@ nonisolated enum WidgetStore {
   /// Saves what the interface sent and asks iOS to redraw the widget — only if something changed,
   /// since widget reloads are rationed.
   static func save(_ data: Data) {
-    guard let file, (try? Data(contentsOf: file)) != data else { return }
+    guard let file else { return }
+    let old = try? Data(contentsOf: file)
+    guard old != data else { return }
     try? data.write(to: file, options: .atomic)
-    WidgetCenter.shared.reloadAllTimelines()
+    // Only a real change redraws the widgets (the freshness stamp alone doesn't count).
+    if content(old) != content(data) { WidgetCenter.shared.reloadAllTimelines() }
+  }
+
+  private static func content(_ data: Data?) -> NSDictionary? {
+    guard let data, var obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+    obj["at"] = nil
+    return obj as NSDictionary
+  }
+
+  /// When the saved snapshot was current (ms since 1970), if it says.
+  static func loadedAt() -> Double? {
+    guard let file, let data = try? Data(contentsOf: file),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+    return (obj["at"] as? NSNumber)?.doubleValue
   }
 
   static func load() -> WidgetSnapshot {

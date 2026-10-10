@@ -35,6 +35,8 @@ export interface WidgetSnapshot {
   /** The same overdue tasks, oldest first, and undone tasks without a date (newest first). */
   late: { title: string; date: string; hi?: boolean }[];
   inbox: { title: string }[];
+  /** When this data was current (ms) — older server copies don't overwrite it. */
+  at: number;
 }
 
 declare global {
