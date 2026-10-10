@@ -31,6 +31,19 @@
   .gmore { font-size: 12px; font-weight: 600; opacity: .5; margin-top: 2px; }
   /* preview-only iOS chrome */
   .ios { position: absolute; left: 0; right: 0; text-align: center; color: rgb(255 255 255 / 0.92); pointer-events: none; }
+  .half { top: 262px; width: 182px; height: 428px; padding: 12px 10px 10px 12px; }
+  .hh { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .cnt { margin-left: auto; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgb(255 255 255 / 0.16); }
+  .ev { display: flex; gap: 7px; padding: 5px 6px 5px 0; margin: 0 0 4px -4px; padding-left: 4px; border-radius: 10px; }
+  .ev .bar { width: 3.5px; border-radius: 2px; flex-shrink: 0; }
+  .evt { min-width: 0; }
+  .evn { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .evtime { font-size: 11px; font-weight: 500; opacity: .75; margin-top: 1px; }
+  .tk { display: flex; align-items: center; gap: 7px; height: 40px; border-bottom: 0.5px solid rgb(255 255 255 / 0.1); }
+  .tk:last-child { border: 0; }
+  .tk .c { width: 16px; height: 16px; border-radius: 50%; border: 1.8px solid rgb(255 255 255 / .7); flex-shrink: 0; display: grid; place-items: center; }
+  .tn { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .td { font-size: 11.5px; font-weight: 600; flex-shrink: 0; }
   .label { position: absolute; left: 0; right: 0; bottom: -26px; text-align: center; color: #aaa; font-size: 13px; }
 </style>
 </head>
@@ -40,72 +53,60 @@
 <div id="Ap" class="wp"></div>
 <div id="Bp" class="wp"></div>
 <script>
-// Sample week: Mon 5 – Sun 11 Oct 2026, today = Sat 10
-const TODAY = 10;
+// Sample: Saturday 10 Oct, 17:15
 const C = { blue: '#0a84ff', red: '#ff453a', violet: '#bf5af2', green: '#30d158', amber: '#ff9f0a' };
-const week = [
-  { wd: 'П', d: 5, items: [{ t: '9:30', n: 'Планёрка', c: 'blue' }, { t: '19:00', n: 'Тренировка', c: 'red' }] },
-  { wd: 'В', d: 6, items: [{ t: '8:35', n: 'Ответить Ане', task: true, done: true }, { t: '16:30', n: 'Врач', c: 'green' }], more: 1 },
-  { wd: 'С', d: 7, items: [{ t: '18:00', n: 'Купить продукты', task: true, done: true }, { t: '20:00', n: 'Ужин', c: 'violet' }] },
-  { wd: 'Ч', d: 8, items: [{ t: '15:00', n: 'Созвон', c: 'blue' }, { t: '19:00', n: 'Тренировка', c: 'red' }], more: 2 },
-  { wd: 'П', d: 9, items: [{ t: '10:00', n: 'Учёба', c: 'amber' }, { t: '15:00', n: 'Созвон с командой', c: 'blue' }] },
-  { wd: 'С', d: 10, items: [{ t: '12:00', n: 'Поездка за город', c: 'green', big: true }, { t: '18:00', n: 'Оплатить интернет', task: true }], more: 3 },
-  { wd: 'В', d: 11, items: [{ t: '11:00', n: 'Бранч', c: 'violet' }] },
+const plans = [
+  { s: '09:30', e: '10:30', n: 'Планёрка', c: 'blue', past: true },
+  { s: '12:00', e: '15:00', n: 'Поездка за город', c: 'green', past: true },
+  { s: '17:00', e: '18:00', n: 'Созвон с командой', c: 'blue', now: true },
+  { s: '19:00', e: '20:30', n: 'Тренировка', c: 'red' },
+  { s: '21:00', e: '22:00', n: 'Ужин с родителями', c: 'violet' },
 ];
-const groups = [
-  { k: 'fire', title: 'Важно и срочно', color: '#ff453a', n: 3, rows: [['Сдать отчёт', 'вчера', true], ['Позвонить врачу', '18:00'], ['Оплатить аренду', 'завтра']] },
-  { k: 'cal', title: 'Важно', color: '#0a84ff', n: 5, rows: [['Подготовить презентацию', '14 окт.'], ['Записаться к стоматологу', '16 окт.'], ['Продлить страховку', '22 окт.']], more: 2 },
-  { k: 'bolt', title: 'Срочно', color: '#ffd60a', n: 4, rows: [['Забрать посылку', '16:00'], ['Купить продукты', '18:30'], ['Полить цветы', 'завтра']], more: 1 },
-  { k: 'list', title: 'Когда-нибудь', color: '#98989f', n: 2, rows: [['Прочитать «Атомные привычки»', ''], ['Разобрать фото', '']] },
+const tasks = [
+  { n: 'Сдать отчёт', d: 'вчера', late: true, hi: true },
+  { n: 'Оплатить интернет', d: '18:00' },
+  { n: 'Купить продукты', d: '' },
+  { n: 'Позвонить маме', d: '', done: true },
+  { n: 'Забрать посылку', d: '20:00' },
+  { n: 'Полить цветы', d: '' },
+  { n: 'Записаться к врачу', d: '' },
 ];
-const icons = {
-  fire: (c) => `<svg width="15" height="15" viewBox="0 0 24 24" fill="${c}"><path d="M12 2c1 3.5 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 2 1.5 3 2.5 3 0-3-1.5-5 .5-9.5Z"/></svg>`,
-  cal: (c) => `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.4" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>`,
-  bolt: (c) => `<svg width="15" height="15" viewBox="0 0 24 24" fill="${c}"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>`,
-  list: (c) => `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`,
-};
 const brand = 'linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae)';
+const MAXP = 7, MAXT = 9;
 
 function render(el, variant, preview) {
   const B = variant === 'B';
-  // background: a placeholder for the user's own photo (in the app you pick it once)
   const bg = B
     ? `<div class="bg" style="background:radial-gradient(120% 70% at 80% 0%,#3b3a8f 0%,transparent 60%),radial-gradient(90% 60% at 0% 100%,#7a3d6e 0%,transparent 60%),linear-gradient(180deg,#0d1025,#141433 55%,#1d1230)"></div>`
-    : `<div class="bg" style="background:radial-gradient(90% 50% at 70% 25%,#e8a05c 0%,transparent 55%),linear-gradient(180deg,#2f4f73 0%,#5b7aa0 35%,#c98a5a 62%,#3b2a2a 100%)"></div>
-`;
+    : `<div class="bg" style="background:radial-gradient(90% 50% at 70% 25%,#e8a05c 0%,transparent 55%),linear-gradient(180deg,#2f4f73 0%,#5b7aa0 35%,#c98a5a 62%,#3b2a2a 100%)"></div>`;
   const cardCls = 'card glass' + (B ? ' brand' : '');
-  const days = week.map((w) => {
-    const today = w.d === TODAY;
-    const chips = w.items.map((it) => {
-      if (it.task) return `<div class="chip task">${it.t ? `<i>${it.t}</i>` : ''}${it.done ? '✓ ' : '○ '}${it.n}</div>`;
-      const col = C[it.c];
-      if (it.big) return `<div class="chip" style="background:${col};color:#fff">${it.n}</div>`;
-      return `<div class="chip" style="background:${col}33;box-shadow:inset 2.5px 0 0 ${col}"><i>${it.t}</i>${it.n}</div>`;
-    }).join('');
-    const dn = today
-      ? `<div class="dn" style="${B ? `background:${brand};color:#fff` : 'background:#fff;color:#000'}">${w.d}</div>`
-      : `<div class="dn">${w.d}</div>`;
-    return `<div class="day"><div class="wd" style="${today ? 'opacity:1' : ''}">${w.wd}</div>${dn}${chips}${w.more ? `<div class="more">+${w.more}</div>` : ''}</div>`;
+  const accent = B ? '#a9bcff' : '#fff';
+  const head = (icon, title, n) => `<div class="hh">${icon}<span>${title}</span><span class="cnt">${n}</span></div>`;
+  const calIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${accent}" stroke-width="2.4" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>`;
+  const chkIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${accent}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="m8 12.5 3 3 5-6.5"/></svg>`;
+  const pl = plans.slice(0, MAXP).map((p) => {
+    const col = C[p.c];
+    return `<div class="ev${p.now ? ' now' : ''}" style="${p.now ? `background:${col}38;` : ''}opacity:${p.past ? 0.45 : 1}">
+      <span class="bar" style="background:${col}"></span>
+      <div class="evt"><div class="evn">${p.n}</div><div class="evtime">${p.now ? `<b style="color:${col === C.blue ? '#64b5ff' : col}">сейчас</b> · до ${p.e}` : `${p.s} – ${p.e}`}</div></div></div>`;
   }).join('');
-  const grid = groups.map((g, i) => {
-    const x = 14 + (i % 2) * 192, y = 396 + Math.floor(i / 2) * 160;
-    const color = B && g.k === 'cal' ? '#8fb0ff' : g.color;
-    const rows = g.rows.map(([t, d, late]) => `<div class="row" style="color:${color}"><span class="c"></span><span class="t">${t}</span>${d ? `<span class="d" style="color:${late ? '#ff453a' : color}">${d}</span>` : ''}</div>`).join('');
-    const badgeBg = B && g.k === 'cal' ? brand : g.k === 'list' ? 'rgb(255 255 255 / 0.22)' : g.color;
-    return `<div class="${cardCls} grp" style="left:${x}px;top:${y}px">
-      <div class="gh" style="color:${color}">${icons[g.k](color)}<span>${g.title}</span><span class="badge" style="background:${badgeBg};${g.k === 'bolt' ? 'color:#1c1c1e' : ''}">${g.n}</span></div>
-      ${rows}${g.more ? `<div class="gmore">+${g.more} ещё</div>` : ''}</div>`;
-  }).join('');
+  const tk = tasks.slice(0, MAXT).map((t) => `<div class="tk" style="opacity:${t.done ? 0.45 : 1}">
+      <span class="c" style="${t.done ? `background:${B ? '#a48bfa' : '#fff'};border-color:transparent` : t.late ? 'border-color:#ff453a' : ''}">${t.done ? `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="${B ? '#fff' : '#000'}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>` : ''}</span>
+      <span class="tn" style="${t.done ? 'text-decoration:line-through' : ''}">${t.hi && !t.done ? '<b style="color:#ff453a">!</b> ' : ''}${t.n}</span>
+      ${t.d ? `<span class="td" style="color:${t.late ? '#ff453a' : 'rgb(255 255 255 / .6)'}">${t.d}</span>` : ''}</div>`).join('');
   const brandEdge = B ? `<style>#${el.id} .brand{box-shadow:inset 0 0 0 0.5px rgb(255 255 255 / 0.14),0 0 0 0.75px rgb(164 139 250 / 0.35),0 10px 30px rgb(40 30 90 / 0.35)}</style>` : '';
-  const stamp = `<div style="position:absolute;right:20px;top:${396 + 2 * 160 + 2}px;font-size:9px;font-weight:600;color:rgb(255 255 255 / .45)">ПЛАН · обновлено 17:15</div>`;
   const ios = preview
     ? `<div class="ios" style="top:52px;font-size:20px;font-weight:600">Сб, 10 октября</div>
        <div class="ios" style="top:66px;font-size:112px;font-weight:700;letter-spacing:-2px;font-family:system-ui">17:15</div>
-       <div style="position:absolute;left:46px;bottom:44px;width:50px;height:50px;border-radius:50%;background:rgb(0 0 0 / .35);backdrop-filter:blur(10px)"></div>
-       <div style="position:absolute;right:46px;bottom:44px;width:50px;height:50px;border-radius:50%;background:rgb(0 0 0 / .35);backdrop-filter:blur(10px)"></div>
+       <div style="position:absolute;left:46px;bottom:44px;width:50px;height:50px;border-radius:50%;background:rgb(0 0 0 / .35)"></div>
+       <div style="position:absolute;right:46px;bottom:44px;width:50px;height:50px;border-radius:50%;background:rgb(0 0 0 / .35)"></div>
        <div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#fff"></div>`
     : '';
-  el.innerHTML = brandEdge + bg + `<div class="${cardCls} week">${days}</div>` + grid + stamp + ios;
+  const done = tasks.filter((t) => t.done).length;
+  el.innerHTML = brandEdge + bg +
+    `<div class="${cardCls} half" style="left:14px">${head(calIcon, 'Планы', plans.filter((p) => !p.past).length)}${pl}</div>` +
+    `<div class="${cardCls} half" style="left:206px">${head(chkIcon, 'Задачи', `${done}/${tasks.length}`)}${tk}</div>` +
+    `<div style="position:absolute;right:20px;top:696px;font-size:9px;font-weight:600;color:rgb(255 255 255 / .45)">ПЛАН · обновлено 17:15</div>` + ios;
 }
 render(document.getElementById('A'), 'A', false);
 render(document.getElementById('B'), 'B', false);
