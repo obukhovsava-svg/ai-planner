@@ -7,7 +7,7 @@ import { haptic } from '@/lib/telegram';
 import { digestAvailable, loadDigest, saveDigest, sendDigestSample, sendFeedback, serverSettingsAvailable, type DigestSettings } from '@/lib/settings';
 import type { ThemeMode } from '@/types';
 import { isNative } from '@/lib/native';
-import { WallpaperSettings } from './WallpaperSettings';
+import { TelegramWallpaperSettings, WallpaperSettings } from './WallpaperSettings';
 
 const fieldClass = 'block w-full appearance-none rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
 
@@ -149,7 +149,7 @@ export function SettingsSheet() {
         </Group>
         )}
 
-        {isNative() && <WallpaperSettings open={open} />}
+        {isNative() ? <WallpaperSettings open={open} /> : digestAvailable() && <TelegramWallpaperSettings open={open} />}
 
         <Group title="Задачи" footer={hideDone ? 'Выполненные остаются до конца дня, а на следующий день исчезают из списка.' : 'Выполненные задачи остаются в списке, пока вы их не удалите.'}>
           <Row icon={<CheckCheck className="size-[18px]" />} iconBg="bg-green" label="Скрывать выполненные">

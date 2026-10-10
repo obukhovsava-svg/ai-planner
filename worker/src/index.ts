@@ -290,6 +290,28 @@ async function onTelegramUpdate(update: any, env: Env) {
   });
 }
 
+/* ------------------------------------------------------------ Lock-screen wallpaper (Telegram users) */
+// The Mini App draws the wallpaper (today + tomorrow) and uploads it; the user's Shortcut fetches
+// today's image by the personal link and sets it with «Установить обои».
+
+let wallpaperReady = false;
+async function ensureWallpaper(env: Env) {
+  if (wallpaperReady) return;
+  // Stored as base64 text: D1 hands text back fast (a BLOB comes back as a huge number array).
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS wallpaper_b64 (user_id TEXT NOT NULL, day TEXT NOT NULL, img TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (user_id, day))').run();
+  wallpaperReady = true;
+}
+const MAX_WALLPAPER = 1_900_000; // base64 chars (~1.4 MB JPEG)
+
+function fromBase64(b64: string): Uint8Array {
+  const U = Uint8Array as unknown as { fromBase64?: (s: string) => Uint8Array };
+  if (U.fromBase64) return U.fromBase64(b64);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 /* ------------------------------------------------------------ Usage stats (/stats, admin only) */
 
 let statsReady = false;
@@ -916,6 +938,37 @@ export default {
             })
         : null;
       return json({ answer: res.answer, reminders }, 200, headers);
+    }
+
+    // The Mini App uploads the drawn wallpaper for a day (body: JPEG as base64 text, ?day=YYYY-MM-DD).
+    if (request.method === 'POST' && url.pathname === '/wallpaper') {
+      const user = await authUser(request, env);
+      if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
+      const day = url.searchParams.get('day') ?? '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ error: 'bad_day' }, 400, headers);
+      const img = (await request.text()).replace(/^data:image\/\w+;base64,/, '');
+      if (!img.length || img.length > MAX_WALLPAPER || !/^[A-Za-z0-9+/=]+$/.test(img.slice(0, 200))) return json({ error: 'bad_image' }, 413, headers);
+      await ensureWallpaper(env);
+      await env.DB.batch([
+        env.DB.prepare('INSERT INTO wallpaper_b64 (user_id, day, img, updated_at) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id, day) DO UPDATE SET img = ?3, updated_at = ?4').bind(user, day, img, Date.now()),
+        env.DB.prepare('DELETE FROM wallpaper_b64 WHERE user_id = ?1 AND day < ?2').bind(user, addDaysKey(day, -2)),
+      ]);
+      return json({ ok: true }, 200, headers);
+    }
+    // The Shortcut: today's wallpaper by the personal link (same key as the voice Shortcut).
+    const wp = url.pathname.match(/^\/wallpaper\/([0-9a-f]{20,64})(?:\.jpg)?$/);
+    if (request.method === 'GET' && wp) {
+      const u = await shortcutUser(env, wp[1]);
+      if (!u) return new Response('Неверная ссылка', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      await ensureWallpaper(env);
+      const today = localNow(u.tz ?? 0).today;
+      // Today's image (drawn the day before as "tomorrow" if the planner wasn't opened since).
+      const { results } = await env.DB.prepare('SELECT img FROM wallpaper_b64 WHERE user_id = ?1 AND day <= ?2 ORDER BY day DESC LIMIT 1')
+        .bind(u.user_id, today)
+        .all<{ img: string }>();
+      const raw = results[0]?.img;
+      if (!raw) return new Response('Откройте планер в Telegram, чтобы нарисовать обои', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      return new Response(fromBase64(raw) as unknown as BodyInit, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' } });
     }
 
     // Personal key for the Shortcut (issued to the signed-in Mini App user).
