@@ -120,7 +120,8 @@ export function useWallpaperSync() {
     const kick = () => {
       if (!wallpaperOn()) return;
       window.clearTimeout(t);
-      t = window.setTimeout(() => void uploadWallpapers(), 4000);
+      // short pause: the picture must be on the server by the time you leave Telegram
+      t = window.setTimeout(() => void uploadWallpapers(), 1200);
     };
     kick();
     const unsub = usePlannerStore.subscribe(kick);
