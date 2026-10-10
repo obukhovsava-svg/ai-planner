@@ -5,6 +5,11 @@ import UserNotifications
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
   func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
     UNUserNotificationCenter.current().delegate = self
+    BackgroundSync.register()
+    BackgroundSync.schedule()
+    NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
+      MainActor.assumeIsolated { BackgroundSync.schedule() }
+    }
     #if DEBUG
     // PLANNER_TEST_INTENT=wallpaper|add — runs a Shortcuts action in-process and prints the outcome.
     if let which = ProcessInfo.processInfo.environment["PLANNER_TEST_INTENT"] {

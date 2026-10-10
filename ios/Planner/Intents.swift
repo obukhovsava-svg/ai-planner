@@ -11,6 +11,8 @@ struct UpdateWallpaperIntent: AppIntent {
 
   @MainActor
   func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+    // Fresh data first (changes from Telegram, the voice button…), then draw. Offline → last known.
+    await BackgroundSync.refresh(timeout: 6)
     // JPEG: ~7× smaller than PNG — «Установить обои» running in the background copes better.
     guard let image = WallpaperRenderer.render(), let data = image.jpegData(compressionQuality: 0.9) else {
       throw IntentError.message("Не получилось нарисовать обои")
@@ -38,16 +40,15 @@ struct AddToPlanIntent: AppIntent {
     request.setValue(DeviceKey.value, forHTTPHeaderField: "X-Device-Key")
     let tz = -TimeZone.current.secondsFromGMT() / 60 // same sign as JS getTimezoneOffset()
     request.httpBody = try JSONSerialization.data(withJSONObject: ["text": text, "tz": tz])
-    struct Reply: Decodable {
-      let answer: String
-      let reminders: [Reminders.Item]?
-    }
     do {
       let (data, _) = try await URLSession.shared.data(for: request)
-      let reply = try JSONDecoder().decode(Reply.self, from: data)
-      // New reminders become the app's own notifications right away, even if it isn't opened.
-      if let items = reply.reminders { Reminders.schedule(items) }
-      return .result(dialog: IntentDialog(stringLiteral: reply.answer))
+      guard let reply = try JSONSerialization.jsonObject(with: data) as? [String: Any], let answer = reply["answer"] as? String else {
+        return .result(dialog: "Нет связи с сервером — попробуйте ещё раз.")
+      }
+      // New reminders become the app's own notifications right away, and the widgets update,
+      // even if the app isn't opened.
+      BackgroundSync.apply(snapshot: reply["snapshot"].flatMap { $0 is NSNull ? nil : $0 }, reminders: reply["reminders"].flatMap { $0 is NSNull ? nil : $0 })
+      return .result(dialog: IntentDialog(stringLiteral: answer))
     } catch {
       return .result(dialog: "Нет связи с сервером — попробуйте ещё раз.")
     }

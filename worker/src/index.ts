@@ -1,5 +1,6 @@
 import { mergeDocs, emptyDoc, type PlannerDoc } from '../../src/lib/merge';
 import { reminderInstances } from '../../src/lib/reminderCore';
+import { occursOn } from '../../src/lib/recurrence';
 import { execute } from './exec';
 import { buildDigest, DEFAULT_DIGEST, minutesOf, type DigestSettings } from './digest';
 import { buildIcs } from './ics';
@@ -288,6 +289,46 @@ async function onTelegramUpdate(update: any, env: Env) {
     text: 'Всё планирование — внутри приложения. Откройте планер и скажите ассистенту, что добавить 👇\n\n/today — план на сегодня, /tomorrow — на завтра',
     reply_markup: openButton(env),
   });
+}
+
+/* ------------------------------------------------------------ iOS app in the background */
+// The app's widgets, wallpaper and local reminders, computed from the server copy — so they stay
+// fresh even when the planner hasn't been opened (same shape as src/lib/nativeReminders.ts).
+
+function widgetSnapshot(doc: PlannerDoc, today: string) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = addDaysKey(today, i);
+    return {
+      date,
+      events: doc.events
+        .filter((e) => occursOn(e, date))
+        .sort((a, b) => a.start.localeCompare(b.start))
+        .map((e) => ({ title: e.title, start: e.start, end: e.end, color: e.color })),
+      tasks: doc.tasks
+        .filter((t) => t.date === date)
+        .sort((a, b) => Number(a.done) - Number(b.done) || (a.time ?? '99').localeCompare(b.time ?? '99'))
+        .map((t) => ({ title: t.title, time: t.time, done: t.done, hi: t.priority === 'high' || undefined })),
+    };
+  });
+  const late = doc.tasks
+    .filter((t) => !t.done && t.date && t.date < today)
+    .sort((a, b) => a.date!.localeCompare(b.date!))
+    .map((t) => ({ title: t.title, date: t.date!, hi: t.priority === 'high' || undefined }));
+  const inbox = doc.tasks
+    .filter((t) => !t.done && !t.date)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 10)
+    .map((t) => ({ title: t.title }));
+  return { days, overdue: late.length, late: late.slice(0, 10), inbox };
+}
+
+function nativeReminders(doc: PlannerDoc, tz: number) {
+  return reminderInstances(doc.events, doc.tasks, { today: localNow(tz).today, tz })
+    .slice(0, 60)
+    .map((r) => {
+      const [title, ...rest] = r.text.split('\n');
+      return { id: r.rid, at: r.at, title: title.replace(/^⏰\s*/, ''), body: rest.join('\n'), open: r.rid };
+    });
 }
 
 /* ------------------------------------------------------------ Lock-screen wallpaper (Telegram users) */
@@ -929,15 +970,20 @@ export default {
       if (!text) return json({ answer: 'Не расслышал — попробуйте ещё раз.', reminders: null }, 200, headers);
       const tz = Number.isFinite(body.tz) ? Math.round(body.tz!) : 0;
       const res = await runShortcut(env, user, tz, text);
-      const reminders = res.doc
-        ? reminderInstances(res.doc.events, res.doc.tasks, { today: localNow(tz).today, tz })
-            .slice(0, 60)
-            .map((r) => {
-              const [title, ...rest] = r.text.split('\n');
-              return { id: r.rid, at: r.at, title: title.replace(/^⏰\s*/, ''), body: rest.join('\n'), open: r.rid };
-            })
-        : null;
-      return json({ answer: res.answer, reminders }, 200, headers);
+      const reminders = res.doc ? nativeReminders(res.doc, tz) : null;
+      const snapshot = res.doc ? widgetSnapshot(res.doc, localNow(tz).today) : null;
+      return json({ answer: res.answer, reminders, snapshot }, 200, headers);
+    }
+
+    // iOS app in the background (wallpaper action, background refresh): the fresh widget data
+    // and local reminders from the server copy.
+    if (request.method === 'POST' && url.pathname === '/snapshot') {
+      const user = await authUser(request, env);
+      if (!user || !isDeviceUser(user)) return json({ error: 'unauthorized' }, 401, headers);
+      const body = (await request.json().catch(() => ({}))) as { tz?: number };
+      const stored = await loadDoc(env, user);
+      const tz = Number.isFinite(body.tz) ? Math.round(body.tz!) : (stored.tz ?? 0);
+      return json({ snapshot: widgetSnapshot(stored.doc, localNow(tz).today), reminders: nativeReminders(stored.doc, tz) }, 200, headers);
     }
 
     // The Mini App uploads the drawn wallpaper for a day (body: JPEG as base64 text, ?day=YYYY-MM-DD).
