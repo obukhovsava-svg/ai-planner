@@ -11,10 +11,11 @@ struct UpdateWallpaperIntent: AppIntent {
 
   @MainActor
   func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
-    guard let image = WallpaperRenderer.render(), let data = image.pngData() else {
+    // JPEG: ~7× smaller than PNG — «Установить обои» running in the background copes better.
+    guard let image = WallpaperRenderer.render(), let data = image.jpegData(compressionQuality: 0.9) else {
       throw IntentError.message("Не получилось нарисовать обои")
     }
-    return .result(value: IntentFile(data: data, filename: "plan-wallpaper.png", type: .png))
+    return .result(value: IntentFile(data: data, filename: "plan-wallpaper.jpg", type: .jpeg))
   }
 }
 
