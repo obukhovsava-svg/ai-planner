@@ -9,9 +9,9 @@ import { addDays, todayKey } from './date';
 import { authHeaders, hasServerAuth } from './auth';
 import { isNative } from './native';
 import { drawWallpaper } from './wallpaperRender';
-import { AI_URL } from '@/config';
+import { RELAY_URL } from '@/config';
 
-const API = AI_URL.replace(/\/$/, '');
+const API = RELAY_URL;
 const ON_KEY = 'planner:wallpaper-on';
 const SENT_KEY = 'planner:wallpaper-sent';
 
@@ -87,7 +87,7 @@ export async function renderWallpaper(date = todayKey()) {
   return drawWallpaper({ date, events, tasks }, await loadPhoto());
 }
 
-const jpeg = (c: HTMLCanvasElement) => c.toDataURL('image/jpeg', 0.78);
+const jpeg = (c: HTMLCanvasElement) => c.toDataURL('image/jpeg', 0.7);
 
 /** How many days ahead are drawn in advance: the Shortcut still finds the right day if the planner isn't opened. */
 const AHEAD = 3;
