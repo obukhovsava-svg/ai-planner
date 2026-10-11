@@ -1,0 +1,16 @@
+openapi: 3.0.0
+info:
+  title: plan-relay
+  version: 1.0.0
+paths:
+  /{proxy+}:
+    x-yc-apigateway-any-method:
+      parameters:
+        - name: proxy
+          in: path
+          required: true
+          schema:
+            type: string
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: FUNCTION_ID

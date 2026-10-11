@@ -335,6 +335,9 @@ function nativeReminders(doc: PlannerDoc, tz: number) {
 // The Mini App draws the wallpaper (today + tomorrow) and uploads it; the user's Shortcut fetches
 // today's image by the personal link and sets it with «Установить обои».
 
+// Links people put into Shortcuts and calendars go through the Russian relay (Cloud.ru
+// Container Apps, relay/cloudru-proxy.js): mobile networks in Russia throttle Cloudflare.
+const PUBLIC_ORIGIN = 'https://plan-relay.containerapps.ru';
 let wallpaperReady = false;
 async function ensureWallpaper(env: Env) {
   if (wallpaperReady) return;
@@ -897,7 +900,7 @@ export default {
       )
         .bind(user, token, tasks ? 1 : 0, Date.now())
         .run();
-      return json({ ...feedLinks(url.origin, token), tasks }, 200, headers);
+      return json({ ...feedLinks(PUBLIC_ORIGIN, token), tasks }, 200, headers);
     }
     const cal = url.pathname.match(/^\/cal\/([0-9a-f]{40,64})(\.ics)?$/);
     if (request.method === 'GET' && cal) {
@@ -905,7 +908,7 @@ export default {
       const { results } = await env.DB.prepare('SELECT user_id, tasks FROM calendar_feed WHERE token = ?1').bind(cal[1]).all<{ user_id: string; tasks: number }>();
       const feed = results[0];
       if (!feed) return new Response('Ссылка устарела — получите новую в планере: Настройки → Календарь iPhone.', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-      if (!cal[2]) return new Response(subscribePage(feedLinks(url.origin, cal[1])), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
+      if (!cal[2]) return new Response(subscribePage(feedLinks(PUBLIC_ORIGIN, cal[1])), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
       const { doc, tz } = await loadDoc(env, feed.user_id);
       const ics = buildIcs(doc, { today: localNow(tz ?? 0).today, appUrl: env.APP_URL, tasks: Boolean(feed.tasks) });
       return new Response(ics, {
@@ -1033,7 +1036,7 @@ export default {
       await env.DB.prepare('INSERT INTO users (user_id, token, tz) VALUES (?1, ?2, ?3) ON CONFLICT (user_id) DO UPDATE SET token = ?2, tz = ?3')
         .bind(user, token, tz)
         .run();
-      return json({ token, url: `${url.origin}/shortcut?key=${token}` }, 200, headers);
+      return json({ token, url: `${PUBLIC_ORIGIN}/shortcut?key=${token}` }, 200, headers);
     }
 
     // The bot sends the personal link to the chat: in Telegram a tap on <code> copies it, which
@@ -1047,7 +1050,7 @@ export default {
       const token = results[0]?.token;
       if (!token) return json({ error: 'no_token' }, 404, headers);
       const wallpaper = body.kind === 'wallpaper';
-      const link = wallpaper ? `${url.origin}/wallpaper/${token}.jpg` : `${url.origin}/shortcut?key=${token}`;
+      const link = wallpaper ? `${PUBLIC_ORIGIN}/wallpaper/${token}.jpg` : `${PUBLIC_ORIGIN}/shortcut?key=${token}`;
       const text = wallpaper
         ? `🖼 Ссылка для команды «Обои ПЛАН» — нажмите на неё, чтобы скопировать:\n\n<code>${link}</code>\n\nПотом откройте команду и вставьте ссылку. Никому её не пересылайте.`
         : `🎙 Ссылка для команды «Планер» — нажмите на неё, чтобы скопировать:\n\n<code>${link}</code>\n\nПотом откройте команду и вставьте ссылку. Никому её не пересылайте.`;
