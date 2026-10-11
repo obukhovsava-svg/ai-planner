@@ -87,25 +87,46 @@ export async function renderWallpaper(date = todayKey()) {
   return drawWallpaper({ date, events, tasks }, await loadPhoto());
 }
 
-const jpeg = (c: HTMLCanvasElement) => c.toDataURL('image/jpeg', 0.8);
+const jpeg = (c: HTMLCanvasElement) => c.toDataURL('image/jpeg', 0.78);
 
-/** Draws today + tomorrow and uploads them, unless nothing changed since the last upload. */
-export async function uploadWallpapers(force = false) {
+/** How many days ahead are drawn in advance: the Shortcut still finds the right day if the planner isn't opened. */
+const AHEAD = 3;
+
+function sentMap(): Record<string, string> {
+  try {
+    const v = JSON.parse(localStorage.getItem(SENT_KEY) ?? '{}');
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Draws and uploads today's wallpaper (`ahead` = also the next days), skipping days that
+ * haven't changed since their last upload. Today always goes first.
+ */
+export async function uploadWallpapers(force = false, ahead = true) {
   if (!hasServerAuth() || isNative()) return false;
   const { events, tasks } = usePlannerStore.getState();
   const today = todayKey();
   const photo = await loadPhotoBlob();
-  const sig = `${today}|${photo?.size ?? 0}|${JSON.stringify(events)}|${JSON.stringify(tasks.map((t) => [t.id, t.title, t.date, t.time, t.done, t.priority]))}`;
-  const hash = String(Array.from(sig).reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 7));
-  if (!force && localStorage.getItem(SENT_KEY) === hash) return true;
+  const sig = `${photo?.size ?? 0}|${JSON.stringify(events)}|${JSON.stringify(tasks.map((t) => [t.id, t.title, t.date, t.time, t.done, t.completedAt, t.priority]))}`;
+  const hash = (day: string) => String(Array.from(`${day}|${sig}`).reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 7));
+  const days = ahead ? Array.from({ length: AHEAD + 1 }, (_, i) => addDays(today, i)) : [today];
+  const sent = sentMap();
+  const todo = days.filter((d) => force || sent[d] !== hash(d));
+  if (!todo.length) return true;
   const img = photo ? await blobToImage(photo).catch(() => null) : null;
   try {
-    for (const day of [today, addDays(today, 1)]) {
+    for (const day of todo) {
       const body = jpeg(drawWallpaper({ date: day, events, tasks }, img));
-      const r = await fetch(`${API}/wallpaper?day=${day}`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'text/plain' }, body });
+      const r = await fetch(`${API}/wallpaper?day=${day}&today=${today}`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'text/plain' }, body });
       if (!r.ok) return false;
+      const next = sentMap();
+      for (const k of Object.keys(next)) if (k < today) delete next[k];
+      next[day] = hash(day);
+      localStorage.setItem(SENT_KEY, JSON.stringify(next));
     }
-    localStorage.setItem(SENT_KEY, hash);
     return true;
   } catch {
     return false;
@@ -117,20 +138,31 @@ export function useWallpaperSync() {
   useEffect(() => {
     if (isNative() || !hasServerAuth()) return;
     let t = 0;
+    let later = 0;
     const kick = () => {
       if (!wallpaperOn()) return;
       window.clearTimeout(t);
-      // short pause: the picture must be on the server by the time you leave Telegram
-      t = window.setTimeout(() => void uploadWallpapers(), 1200);
+      window.clearTimeout(later);
+      // today right away: the picture must be on the server by the time you leave Telegram;
+      // the days ahead once you've stopped editing
+      t = window.setTimeout(() => void uploadWallpapers(false, false), 500);
+      later = window.setTimeout(() => void uploadWallpapers(), 6000);
     };
     kick();
     const unsub = usePlannerStore.subscribe(kick);
-    const onVisible = () => document.visibilityState === 'visible' && kick();
-    document.addEventListener('visibilitychange', onVisible);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') return kick();
+      if (!wallpaperOn()) return;
+      window.clearTimeout(t);
+      window.clearTimeout(later);
+      void uploadWallpapers();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       unsub();
       window.clearTimeout(t);
-      document.removeEventListener('visibilitychange', onVisible);
+      window.clearTimeout(later);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 }

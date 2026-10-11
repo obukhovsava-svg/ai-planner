@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Check, Copy, Download, RefreshCw } from 'lucide-react';
 import { Sheet } from '@/components/Sheet';
-import { getShortcutLink } from '@/lib/shortcut';
+import { getShortcutLink, sendLinkToChat } from '@/lib/shortcut';
+import { copyText } from '@/lib/clipboard';
 import { haptic, openExternal } from '@/lib/telegram';
 import { hasServerAuth } from '@/lib/auth';
 import { isNative } from '@/lib/native';
@@ -31,18 +32,14 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const [sent, setSent] = useState(false);
   const copy = async () => {
     if (!link) return;
-    try {
-      await navigator.clipboard.writeText(link);
-    } catch {
-      // Older WebViews: select the text so the user can copy it manually.
-      const el = document.getElementById('shortcut-link') as HTMLInputElement | null;
-      el?.select();
-      document.execCommand?.('copy');
-    }
-    haptic.notify('success');
-    setCopied(true);
+    const ok = await copyText(link);
+    haptic.notify(ok ? 'success' : 'warning');
+    setCopied(ok);
+    // a copy in the chat as well: a tap there copies it for sure
+    if (!sent) void sendLinkToChat('voice').then(setSent);
   };
 
   return (
@@ -105,6 +102,7 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
                 {copied ? 'Скопировано' : 'Скопировать ссылку'}
               </button>
             </div>
+            {sent && <p className="-mt-2 px-1 text-[13px] leading-snug text-muted">Бот прислал ссылку в чат — если не вставляется, нажмите на неё там, и она скопируется.</p>}
 
             {/* Step 2 — install the ready-made Shortcut */}
             <div className="overflow-hidden rounded-[16px] bg-surface">
@@ -121,6 +119,8 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose(): voi
                 type="button"
                 onClick={() => {
                   haptic.impact('medium');
+                  // the link goes into the clipboard once more, in case step 1 was skipped
+                  if (link) void copyText(link);
                   openExternal(SHORTCUT_LINKS.voiceTelegram || FILE_URL);
                 }}
                 className="flex w-full items-center justify-center gap-1.5 border-t-[0.5px] border-line bg-blue py-3 text-[16px] font-semibold text-white transition-opacity active:opacity-80"

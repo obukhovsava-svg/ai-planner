@@ -71,3 +71,18 @@ export function useShortcutInbox() {
     };
   }, []);
 }
+
+/** The bot sends the personal link to the chat too — a tap on it copies it, even when the WebView can't. */
+export async function sendLinkToChat(kind: 'voice' | 'wallpaper'): Promise<boolean> {
+  if (!hasServerAuth()) return false;
+  try {
+    const res = await fetch(`${base()}/shortcut/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ kind }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

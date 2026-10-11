@@ -994,12 +994,15 @@ export default {
       if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
       const day = url.searchParams.get('day') ?? '';
       if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ error: 'bad_day' }, 400, headers);
+      const today = url.searchParams.get('today') ?? '';
+      const keepFrom = /^\d{4}-\d{2}-\d{2}$/.test(today) ? addDaysKey(today, -1) : addDaysKey(day, -2);
       const img = (await request.text()).replace(/^data:image\/\w+;base64,/, '');
       if (!img.length || img.length > MAX_WALLPAPER || !/^[A-Za-z0-9+/=]+$/.test(img.slice(0, 200))) return json({ error: 'bad_image' }, 413, headers);
       await ensureWallpaper(env);
       await env.DB.batch([
         env.DB.prepare('INSERT INTO wallpaper_b64 (user_id, day, img, updated_at) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id, day) DO UPDATE SET img = ?3, updated_at = ?4').bind(user, day, img, Date.now()),
-        env.DB.prepare('DELETE FROM wallpaper_b64 WHERE user_id = ?1 AND day < ?2').bind(user, addDaysKey(day, -2)),
+        // Days ahead are drawn in advance (for when the planner isn't opened), so keep from yesterday on.
+        env.DB.prepare('DELETE FROM wallpaper_b64 WHERE user_id = ?1 AND day < ?2').bind(user, keepFrom),
       ]);
       return json({ ok: true }, 200, headers);
     }
@@ -1031,6 +1034,25 @@ export default {
         .bind(user, token, tz)
         .run();
       return json({ token, url: `${url.origin}/shortcut?key=${token}` }, 200, headers);
+    }
+
+    // The bot sends the personal link to the chat: in Telegram a tap on <code> copies it, which
+    // works even where the Mini App can't write to the clipboard.
+    if (request.method === 'POST' && url.pathname === '/shortcut/send') {
+      const user = await authUser(request, env);
+      if (!user || user === 'anon' || isDeviceUser(user)) return json({ error: 'unauthorized' }, 401, headers);
+      if (rateLimited(`l:${user}`)) return json({ error: 'rate_limited' }, 429, headers);
+      const body = (await request.json().catch(() => ({}))) as { kind?: string };
+      const { results } = await env.DB.prepare('SELECT token FROM users WHERE user_id = ?1').bind(user).all<{ token: string }>();
+      const token = results[0]?.token;
+      if (!token) return json({ error: 'no_token' }, 404, headers);
+      const wallpaper = body.kind === 'wallpaper';
+      const link = wallpaper ? `${url.origin}/wallpaper/${token}.jpg` : `${url.origin}/shortcut?key=${token}`;
+      const text = wallpaper
+        ? `🖼 Ссылка для команды «Обои ПЛАН» — нажмите на неё, чтобы скопировать:\n\n<code>${link}</code>\n\nПотом откройте команду и вставьте ссылку. Никому её не пересылайте.`
+        : `🎙 Ссылка для команды «Планер» — нажмите на неё, чтобы скопировать:\n\n<code>${link}</code>\n\nПотом откройте команду и вставьте ссылку. Никому её не пересылайте.`;
+      const r = (await tg(env, 'sendMessage', { chat_id: user, parse_mode: 'HTML', text }).catch(() => null)) as { ok?: boolean } | null;
+      return json({ ok: Boolean(r?.ok) }, r?.ok ? 200 : 502, headers);
     }
 
     // The app collects what was dictated via the Shortcut and applies it locally.

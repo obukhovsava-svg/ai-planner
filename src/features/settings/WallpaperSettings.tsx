@@ -3,7 +3,8 @@ import { ImagePlus, RotateCcw, Wand2 } from 'lucide-react';
 import { postNative } from '@/lib/native';
 import { haptic, openExternal } from '@/lib/telegram';
 import { SHORTCUT_LINKS } from '@/lib/shortcutLinks';
-import { getShortcutLink } from '@/lib/shortcut';
+import { getShortcutLink, sendLinkToChat } from '@/lib/shortcut';
+import { copyText } from '@/lib/clipboard';
 import { clearPhoto, loadPhotoBlob, renderWallpaper, savePhoto, setWallpaperOn, uploadWallpapers, wallpaperOn } from '@/lib/wallpaper';
 
 /**
@@ -92,6 +93,7 @@ export function TelegramWallpaperSettings({ open }: { open: boolean }) {
   const [hasPhoto, setHasPhoto] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sent, setSent] = useState(false);
   const file = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
@@ -116,15 +118,13 @@ export function TelegramWallpaperSettings({ open }: { open: boolean }) {
 
   const copy = async () => {
     if (!link) return;
-    try {
-      await navigator.clipboard.writeText(link);
-    } catch {
-      /* the field below is selectable */
-    }
+    const ok = await copyText(link);
     setWallpaperOn();
     void uploadWallpapers(true);
-    haptic.notify('success');
-    setCopied(true);
+    haptic.notify(ok ? 'success' : 'warning');
+    setCopied(ok);
+    // a copy in the chat as well: a tap there copies it for sure
+    if (!sent) void sendLinkToChat('wallpaper').then(setSent);
   };
 
   return (
@@ -175,12 +175,15 @@ export function TelegramWallpaperSettings({ open }: { open: boolean }) {
           {copied ? 'Скопировано' : 'Скопировать ссылку'}
         </button>
       </div>
+      {sent && <p className="px-4 text-[13px] leading-snug text-muted">Бот прислал ссылку в чат — если не вставляется, нажмите на неё там, и она скопируется.</p>}
       <button
         type="button"
         onClick={() => {
           haptic.impact('medium');
           setWallpaperOn();
           void uploadWallpapers(true);
+          // the link goes into the clipboard once more, in case step 1 was skipped
+          if (link) void copyText(link);
           openExternal(SHORTCUT_LINKS.wallpaperTelegram || TG_FILE);
         }}
         className="flex h-[50px] items-center justify-center gap-2 rounded-[14px] bg-blue text-[17px] font-semibold text-white active:opacity-80"
