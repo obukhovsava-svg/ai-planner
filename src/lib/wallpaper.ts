@@ -116,6 +116,8 @@ export async function uploadWallpapers(force = false, ahead = true) {
   const sent = sentMap();
   const todo = days.filter((d) => force || sent[d] !== hash(d));
   if (!todo.length) return true;
+  // tell the server today's picture is on its way: a Shortcut started meanwhile waits for it
+  if (todo.includes(today)) void fetch(`${API}/wallpaper/pending`, { method: 'POST', headers: authHeaders(), keepalive: true }).catch(() => null);
   const img = photo ? await blobToImage(photo).catch(() => null) : null;
   try {
     for (const day of todo) {

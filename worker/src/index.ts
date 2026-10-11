@@ -342,7 +342,11 @@ let wallpaperReady = false;
 async function ensureWallpaper(env: Env) {
   if (wallpaperReady) return;
   // Stored as base64 text: D1 hands text back fast (a BLOB comes back as a huge number array).
-  await env.DB.prepare('CREATE TABLE IF NOT EXISTS wallpaper_b64 (user_id TEXT NOT NULL, day TEXT NOT NULL, img TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (user_id, day))').run();
+  await env.DB.batch([
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS wallpaper_b64 (user_id TEXT NOT NULL, day TEXT NOT NULL, img TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (user_id, day))'),
+    // "a fresh picture is on its way": set by the planner on every change, before it uploads
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS wallpaper_pending (user_id TEXT PRIMARY KEY, at INTEGER NOT NULL)'),
+  ]);
   wallpaperReady = true;
 }
 const MAX_WALLPAPER = 1_900_000; // base64 chars (~1.4 MB JPEG)
@@ -1009,6 +1013,14 @@ export default {
       ]);
       return json({ ok: true }, 200, headers);
     }
+    // The planner says a fresh picture is coming (sent right on a change, before the upload).
+    if (request.method === 'POST' && url.pathname === '/wallpaper/pending') {
+      const user = await authUser(request, env);
+      if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
+      await ensureWallpaper(env);
+      await env.DB.prepare('INSERT INTO wallpaper_pending (user_id, at) VALUES (?1, ?2) ON CONFLICT (user_id) DO UPDATE SET at = ?2').bind(user, Date.now()).run();
+      return json({ ok: true }, 200, headers);
+    }
     // The Shortcut: today's wallpaper by the personal link (same key as the voice Shortcut).
     const wp = url.pathname.match(/^\/wallpaper\/([0-9a-f]{20,64})(?:\.jpg)?$/);
     if (request.method === 'GET' && wp) {
@@ -1016,6 +1028,18 @@ export default {
       if (!u) return new Response('Неверная ссылка', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       await ensureWallpaper(env);
       const today = localNow(u.tz ?? 0).today;
+      // Closing Telegram right after a change starts the Shortcut while the planner is still
+      // uploading: wait for that upload (up to ~8 s) instead of handing out the old picture.
+      for (let i = 0; i < 20; i++) {
+        const { results: st } = await env.DB.prepare(
+          'SELECT p.at AS pending, (SELECT updated_at FROM wallpaper_b64 WHERE user_id = ?1 AND day = ?2) AS done FROM wallpaper_pending p WHERE p.user_id = ?1',
+        )
+          .bind(u.user_id, today)
+          .all<{ pending: number; done: number | null }>();
+        const p = st[0];
+        if (!p || (p.done ?? 0) >= p.pending || Date.now() - p.pending > 20_000) break;
+        await new Promise((r) => setTimeout(r, 400));
+      }
       // Today's image (drawn the day before as "tomorrow" if the planner wasn't opened since).
       const { results } = await env.DB.prepare('SELECT img FROM wallpaper_b64 WHERE user_id = ?1 AND day <= ?2 ORDER BY day DESC LIMIT 1')
         .bind(u.user_id, today)
