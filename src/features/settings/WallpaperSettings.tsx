@@ -222,6 +222,26 @@ export function TelegramWallpaperSettings({ open }: { open: boolean }) {
             title="Включите автообновление"
             hint="«Команды» → «Автоматизация» → «+» → «Приложение» → Telegram → отметьте «Закрыто» → «Запускать сразу» → «Далее» → «Обои ПЛАН». Теперь обои обновляются каждый раз, когда вы выходите из Telegram."
           />
+          <p className="px-4 text-[13px] leading-snug text-muted">
+            Ошибка «Такого размещения не существует»? Команде нужен iCloud Drive: Настройки → ваше имя → iCloud → iCloud Drive → включить. Не хотите iCloud —{' '}
+            <button
+              type="button"
+              disabled={!link}
+              className="text-blue active:opacity-60"
+              onClick={async () => {
+                if (!link) return;
+                // the old Shortcut asks for the link on install: put it in the clipboard and in the chat
+                setWallpaperOn();
+                void uploadWallpapers(true);
+                void copyText(link);
+                void sendLinkToChat('wallpaper').then(setSent);
+                openExternal(SHORTCUT_LINKS.wallpaperTelegram || TG_FILE);
+              }}
+            >
+              вариант без iCloud
+            </button>
+            : удалите «Обои ПЛАН», установите этот и вставьте ссылку, она уже скопирована и есть в чате с ботом.
+          </p>
         </>
       ) : (
         <>
