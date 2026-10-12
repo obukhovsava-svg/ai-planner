@@ -725,8 +725,8 @@ const NUDGES = [
   { after: 92 * 3_600_000, text: 'Последнее от меня 🙂 Если было некогда, напишите сюда любое дело, и я его запишу. А если планер не подошёл, ответьте одним словом почему: это очень поможет сделать его лучше.' },
 ];
 
-/** Off until the texts are approved. */
-const NUDGES_ON = false;
+/** Approved 13.10: on. */
+const NUDGES_ON = true;
 
 async function sendNudges(env: Env) {
   if (!NUDGES_ON) return;
