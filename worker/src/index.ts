@@ -21,7 +21,7 @@ import { analyze, guardNoteMode, isConfident, splitRequests } from '../../src/li
 interface D1Stmt {
   bind(...values: unknown[]): D1Stmt;
   all<T>(): Promise<{ results: T[] }>;
-  run(): Promise<unknown>;
+  run(): Promise<{ meta: { changes: number } }>;
 }
 interface D1Database {
   prepare(query: string): D1Stmt;
@@ -237,6 +237,22 @@ async function tg(env: Env, method: string, payload: unknown) {
 
 const escapeHtml = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
 
+/** The current announcement for /broadcast (a new key = a new announcement). */
+const BROADCAST = {
+  key: 'wallpaper-v2',
+  text: `🖼 <b>Планы и задачи прямо на экране блокировки</b>
+
+Планер теперь умеет ставить обои: слева планы на день, справа задачи. Обновляются сами.
+
+Как включить (2 минуты, только iPhone):
+1. Откройте планер → ⚙️ Настройки → «Обои экрана блокировки».
+2. Нажмите «Установить команду» → «Добавить команду».
+3. Вернитесь в планер и нажмите «Подключить», обои сразу появятся.
+4. Чтобы обновлялись сами: «Команды» → «Автоматизация» → «+» → «Приложение» → Telegram → отметьте «Закрыто» → «Запускать сразу» → «Обои ПЛАН».
+
+Если уже стояла старая «Обои ПЛАН», сначала удалите её.`,
+};
+
 /** "Open" button; with a reminder id it deep-links straight to that task / event. */
 function openButton(env: Env, rid?: string) {
   const url = rid ? `${env.APP_URL}?open=${encodeURIComponent(rid)}` : env.APP_URL;
@@ -277,6 +293,33 @@ async function onTelegramUpdate(update: any, env: Env) {
   if (text.startsWith('/stats')) {
     if (!env.ADMIN_CHAT_ID || String(msg.chat.id) !== env.ADMIN_CHAT_ID) return; // admin only; others get nothing
     await tg(env, 'sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', text: await statsText(env) });
+    return;
+  }
+  // "/broadcast" — admin only: preview of the announcement and who gets it; "/broadcast_send" sends it.
+  // Each user gets a given announcement once (webhook retries and double taps are safe).
+  if (text.startsWith('/broadcast')) {
+    if (!env.ADMIN_CHAT_ID || String(msg.chat.id) !== env.ADMIN_CHAT_ID) return;
+    await env.DB.prepare('CREATE TABLE IF NOT EXISTS broadcast_sent (key TEXT NOT NULL, user_id TEXT NOT NULL, ok INTEGER NOT NULL, PRIMARY KEY (key, user_id))').run();
+    const { results } = await env.DB.prepare("SELECT s.user_id FROM seen s WHERE s.user_id NOT LIKE 'dev:%' AND s.user_id GLOB '[0-9]*' AND NOT EXISTS (SELECT 1 FROM broadcast_sent b WHERE b.key = ?1 AND b.user_id = s.user_id)")
+      .bind(BROADCAST.key)
+      .all<{ user_id: string }>();
+    const message = { parse_mode: 'HTML', text: BROADCAST.text, reply_markup: openButton(env) };
+    if (!text.startsWith('/broadcast_send')) {
+      await tg(env, 'sendMessage', { chat_id: msg.chat.id, ...message });
+      await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `☝️ Получат: ${results.length}. Отправить — /broadcast_send` });
+      return;
+    }
+    let sent = 0;
+    for (const { user_id } of results) {
+      // claim first, so a retried webhook running alongside never sends twice
+      const claim = await env.DB.prepare('INSERT OR IGNORE INTO broadcast_sent (key, user_id, ok) VALUES (?1, ?2, 0)').bind(BROADCAST.key, user_id).run();
+      if (!claim.meta.changes) continue;
+      const r = (await tg(env, 'sendMessage', { chat_id: user_id, ...message }).catch(() => null)) as { ok?: boolean } | null;
+      if (r?.ok) await env.DB.prepare('UPDATE broadcast_sent SET ok = 1 WHERE key = ?1 AND user_id = ?2').bind(BROADCAST.key, user_id).run();
+      if (r?.ok) sent++;
+      await new Promise((res) => setTimeout(res, 60)); // well under Telegram's 30 messages a second
+    }
+    await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `Рассылка: доставлено ${sent} из ${results.length}.` });
     return;
   }
   if (text.startsWith('/myid')) {
