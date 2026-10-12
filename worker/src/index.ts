@@ -295,6 +295,22 @@ async function onTelegramUpdate(update: any, env: Env) {
     await tg(env, 'sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', text: await statsText(env) });
     return;
   }
+  // "/users" — admin only: everyone who opened the planner, most active first, with their Telegram
+  // name and @username (from getChat: what the bot can see anyway).
+  if (text.startsWith('/users')) {
+    if (!env.ADMIN_CHAT_ID || String(msg.chat.id) !== env.ADMIN_CHAT_ID) return;
+    // Telegram caps a message at 4096 characters: split on line breaks
+    let chunk = '';
+    for (const line of (await usersText(env)).split('\n')) {
+      if (chunk.length + line.length > 3800) {
+        await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: chunk }).catch(() => null);
+        chunk = '';
+      }
+      chunk += (chunk ? '\n' : '') + line;
+    }
+    if (chunk) await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: chunk }).catch(() => null);
+    return;
+  }
   // "/broadcast" — admin only: preview of the announcement and who gets it; "/broadcast_send" sends it.
   // Each user gets a given announcement once (webhook retries and double taps are safe).
   if (text.startsWith('/broadcast')) {
@@ -433,6 +449,45 @@ async function track(env: Env, key: string | null, user?: string | null) {
   } catch {
     /* stats are best-effort */
   }
+}
+
+/** For /users: one line per person, ranked by activity (items, this week's items, last visit). */
+async function usersText(env: Env): Promise<string> {
+  await ensureStats(env);
+  const { results } = await env.DB.prepare(
+    "SELECT s.user_id, s.last_at, st.doc, (SELECT 1 FROM users u WHERE u.user_id = s.user_id) tok, (SELECT COUNT(*) FROM wallpaper_b64 w WHERE w.user_id = s.user_id) wp FROM seen s LEFT JOIN state st ON st.user_id = s.user_id",
+  ).all<{ user_id: string; last_at: number; doc: string | null; tok: number | null; wp: number }>();
+  const now = Date.now(), DAY = 86_400_000;
+  const rows = results.map((r) => {
+    let items = 0, week = 0;
+    try {
+      const d = JSON.parse(r.doc ?? '{}') as { tasks?: { createdAt?: number }[]; events?: { createdAt?: number }[] };
+      for (const x of [...(d.tasks ?? []), ...(d.events ?? [])]) {
+        items++;
+        if (now - (x.createdAt ?? 0) < 7 * DAY) week++;
+      }
+    } catch {
+      /* broken doc */
+    }
+    const days = (now - r.last_at) / DAY;
+    const score = items * 2 + week * 3 + (days < 1 ? 20 : days < 3 ? 12 : days < 6 ? 4 : 0) + (r.tok ? 5 : 0) + (r.wp ? 5 : 0);
+    const status = (items === 0 && !r.tok && !r.wp) || days > 5 ? (days > 2 ? '🔴' : '⚪️') : days > 2 ? '🟡' : '🟢';
+    return { ...r, items, week, days, score, status };
+  });
+  rows.sort((a, b) => b.score - a.score);
+  const lines: string[] = [];
+  for (const [i, r] of rows.entries()) {
+    let who = r.user_id.startsWith('dev:') ? `📱 приложение ${r.user_id.slice(4, 10)}` : r.user_id;
+    if (!r.user_id.startsWith('dev:')) {
+      const c = (await tg(env, 'getChat', { chat_id: r.user_id }).catch(() => null)) as { result?: { username?: string; first_name?: string; last_name?: string } } | null;
+      const name = [c?.result?.first_name, c?.result?.last_name].filter(Boolean).join(' ');
+      who = `${c?.result?.username ? '@' + c.result.username : 'без юзернейма'}${name ? ` (${name})` : ''} · ${r.user_id}`;
+    }
+    const extras = `${r.tok ? '🎙' : ''}${r.wp ? '🖼' : ''}`;
+    const ago = r.days < 1 ? 'сегодня' : `${Math.floor(r.days)} дн. назад`;
+    lines.push(`${r.status} ${i + 1}. ${who}\n    записей ${r.items} (за неделю ${r.week}) · был ${ago} ${extras}`);
+  }
+  return `👥 Пользователи (${rows.length}), от активных к неактивным\n🟢 активен · 🟡 засыпает · ⚪️ зашёл, ничего не сделал · 🔴 мёртвый\n\n${lines.join('\n')}`;
 }
 
 async function statsText(env: Env): Promise<string> {
