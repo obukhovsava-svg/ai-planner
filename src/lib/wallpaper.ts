@@ -89,6 +89,25 @@ export async function renderWallpaper(date = todayKey()) {
 
 const jpeg = (c: HTMLCanvasElement) => c.toDataURL('image/jpeg', 0.7);
 
+// The decoded photo, kept between uploads: decoding a big photo costs time we don't have when
+// someone adds a task and closes Telegram right away.
+let photoCache: { size: number; img: HTMLImageElement | null } | null = null;
+async function photoImage(photo: Blob | undefined) {
+  if (!photo) return null;
+  if (photoCache?.size !== photo.size) photoCache = { size: photo.size, img: await blobToImage(photo).catch(() => null) };
+  return photoCache.img;
+}
+
+/** Tells the server today's picture is on its way: a Shortcut started meanwhile waits for it. */
+let pendingAt = 0;
+let owed = false; // the server was told a picture is coming and hasn't got it yet
+export function markWallpaperPending() {
+  owed = true;
+  if (Date.now() - pendingAt < 2000) return;
+  pendingAt = Date.now();
+  void fetch(`${API}/wallpaper/pending`, { method: 'POST', headers: authHeaders(), keepalive: true }).catch(() => null);
+}
+
 /** How many days ahead are drawn in advance: the Shortcut still finds the right day if the planner isn't opened. */
 const AHEAD = 3;
 
@@ -114,11 +133,11 @@ export async function uploadWallpapers(force = false, ahead = true) {
   const hash = (day: string) => String(Array.from(`${day}|${sig}`).reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 7));
   const days = ahead ? Array.from({ length: AHEAD + 1 }, (_, i) => addDays(today, i)) : [today];
   const sent = sentMap();
-  const todo = days.filter((d) => force || sent[d] !== hash(d));
+  // the server was told a picture is coming → today goes up even if it looks unchanged
+  const todo = days.filter((d) => force || sent[d] !== hash(d) || (d === today && owed));
   if (!todo.length) return true;
-  // tell the server today's picture is on its way: a Shortcut started meanwhile waits for it
-  if (todo.includes(today)) void fetch(`${API}/wallpaper/pending`, { method: 'POST', headers: authHeaders(), keepalive: true }).catch(() => null);
-  const img = photo ? await blobToImage(photo).catch(() => null) : null;
+  if (todo.includes(today) && !owed) markWallpaperPending();
+  const img = await photoImage(photo);
   try {
     for (const day of todo) {
       const body = jpeg(drawWallpaper({ date: day, events, tasks }, img));
@@ -128,6 +147,7 @@ export async function uploadWallpapers(force = false, ahead = true) {
       for (const k of Object.keys(next)) if (k < today) delete next[k];
       next[day] = hash(day);
       localStorage.setItem(SENT_KEY, JSON.stringify(next));
+      if (day === today) owed = false;
     }
     return true;
   } catch {
@@ -147,11 +167,15 @@ export function useWallpaperSync() {
       window.clearTimeout(later);
       // today right away: the picture must be on the server by the time you leave Telegram;
       // the days ahead once you've stopped editing
-      t = window.setTimeout(() => void uploadWallpapers(false, false), 500);
+      t = window.setTimeout(() => void uploadWallpapers(false, false), 100);
       later = window.setTimeout(() => void uploadWallpapers(), 6000);
     };
     kick();
-    const unsub = usePlannerStore.subscribe(kick);
+    const unsub = usePlannerStore.subscribe((state, prev) => {
+      // a real change of plans or tasks: the server hears about it at once, before the drawing
+      if (wallpaperOn() && (state.tasks !== prev.tasks || state.events !== prev.events)) markWallpaperPending();
+      kick();
+    });
     const onVisibility = () => {
       if (document.visibilityState === 'visible') return kick();
       if (!wallpaperOn()) return;

@@ -21,6 +21,7 @@ page.on('request', (q) => {
   if (u.startsWith('https://ai-planner-brain') || u.startsWith('https://plan-relay')) {
     const url = new URL(u);
     if (q.method() === 'OPTIONS') return q.respond({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' } });
+    if (url.pathname === '/wallpaper/pending') log.push({ t: Date.now(), day: 'PENDING' });
     if (url.pathname === '/wallpaper') log.push({ t: Date.now(), day: url.searchParams.get('day'), today: url.searchParams.get('today'), kb: Math.round((q.postData()?.length ?? 0) / 1024) });
     return q.respond({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: url.pathname === '/sync' || url.pathname === '/state' ? '{}' : '{"ok":true,"items":[]}' });
   }
