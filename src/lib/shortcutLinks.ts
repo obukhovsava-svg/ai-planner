@@ -8,8 +8,6 @@ export const SHORTCUT_LINKS = {
   wallpaper: 'https://www.icloud.com/shortcuts/0089142e767e4fa6958f1a33e8db4434',
   /** Telegram version of «Обои ПЛАН»: fetches the drawn wallpaper by the personal link → «Установить обои». */
   wallpaperTelegram: 'https://www.icloud.com/shortcuts/b703e3dd94ad4efca89c9a2ad9f44752',
-  /** v2 of the above: nothing to paste — the planner's «Подключить» hands the link over. */
-  wallpaperTelegramV2: 'https://www.icloud.com/shortcuts/c0115bc0427e4079b99c038657ec2255',
   /** Telegram version of the voice button «Планер» (asks for the personal link on install). */
   voiceTelegram: 'https://www.icloud.com/shortcuts/8f5edfb9ecbd4a92839e360ad5a34b57',
   /** «Добавить в ПЛАН» — the voice button for the Home Screen / Action button. */

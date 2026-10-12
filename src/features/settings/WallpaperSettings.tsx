@@ -83,8 +83,6 @@ export function WallpaperSettings({ open }: { open: boolean }) {
 
 /** The signed «Обои ПЛАН» Shortcut for Telegram users (until the one-tap iCloud link is published). */
 const TG_FILE = new URL('planner-wallpaper.shortcut', location.href).href;
-/** Opens «Команды» with the personal link as the Shortcut's input (public/connect.html). */
-const CONNECT_URL = new URL('connect.html', location.href).href;
 
 function Step({ n, title, hint, children }: { n: number; title: string; hint: string; children?: ReactNode }) {
   return (
@@ -190,79 +188,14 @@ export function TelegramWallpaperSettings({ open }: { open: boolean }) {
         </div>
       </div>
 
-      {SHORTCUT_LINKS.wallpaperTelegramV2 ? (
-        // v2: nothing to paste — «Подключить» hands the link to the installed Shortcut
-        <>
-          <Step n={1} title="Установите команду «Обои ПЛАН»" hint="Откроются «Команды» → «Добавить команду». Если старая «Обои ПЛАН» уже есть — сначала удалите её.">
-            <StepButton
-              onClick={() => {
-                haptic.impact('medium');
-                openExternal(SHORTCUT_LINKS.wallpaperTelegramV2);
-              }}
-            >
-              Установить команду
-            </StepButton>
-          </Step>
-          <Step n={2} title="Подключите и поставьте обои" hint="Команда запомнит вашу личную ссылку и сразу поставит обои на экран блокировки.">
-            <StepButton
-              disabled={!link}
-              onClick={() => {
-                if (!link) return;
-                haptic.impact('medium');
-                setWallpaperOn();
-                void uploadWallpapers(true);
-                openExternal(`${CONNECT_URL}#${encodeURIComponent(link)}`);
-              }}
-            >
-              Подключить
-            </StepButton>
-          </Step>
-          <Step
-            n={3}
-            title="Включите автообновление"
-            hint="«Команды» → «Автоматизация» → «+» → «Приложение» → Telegram → отметьте «Закрыто» → «Запускать сразу» → «Далее» → «Обои ПЛАН». Теперь обои обновляются каждый раз, когда вы выходите из Telegram."
-          />
-          <p className="px-4 text-[13px] leading-snug text-muted">
-            Ошибка «Такого размещения не существует»? Команде нужен iCloud Drive: Настройки → ваше имя → iCloud → iCloud Drive → включить. Не хотите iCloud —{' '}
-            <button
-              type="button"
-              disabled={!link}
-              className="text-blue active:opacity-60"
-              onClick={async () => {
-                if (!link) return;
-                // the old Shortcut asks for the link on install: put it in the clipboard and in the chat
-                setWallpaperOn();
-                void uploadWallpapers(true);
-                void copyText(link);
-                void sendLinkToChat('wallpaper').then(setSent);
-                openExternal(SHORTCUT_LINKS.wallpaperTelegram || TG_FILE);
-              }}
-            >
-              вариант без iCloud
-            </button>
-            : удалите «Обои ПЛАН», установите этот и вставьте ссылку, она уже скопирована и есть в чате с ботом.
-          </p>
-        </>
-      ) : (
-        <>
-      <div className="overflow-hidden rounded-[16px] bg-surface">
-          <div className="flex items-center gap-3 px-4 pt-3">
-            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-blue text-[13px] font-semibold text-white">1</span>
-            <p className="text-[16px] font-semibold">Скопируйте ссылку на обои</p>
-          </div>
-          <input readOnly value={link ?? 'Загружаю…'} onFocus={(e) => e.currentTarget.select()} className="w-full truncate bg-transparent px-4 pb-3 pl-[52px] pt-1 font-mono text-[12px] text-muted outline-none" />
-          <button
-            type="button"
-            disabled={!link}
-            onClick={copy}
-            className={`w-full border-t-[0.5px] border-line py-3 text-[16px] font-semibold active:bg-surface-2 disabled:opacity-40 ${copied ? 'text-green' : 'text-blue'}`}
-          >
-            {copied ? 'Скопировано' : 'Скопировать ссылку'}
-          </button>
-        </div>
-        {sent && <p className="px-4 text-[13px] leading-snug text-muted">Бот прислал ссылку в чат — если не вставляется, нажмите на неё там, и она скопируется.</p>}
-        <button
-          type="button"
+      <Step n={1} title="Скопируйте ссылку на обои" hint="Это ваша личная ссылка, никому её не пересылайте. Бот тоже пришлёт её в чат.">
+        <input readOnly value={link ?? 'Загружаю…'} onFocus={(e) => e.currentTarget.select()} className="w-full truncate bg-transparent px-4 pb-3 pl-[52px] font-mono text-[12px] text-muted outline-none" />
+        <StepButton disabled={!link} onClick={copy}>
+          {copied ? 'Скопировано ✓' : 'Скопировать ссылку'}
+        </StepButton>
+      </Step>
+      <Step n={2} title="Установите команду «Обои ПЛАН»" hint="Откроются «Команды»: вставьте ссылку → «Добавить команду». Если старая «Обои ПЛАН» уже есть, сначала удалите её.">
+        <StepButton
           onClick={() => {
             haptic.impact('medium');
             setWallpaperOn();
@@ -271,16 +204,16 @@ export function TelegramWallpaperSettings({ open }: { open: boolean }) {
             if (link) void copyText(link);
             openExternal(SHORTCUT_LINKS.wallpaperTelegram || TG_FILE);
           }}
-          className="flex h-[50px] items-center justify-center gap-2 rounded-[14px] bg-blue text-[17px] font-semibold text-white active:opacity-80"
         >
-          <Wand2 className="size-[18px]" /> 2. Установить команду «Обои ПЛАН»
-        </button>
-        <p className="px-4 text-[13px] leading-snug text-muted">
-          Откроются «Команды» — вставьте скопированную ссылку → «Добавить команду». Чтобы обои менялись сразу после изменений: «Команды» → «Автоматизация» → «+» → «Приложение» → Telegram → «Закрыто» →
-          «Запускать сразу» → «Обои ПЛАН». И ещё одну на «Время суток» 07:00 — для смены дня.
-        </p>
-        </>
-      )}
+          Установить команду
+        </StepButton>
+      </Step>
+      <Step
+        n={3}
+        title="Включите автообновление"
+        hint="«Команды» → «Автоматизация» → «+» → «Приложение» → Telegram → отметьте «Закрыто» → «Запускать сразу» → «Далее» → «Обои ПЛАН». Теперь обои обновляются каждый раз, когда вы выходите из Telegram."
+      />
+      {sent && <p className="px-4 text-[13px] leading-snug text-muted">Бот прислал ссылку в чат: если не вставляется, нажмите на неё там, и она скопируется.</p>}
     </div>
   );
 }
