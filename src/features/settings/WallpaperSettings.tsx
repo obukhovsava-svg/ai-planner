@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ImagePlus, RotateCcw, Wand2 } from 'lucide-react';
 import { postNative } from '@/lib/native';
 import { haptic, openExternal } from '@/lib/telegram';
@@ -83,6 +83,36 @@ export function WallpaperSettings({ open }: { open: boolean }) {
 
 /** The signed «Обои ПЛАН» Shortcut for Telegram users (until the one-tap iCloud link is published). */
 const TG_FILE = new URL('planner-wallpaper.shortcut', location.href).href;
+/** Opens «Команды» with the personal link as the Shortcut's input (public/connect.html). */
+const CONNECT_URL = new URL('connect.html', location.href).href;
+
+function Step({ n, title, hint, children }: { n: number; title: string; hint: string; children?: ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-[16px] bg-surface">
+      <div className="flex items-start gap-3 px-4 py-3">
+        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-blue text-[13px] font-semibold text-white">{n}</span>
+        <div>
+          <p className="text-[16px] font-semibold">{title}</p>
+          <p className="mt-0.5 text-[14px] leading-snug text-muted">{hint}</p>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function StepButton({ onClick, disabled, children }: { onClick(): void; disabled?: boolean; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="flex w-full items-center justify-center gap-1.5 border-t-[0.5px] border-line bg-blue py-3 text-[16px] font-semibold text-white active:opacity-80 disabled:opacity-40"
+    >
+      {children}
+    </button>
+  );
+}
 
 /**
  * Telegram: the planner draws the wallpaper itself (today + tomorrow) and keeps it on the
@@ -160,40 +190,77 @@ export function TelegramWallpaperSettings({ open }: { open: boolean }) {
         </div>
       </div>
 
+      {SHORTCUT_LINKS.wallpaperTelegramV2 ? (
+        // v2: nothing to paste — «Подключить» hands the link to the installed Shortcut
+        <>
+          <Step n={1} title="Установите команду «Обои ПЛАН»" hint="Откроются «Команды» → «Добавить команду». Если старая «Обои ПЛАН» уже есть — сначала удалите её.">
+            <StepButton
+              onClick={() => {
+                haptic.impact('medium');
+                openExternal(SHORTCUT_LINKS.wallpaperTelegramV2);
+              }}
+            >
+              Установить команду
+            </StepButton>
+          </Step>
+          <Step n={2} title="Подключите и поставьте обои" hint="Команда запомнит вашу личную ссылку и сразу поставит обои на экран блокировки.">
+            <StepButton
+              disabled={!link}
+              onClick={() => {
+                if (!link) return;
+                haptic.impact('medium');
+                setWallpaperOn();
+                void uploadWallpapers(true);
+                openExternal(`${CONNECT_URL}#${encodeURIComponent(link)}`);
+              }}
+            >
+              Подключить
+            </StepButton>
+          </Step>
+          <Step
+            n={3}
+            title="Включите автообновление"
+            hint="«Команды» → «Автоматизация» → «+» → «Приложение» → Telegram → отметьте «Закрыто» → «Запускать сразу» → «Далее» → «Обои ПЛАН». Теперь обои обновляются каждый раз, когда вы выходите из Telegram."
+          />
+        </>
+      ) : (
+        <>
       <div className="overflow-hidden rounded-[16px] bg-surface">
-        <div className="flex items-center gap-3 px-4 pt-3">
-          <span className="grid size-6 shrink-0 place-items-center rounded-full bg-blue text-[13px] font-semibold text-white">1</span>
-          <p className="text-[16px] font-semibold">Скопируйте ссылку на обои</p>
+          <div className="flex items-center gap-3 px-4 pt-3">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-blue text-[13px] font-semibold text-white">1</span>
+            <p className="text-[16px] font-semibold">Скопируйте ссылку на обои</p>
+          </div>
+          <input readOnly value={link ?? 'Загружаю…'} onFocus={(e) => e.currentTarget.select()} className="w-full truncate bg-transparent px-4 pb-3 pl-[52px] pt-1 font-mono text-[12px] text-muted outline-none" />
+          <button
+            type="button"
+            disabled={!link}
+            onClick={copy}
+            className={`w-full border-t-[0.5px] border-line py-3 text-[16px] font-semibold active:bg-surface-2 disabled:opacity-40 ${copied ? 'text-green' : 'text-blue'}`}
+          >
+            {copied ? 'Скопировано' : 'Скопировать ссылку'}
+          </button>
         </div>
-        <input readOnly value={link ?? 'Загружаю…'} onFocus={(e) => e.currentTarget.select()} className="w-full truncate bg-transparent px-4 pb-3 pl-[52px] pt-1 font-mono text-[12px] text-muted outline-none" />
+        {sent && <p className="px-4 text-[13px] leading-snug text-muted">Бот прислал ссылку в чат — если не вставляется, нажмите на неё там, и она скопируется.</p>}
         <button
           type="button"
-          disabled={!link}
-          onClick={copy}
-          className={`w-full border-t-[0.5px] border-line py-3 text-[16px] font-semibold active:bg-surface-2 disabled:opacity-40 ${copied ? 'text-green' : 'text-blue'}`}
+          onClick={() => {
+            haptic.impact('medium');
+            setWallpaperOn();
+            void uploadWallpapers(true);
+            // the link goes into the clipboard once more, in case step 1 was skipped
+            if (link) void copyText(link);
+            openExternal(SHORTCUT_LINKS.wallpaperTelegram || TG_FILE);
+          }}
+          className="flex h-[50px] items-center justify-center gap-2 rounded-[14px] bg-blue text-[17px] font-semibold text-white active:opacity-80"
         >
-          {copied ? 'Скопировано' : 'Скопировать ссылку'}
+          <Wand2 className="size-[18px]" /> 2. Установить команду «Обои ПЛАН»
         </button>
-      </div>
-      {sent && <p className="px-4 text-[13px] leading-snug text-muted">Бот прислал ссылку в чат — если не вставляется, нажмите на неё там, и она скопируется.</p>}
-      <button
-        type="button"
-        onClick={() => {
-          haptic.impact('medium');
-          setWallpaperOn();
-          void uploadWallpapers(true);
-          // the link goes into the clipboard once more, in case step 1 was skipped
-          if (link) void copyText(link);
-          openExternal(SHORTCUT_LINKS.wallpaperTelegram || TG_FILE);
-        }}
-        className="flex h-[50px] items-center justify-center gap-2 rounded-[14px] bg-blue text-[17px] font-semibold text-white active:opacity-80"
-      >
-        <Wand2 className="size-[18px]" /> 2. Установить команду «Обои ПЛАН»
-      </button>
-      <p className="px-4 text-[13px] leading-snug text-muted">
-        Откроются «Команды» — вставьте скопированную ссылку → «Добавить команду». Чтобы обои менялись сразу после изменений: «Команды» → «Автоматизация» → «+» → «Приложение» → Telegram → «Закрыто» →
-        «Запускать сразу» → «Обои ПЛАН». И ещё одну на «Время суток» 07:00 — для смены дня.
-      </p>
+        <p className="px-4 text-[13px] leading-snug text-muted">
+          Откроются «Команды» — вставьте скопированную ссылку → «Добавить команду». Чтобы обои менялись сразу после изменений: «Команды» → «Автоматизация» → «+» → «Приложение» → Telegram → «Закрыто» →
+          «Запускать сразу» → «Обои ПЛАН». И ещё одну на «Время суток» 07:00 — для смены дня.
+        </p>
+        </>
+      )}
     </div>
   );
 }
