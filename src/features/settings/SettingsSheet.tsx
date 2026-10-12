@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, ChevronRight, Clock, MessageCircle, Moon, Palette, Smartphone, Sun } from 'lucide-react';
+import { CheckCheck, ChevronRight, Clock, ImagePlus, MessageCircle, Moon, Palette, Smartphone, Sun } from 'lucide-react';
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
 import { useUIStore } from '@/store/useUIStore';
@@ -55,6 +55,8 @@ export function SettingsSheet() {
   const open = useUIStore((s) => s.settingsOpen);
   const setOpen = useUIStore((s) => s.setSettingsOpen);
   const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
+  const [wallpaperOpen, setWallpaperOpen] = useState(false);
+  const wallpaperAvailable = isNative() || digestAvailable();
   const hideDone = useUIStore((s) => s.hideDoneNextDay);
   const setHideDone = useUIStore((s) => s.setHideDoneNextDay);
   const themeOverride = useUIStore((s) => s.themeOverride);
@@ -118,111 +120,141 @@ export function SettingsSheet() {
   ];
 
   return (
-    <Sheet open={open} title="Настройки" onClose={() => setOpen(false)}>
-      <div className="flex flex-col gap-6 pb-2">
-        {digestAvailable() && (
-        <Group
-          title="Сводка от бота"
-          footer={online ? 'Утром — план на день, вечером — на завтра. Бот пришлёт в Telegram события, задачи и просроченное. В любой момент: /today боту.' : 'Работает, когда планер открыт в Telegram.'}
-        >
-          <Row icon={<Sun className="size-[18px]" />} iconBg="bg-[#ff9f0a]" label="Утренняя сводка">
-            <Switch checked={Boolean(digest?.morning)} disabled={!digest} onChange={(v) => update({ morning: v })} />
-          </Row>
-          {digest?.morning && (
-            <Row icon={<Clock className="size-[18px]" />} iconBg="bg-[#8e8e93]" label="Время">
-              <TimeInput value={digest.morningTime} onChange={(v) => update({ morningTime: v })} />
-            </Row>
-          )}
-          <Row icon={<Moon className="size-[17px]" />} iconBg="bg-[#5e5ce6]" label="Вечерняя сводка">
-            <Switch checked={Boolean(digest?.evening)} disabled={!digest} onChange={(v) => update({ evening: v })} />
-          </Row>
-          {digest?.evening && (
-            <Row icon={<Clock className="size-[18px]" />} iconBg="bg-[#8e8e93]" label="Время">
-              <TimeInput value={digest.eveningTime} onChange={(v) => update({ eveningTime: v })} />
-            </Row>
-          )}
-          {online && (
-            <button type="button" onClick={sample} className="w-full px-4 py-3 text-left text-[17px] text-blue transition-colors active:bg-surface-2">
-              Прислать пример сейчас
-            </button>
-          )}
-        </Group>
-        )}
-
-        {isNative() ? <WallpaperSettings open={open} /> : digestAvailable() && <TelegramWallpaperSettings open={open} />}
-
-        <Group title="Задачи" footer={hideDone ? 'Выполненные остаются до конца дня, а на следующий день исчезают из списка.' : 'Выполненные задачи остаются в списке, пока вы их не удалите.'}>
-          <Row icon={<CheckCheck className="size-[18px]" />} iconBg="bg-green" label="Скрывать выполненные">
-            <Switch
-              checked={hideDone}
-              onChange={(v) => {
-                haptic.selection();
-                setHideDone(v);
-              }}
-            />
-          </Row>
-        </Group>
-
-        <Group title="Ещё">
-          <Row
-            icon={<Smartphone className="size-[18px]" />}
-            iconBg="bg-blue"
-            label="Кнопка на iPhone"
-            onClick={() => {
-              haptic.impact('light');
-              setOpen(false);
-              window.setTimeout(() => setShortcutOpen(true), 380);
-            }}
+    <>
+      <Sheet open={open} title="Настройки" onClose={() => setOpen(false)}>
+        <div className="flex flex-col gap-6 pb-2">
+          {digestAvailable() && (
+          <Group
+            title="Сводка от бота"
+            footer={online ? 'Утром — план на день, вечером — на завтра. Бот пришлёт в Telegram события, задачи и просроченное. В любой момент: /today боту.' : 'Работает, когда планер открыт в Telegram.'}
           >
-            <ChevronRight className="size-5 text-faint" />
-          </Row>
-          <Row icon={<Palette className="size-[18px]" />} iconBg="bg-[#bf5af2]" label="Тема">
-            <div className="flex rounded-[9px] bg-surface-2 p-[2px]">
-              {themes.map((t) => (
-                <button
-                  key={t.label}
-                  type="button"
-                  onClick={() => {
-                    haptic.selection();
-                    setThemeOverride(t.id);
-                  }}
-                  className={`rounded-[7px] px-2.5 py-1 text-[13px] font-medium transition-colors ${themeOverride === t.id ? 'bg-surface text-fg shadow-[0_1px_3px_rgb(0_0_0/0.15)]' : 'text-muted'}`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </Row>
-          {online && (
-            <Row icon={<MessageCircle className="size-[18px]" />} iconBg="bg-[#30b0c7]" label="Написать отзыв" onClick={() => setFeedback(feedback === null ? '' : null)}>
-              <ChevronRight className={`size-5 text-faint transition-transform duration-300 ${feedback !== null ? 'rotate-90' : ''}`} />
+            <Row icon={<Sun className="size-[18px]" />} iconBg="bg-[#ff9f0a]" label="Утренняя сводка">
+              <Switch checked={Boolean(digest?.morning)} disabled={!digest} onChange={(v) => update({ morning: v })} />
             </Row>
+            {digest?.morning && (
+              <Row icon={<Clock className="size-[18px]" />} iconBg="bg-[#8e8e93]" label="Время">
+                <TimeInput value={digest.morningTime} onChange={(v) => update({ morningTime: v })} />
+              </Row>
+            )}
+            <Row icon={<Moon className="size-[17px]" />} iconBg="bg-[#5e5ce6]" label="Вечерняя сводка">
+              <Switch checked={Boolean(digest?.evening)} disabled={!digest} onChange={(v) => update({ evening: v })} />
+            </Row>
+            {digest?.evening && (
+              <Row icon={<Clock className="size-[18px]" />} iconBg="bg-[#8e8e93]" label="Время">
+                <TimeInput value={digest.eveningTime} onChange={(v) => update({ eveningTime: v })} />
+              </Row>
+            )}
+            {online && (
+              <button type="button" onClick={sample} className="w-full px-4 py-3 text-left text-[17px] text-blue transition-colors active:bg-surface-2">
+                Прислать пример сейчас
+              </button>
+            )}
+          </Group>
           )}
-        </Group>
 
-        {feedback !== null && (
-          <div ref={feedbackBox} className="animate-fade-up flex scroll-mb-6 flex-col gap-3">
-            <textarea
-              rows={4}
-              autoFocus
-              onFocus={revealFeedback}
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              placeholder="Что понравилось, что неудобно, чего не хватает?"
-              className={`${fieldClass} resize-none`}
-            />
-            <button
-              type="button"
-              disabled={!feedback.trim() || sending}
-              onClick={submitFeedback}
-              className="h-[50px] rounded-full bg-blue text-[17px] font-semibold text-white transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] disabled:opacity-30"
+          {wallpaperAvailable && (
+            <Group>
+              <Row
+                icon={<ImagePlus className="size-[18px]" />}
+                iconBg="bg-[#30b0c7]"
+                label="Добавить обои"
+                onClick={() => {
+                  haptic.impact('light');
+                  setOpen(false);
+                  window.setTimeout(() => setWallpaperOpen(true), 380);
+                }}
+              >
+                <ChevronRight className="size-5 text-faint" />
+              </Row>
+            </Group>
+          )}
+
+          <Group title="Задачи" footer={hideDone ? 'Выполненные остаются до конца дня, а на следующий день исчезают из списка.' : 'Выполненные задачи остаются в списке, пока вы их не удалите.'}>
+            <Row icon={<CheckCheck className="size-[18px]" />} iconBg="bg-green" label="Скрывать выполненные">
+              <Switch
+                checked={hideDone}
+                onChange={(v) => {
+                  haptic.selection();
+                  setHideDone(v);
+                }}
+              />
+            </Row>
+          </Group>
+
+          <Group title="Ещё">
+            <Row
+              icon={<Smartphone className="size-[18px]" />}
+              iconBg="bg-blue"
+              label="Кнопка на iPhone"
+              onClick={() => {
+                haptic.impact('light');
+                setOpen(false);
+                window.setTimeout(() => setShortcutOpen(true), 380);
+              }}
             >
-              {sending ? 'Отправляю…' : 'Отправить'}
-            </button>
-          </div>
-        )}
-      </div>
-    </Sheet>
+              <ChevronRight className="size-5 text-faint" />
+            </Row>
+            <Row icon={<Palette className="size-[18px]" />} iconBg="bg-[#bf5af2]" label="Тема">
+              <div className="flex rounded-[9px] bg-surface-2 p-[2px]">
+                {themes.map((t) => (
+                  <button
+                    key={t.label}
+                    type="button"
+                    onClick={() => {
+                      haptic.selection();
+                      setThemeOverride(t.id);
+                    }}
+                    className={`rounded-[7px] px-2.5 py-1 text-[13px] font-medium transition-colors ${themeOverride === t.id ? 'bg-surface text-fg shadow-[0_1px_3px_rgb(0_0_0/0.15)]' : 'text-muted'}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </Row>
+            {online && (
+              <Row icon={<MessageCircle className="size-[18px]" />} iconBg="bg-[#30b0c7]" label="Написать отзыв" onClick={() => setFeedback(feedback === null ? '' : null)}>
+                <ChevronRight className={`size-5 text-faint transition-transform duration-300 ${feedback !== null ? 'rotate-90' : ''}`} />
+              </Row>
+            )}
+          </Group>
+
+          {feedback !== null && (
+            <div ref={feedbackBox} className="animate-fade-up flex scroll-mb-6 flex-col gap-3">
+              <textarea
+                rows={4}
+                autoFocus
+                onFocus={revealFeedback}
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="Что понравилось, что неудобно, чего не хватает?"
+                className={`${fieldClass} resize-none`}
+              />
+              <button
+                type="button"
+                disabled={!feedback.trim() || sending}
+                onClick={submitFeedback}
+                className="h-[50px] rounded-full bg-blue text-[17px] font-semibold text-white transition-[transform,opacity] duration-300 ease-spring active:scale-[0.97] disabled:opacity-30"
+              >
+                {sending ? 'Отправляю…' : 'Отправить'}
+              </button>
+            </div>
+          )}
+        </div>
+      </Sheet>
+      {wallpaperAvailable && (
+        <Sheet
+          open={wallpaperOpen}
+          title="Обои"
+          onClose={() => {
+            setWallpaperOpen(false);
+            // back to the settings it was opened from
+            window.setTimeout(() => setOpen(true), 380);
+          }}
+        >
+          <div className="pb-2">{isNative() ? <WallpaperSettings open={wallpaperOpen} /> : <TelegramWallpaperSettings open={wallpaperOpen} />}</div>
+        </Sheet>
+      )}
+    </>
   );
 }
 
