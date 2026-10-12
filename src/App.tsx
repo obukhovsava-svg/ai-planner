@@ -14,6 +14,7 @@ import { CalendarTab } from '@/features/calendar/CalendarTab';
 import { AssistantTab } from '@/features/assistant/AssistantTab';
 import { TasksTab } from '@/features/tasks/TasksTab';
 import { DigestPrompt, SettingsSheet } from '@/features/settings/SettingsSheet';
+import { NextStepSheet } from '@/features/onboarding/NextStepSheet';
 import { ShortcutSheet } from '@/features/assistant/ShortcutSheet';
 import { usePlannerStore } from '@/store/usePlannerStore';
 
@@ -52,6 +53,13 @@ export default function App() {
   useNativeReminders();
   useOverdueCleanup();
   useWallpaperSync();
+  // Nothing planned yet → start in the assistant with examples, not on an empty calendar
+  // (most people who leave never add a single item). A deep link wins.
+  useEffect(() => {
+    const p = usePlannerStore.getState(), ui = useUIStore.getState();
+    if (!p.tasks.length && !p.events.length && ui.tab === 'calendar' && !ui.dayOpen) setTab('assistant');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const shortcutOpen = useUIStore((s) => s.shortcutOpen);
   const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
 
@@ -116,6 +124,7 @@ export default function App() {
       <SettingsSheet />
       <DigestPrompt />
       <ShortcutSheet open={shortcutOpen} onClose={() => setShortcutOpen(false)} />
+      <NextStepSheet />
     </div>
   );
 }

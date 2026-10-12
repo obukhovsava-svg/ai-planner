@@ -343,11 +343,40 @@ async function onTelegramUpdate(update: any, env: Env) {
     return;
   }
 
-  await tg(env, 'sendMessage', {
-    chat_id: msg.chat.id,
-    text: 'Всё планирование — внутри приложения. Откройте планер и скажите ассистенту, что добавить 👇\n\n/today — план на сегодня, /tomorrow — на завтра',
-    reply_markup: openButton(env),
-  });
+  // Anything else said to the bot — typed or a voice message — is a request for the planner,
+  // handled like the iPhone voice button: no need to open the app.
+  const user = String(msg.from?.id ?? msg.chat.id);
+  let said = text.startsWith('/') ? '' : text.trim();
+  if (!said && msg.voice?.file_id) said = (await transcribe(env, msg.voice.file_id)) ?? '';
+  if (!said) {
+    await tg(env, 'sendMessage', {
+      chat_id: msg.chat.id,
+      text: msg.voice ? 'Не расслышал 🙈 Попробуйте ещё раз или напишите текстом.' : 'Напишите или скажите голосом, что добавить, например «завтра в 15:00 созвон». Или откройте планер 👇\n\n/today — план на сегодня, /tomorrow — на завтра',
+      reply_markup: openButton(env),
+    });
+    return;
+  }
+  if (rateLimited(`s:${user}`)) return;
+  await tg(env, 'sendChatAction', { chat_id: msg.chat.id, action: 'typing' }).catch(() => null);
+  const { tz } = await loadDoc(env, user);
+  const res = await runShortcut(env, user, tz ?? -180, said.slice(0, MAX_TEXT));
+  // what the planner didn't understand is worth reading: it shows what people expect from it
+  if (!res.doc && env.ADMIN_CHAT_ID && user !== env.ADMIN_CHAT_ID)
+    await tg(env, 'sendMessage', { chat_id: env.ADMIN_CHAT_ID, text: `💬 В чат бота от ${user}${msg.voice ? ' (голосом)' : ''}:\n\n${said.slice(0, 1000)}\n\n↳ ${res.answer}` }).catch(() => null);
+  await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `${msg.voice ? `🎙 «${said.slice(0, 200)}»\n\n` : ''}${res.answer}`, reply_markup: openButton(env, res.doc ? undefined : 'a') });
+}
+
+/** A Telegram voice message → text (Workers AI Whisper). */
+async function transcribe(env: Env, fileId: string): Promise<string | null> {
+  try {
+    const f = (await tg(env, 'getFile', { file_id: fileId })) as { result?: { file_path?: string; file_size?: number } };
+    if (!f.result?.file_path || (f.result.file_size ?? 0) > 5_000_000) return null;
+    const audio = await (await fetch(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${f.result.file_path}`)).arrayBuffer();
+    const out = (await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio: toBase64(new Uint8Array(audio)), language: 'ru' })) as { text?: string };
+    return out.text?.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 /* ------------------------------------------------------------ iOS app in the background */
@@ -409,6 +438,12 @@ async function ensureWallpaper(env: Env) {
   wallpaperReady = true;
 }
 const MAX_WALLPAPER = 1_900_000; // base64 chars (~1.4 MB JPEG)
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
 
 function fromBase64(b64: string): Uint8Array {
   const U = Uint8Array as unknown as { fromBase64?: (s: string) => Uint8Array };
@@ -628,10 +663,12 @@ async function setDigest(env: Env, user: string, patch: Partial<DigestSettings>)
 }
 
 /** Sends the summary now; false when the user has no data on the server yet. */
-async function sendDigest(env: Env, user: string, tz: number, kind: 'morning' | 'evening'): Promise<boolean> {
+async function sendDigest(env: Env, user: string, tz: number, kind: 'morning' | 'evening', skipEmpty = false): Promise<boolean> {
   const { results } = await env.DB.prepare('SELECT 1 FROM state WHERE user_id = ?1').bind(user).all();
   if (!results.length) return false;
   const { doc } = await loadDoc(env, user);
+  // An empty planner gets the "first steps" messages instead: a daily "nothing planned" teaches to ignore the bot.
+  if (skipEmpty && !doc.tasks.length && !doc.events.length) return true;
   const today = localNow(tz).today;
   const d = buildDigest(doc, today, kind);
   const day = kind === 'morning' ? today : addDaysKey(today, 1);
@@ -673,8 +710,54 @@ async function sendDigests(env: Env) {
       )
         .bind(r.user_id, st.morning ? 1 : 0, st.morningTime, st.evening ? 1 : 0, st.eveningTime, now.today)
         .run();
-      await sendDigest(env, r.user_id, r.tz ?? 0, kind);
+      await sendDigest(env, r.user_id, r.tz ?? 0, kind, true);
     }
+  }
+}
+
+/* ------------------------------------------------------------ First steps for empty planners */
+// Most people who leave never add a single item. Up to three short messages, in the evening of
+// their local time, while the planner is still empty: each one asks for one thing they can do by
+// just replying to the bot. Stops as soon as anything is added.
+const NUDGES = [
+  { after: 20 * 3_600_000, text: '👋 Что у вас завтра? Просто напишите или скажите голосом прямо сюда, например: «завтра в 10 врач, в 19 тренировка». Я сам разложу по времени и напомню.' },
+  { after: 44 * 3_600_000, text: '💡 Одна фраза, и неделя расписана: «тренировка по вторникам и четвергам в 19:00». Я поставлю её на каждую неделю и напомню за час. Напишите сюда 👇' },
+  { after: 92 * 3_600_000, text: 'Последнее от меня 🙂 Если было некогда, напишите сюда любое дело, и я его запишу. А если планер не подошёл, ответьте одним словом почему: это очень поможет сделать его лучше.' },
+];
+
+/** Off until the texts are approved. */
+const NUDGES_ON = false;
+
+async function sendNudges(env: Env) {
+  if (!NUDGES_ON) return;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS nudges (user_id TEXT PRIMARY KEY, step INTEGER NOT NULL, at INTEGER NOT NULL)').run();
+  const { results } = await env.DB.prepare(
+    `SELECT s.user_id, s.first_at, st.doc, COALESCE(st.tz, u.tz, -180) AS tz, n.step, n.at
+     FROM seen s LEFT JOIN state st ON st.user_id = s.user_id LEFT JOIN users u ON u.user_id = s.user_id LEFT JOIN nudges n ON n.user_id = s.user_id
+     WHERE s.user_id GLOB '[0-9]*' AND COALESCE(n.step, 0) < ?1`,
+  )
+    .bind(NUDGES.length)
+    .all<{ user_id: string; first_at: number; doc: string | null; tz: number; step: number | null; at: number | null }>();
+  const now = Date.now();
+  for (const r of results) {
+    if (r.user_id === env.ADMIN_CHAT_ID) continue;
+    try {
+      const d = JSON.parse(r.doc ?? '{}') as { tasks?: unknown[]; events?: unknown[] };
+      if (d.tasks?.length || d.events?.length) continue;
+    } catch {
+      continue;
+    }
+    const hour = Number(localNow(r.tz).time.slice(0, 2));
+    if (hour < 18 || hour > 20) continue;
+    const step = r.step ?? 0;
+    const since = step === 0 ? now - (r.first_at || 0) : now - (r.at ?? 0);
+    if (since < NUDGES[step].after - (step === 0 ? 0 : NUDGES[step - 1].after)) continue;
+    const res = (await tg(env, 'sendMessage', { chat_id: r.user_id, text: NUDGES[step].text, reply_markup: openButton(env) }).catch(() => null)) as { ok?: boolean } | null;
+    // blocked the bot → no more tries
+    await env.DB.prepare('INSERT INTO nudges (user_id, step, at) VALUES (?1, ?2, ?3) ON CONFLICT (user_id) DO UPDATE SET step = ?2, at = ?3')
+      .bind(r.user_id, res?.ok ? step + 1 : NUDGES.length, now)
+      .run();
+    await new Promise((ok) => setTimeout(ok, 60));
   }
 }
 
@@ -932,7 +1015,11 @@ async function runShortcut(env: Env, user: string, tz: number, text: string): Pr
 
 export default {
   async scheduled(controller: { cron?: string }, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
-    ctx.waitUntil(controller.cron === '0 3 * * *' ? rollAllReminders(env) : Promise.all([sendDue(env), sendDigests(env)]));
+    ctx.waitUntil(
+      controller.cron === '0 3 * * *'
+        ? rollAllReminders(env)
+        : Promise.all([sendDue(env), sendDigests(env), new Date().getUTCMinutes() % 30 === 0 ? sendNudges(env) : null]),
+    );
   },
 
   async fetch(request: Request, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }): Promise<Response> {

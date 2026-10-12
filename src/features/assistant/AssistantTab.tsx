@@ -3,12 +3,16 @@ import { ArrowUp } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { useChatStore, type ChatMessage } from '@/store/useChatStore';
 import { useUIStore } from '@/store/useUIStore';
+import { usePlannerStore } from '@/store/usePlannerStore';
 import { haptic } from '@/lib/telegram';
 import { aiStatus } from '@/lib/ai';
 import { ChatBubble } from './ChatBubble';
 import { handleUtterance } from './brain';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { MicGlyph, VoiceOrb } from './VoiceOrb';
+
+/** Ready phrases for someone who hasn't planned anything yet. */
+const EXAMPLES = ['Завтра в 15:00 созвон с командой', 'Купить продукты', 'Тренировка по вторникам и четвергам в 19:00'];
 
 /** How long a completed action stays on screen before it dissolves. */
 const DISMISS_AFTER = 6000;
@@ -39,6 +43,7 @@ interface Exchange {
  */
 export function AssistantTab() {
   const messages = useChatStore((s) => s.messages);
+  const itemCount = usePlannerStore((s) => s.tasks.length + s.events.length);
   const push = useChatStore((s) => s.push);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -345,6 +350,25 @@ export function AssistantTab() {
               <br />
               событие или задачу и уточню детали.
             </p>
+            {/* First steps: a tap sends a ready phrase, so the planner fills up in seconds. */}
+            {itemCount < 3 && (
+              <div className="mt-4 flex flex-col items-center gap-2">
+                {EXAMPLES.map((ex) => (
+                  <button
+                    key={ex}
+                    type="button"
+                    disabled={thinking}
+                    onClick={() => {
+                      haptic.impact('light');
+                      void submit(ex);
+                    }}
+                    className="rounded-full bg-surface px-4 py-2 text-[15px] text-fg shadow-[0_0_0_0.5px_var(--line)] transition-transform duration-300 ease-spring active:scale-[0.96]"
+                  >
+                    «{ex}»
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </Collapse>
 

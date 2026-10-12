@@ -3,6 +3,7 @@ import { CheckCheck, ChevronRight, Clock, ImagePlus, MessageCircle, Moon, Palett
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
 import { useUIStore } from '@/store/useUIStore';
+import { usePlannerStore } from '@/store/usePlannerStore';
 import { haptic } from '@/lib/telegram';
 import { digestAvailable, loadDigest, saveDigest, sendDigestSample, sendFeedback, serverSettingsAvailable, type DigestSettings } from '@/lib/settings';
 import type { ThemeMode } from '@/types';
@@ -55,7 +56,10 @@ export function SettingsSheet() {
   const open = useUIStore((s) => s.settingsOpen);
   const setOpen = useUIStore((s) => s.setSettingsOpen);
   const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
-  const [wallpaperOpen, setWallpaperOpen] = useState(false);
+  const wallpaperOpen = useUIStore((s) => s.wallpaperOpen);
+  const setWallpaperOpen = useUIStore((s) => s.setWallpaperOpen);
+  // opened from here → closing it comes back here (it can also be opened from the next-step offer)
+  const wallpaperFromSettings = useRef(false);
   const wallpaperAvailable = isNative() || digestAvailable();
   const hideDone = useUIStore((s) => s.hideDoneNextDay);
   const setHideDone = useUIStore((s) => s.setHideDoneNextDay);
@@ -161,6 +165,7 @@ export function SettingsSheet() {
                 onClick={() => {
                   haptic.impact('light');
                   setOpen(false);
+                  wallpaperFromSettings.current = true;
                   window.setTimeout(() => setWallpaperOpen(true), 380);
                 }}
               >
@@ -248,7 +253,8 @@ export function SettingsSheet() {
           onClose={() => {
             setWallpaperOpen(false);
             // back to the settings it was opened from
-            window.setTimeout(() => setOpen(true), 380);
+            if (wallpaperFromSettings.current) window.setTimeout(() => setOpen(true), 380);
+            wallpaperFromSettings.current = false;
           }}
         >
           <div className="pb-2">{isNative() ? <WallpaperSettings open={wallpaperOpen} /> : <TelegramWallpaperSettings open={wallpaperOpen} />}</div>
@@ -270,11 +276,14 @@ export function DigestPrompt() {
   const showToast = useUIStore((s) => s.showToast);
   const [open, setOpen] = useState(false);
 
+  // Not on a newcomer's first seconds (the assistant's examples come first): once the planner has
+  // something in it — on start for returning users, or after the second item for new ones.
+  const items = usePlannerStore((s) => s.tasks.length + s.events.length);
   useEffect(() => {
-    if (prompted || !digestAvailable()) return;
+    if (prompted || !digestAvailable() || items < 2) return;
     const t = window.setTimeout(() => setOpen(true), 2500);
     return () => window.clearTimeout(t);
-  }, [prompted]);
+  }, [prompted, items >= 2]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const answer = async (on: boolean) => {
     haptic.notify(on ? 'success' : 'warning');

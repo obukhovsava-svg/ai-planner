@@ -38,6 +38,9 @@ interface UIState {
   setSettingsOpen(open: boolean): void;
   shortcutOpen: boolean;
   setShortcutOpen(open: boolean): void;
+  /** The lock-screen wallpaper sheet (from Settings or the "next step" offer). */
+  wallpaperOpen: boolean;
+  setWallpaperOpen(open: boolean): void;
   /** Completed tasks leave the list the next day (otherwise they stay until deleted). */
   hideDoneNextDay: boolean;
   setHideDoneNextDay(v: boolean): void;
@@ -72,6 +75,8 @@ export const useUIStore = create<UIState>()(
       setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
       shortcutOpen: false,
       setShortcutOpen: (shortcutOpen) => set({ shortcutOpen }),
+      wallpaperOpen: false,
+      setWallpaperOpen: (wallpaperOpen) => set({ wallpaperOpen }),
       hideDoneNextDay: true,
       setHideDoneNextDay: (hideDoneNextDay) => set({ hideDoneNextDay }),
       digestPrompted: false,
