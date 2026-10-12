@@ -21,6 +21,19 @@ struct PlannerApp: App {
         .onOpenURL { url in
           if url.host == "d" { Bridge.shared.open("d:" + url.lastPathComponent) }
         }
+        #if targetEnvironment(macCatalyst)
+        // On the Mac the planner lives in a phone-sized window: the layout is made for that width.
+        .onAppear {
+          for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            scene.sizeRestrictions?.minimumSize = CGSize(width: 390, height: 640)
+            scene.sizeRestrictions?.maximumSize = CGSize(width: 520, height: 1400)
+            scene.titlebar?.titleVisibility = .hidden
+          }
+        }
+        #endif
     }
+    #if targetEnvironment(macCatalyst)
+    .defaultSize(width: 430, height: 880)
+    #endif
   }
 }
