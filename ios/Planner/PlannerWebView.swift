@@ -49,7 +49,15 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
       default: sendWallpaperState()
       }
     case "accent":
-      if let accent = body["accent"] as? String { WidgetStore.saveAccent(accent) }
+      if let accent = body["accent"] as? String {
+        // The page reports its colour on every launch; the icon follows only a real choice —
+        // not the very first report (iOS would greet a new user with an "icon changed" note).
+        let first = UserDefaults(suiteName: WidgetStore.group)?.string(forKey: "accent") == nil
+        let changed = accent != WidgetStore.accent
+        WidgetStore.saveAccent(accent)
+        if first { UserDefaults(suiteName: WidgetStore.group)?.set(accent, forKey: "accent") }
+        else if changed { setAppIcon(for: accent) }
+      }
       if let tone = body["tone"] as? String { WidgetStore.saveTone(tone) }
     case "theme":
       // Read by PlannerApp (@AppStorage) → the window starts in this theme next time, no flash.
@@ -264,5 +272,20 @@ extension Bridge: PHPickerViewControllerDelegate {
     if let preview { payload["preview"] = preview }
     guard let data = try? JSONSerialization.data(withJSONObject: payload), let json = String(data: data, encoding: .utf8) else { return }
     call("window.__plannerWallpaper && window.__plannerWallpaper(\(json))")
+  }
+}
+
+
+/// The home-screen icon in the accent's pastel: lime is the main icon, the others are alternates
+/// (AppIcon-<accent> in the asset catalog). iOS shows its own "icon changed" note — so only on a real change.
+@MainActor
+func setAppIcon(for accent: String) {
+  let app = UIApplication.shared
+  guard app.supportsAlternateIcons else { return }
+  let wanted: String? = accent == "lime" ? nil : "AppIcon-\(accent)"
+  let known = ["blue", "sage", "mist", "pink", "red", "yellow", "milk"]
+  guard wanted == nil || known.contains(accent), app.alternateIconName != wanted else { return }
+  app.setAlternateIconName(wanted) { error in
+    if let error { print("app icon:", error.localizedDescription) }
   }
 }
