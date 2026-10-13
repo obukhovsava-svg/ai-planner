@@ -108,6 +108,18 @@ nonisolated enum WidgetStore {
     WidgetCenter.shared.reloadAllTimelines()
   }
 
+  /// The planner's theme: "light" / "dark", or nil = follow the system (Настройки → Тема).
+  static var theme: String? {
+    let t = UserDefaults(suiteName: group)?.string(forKey: "theme")
+    return t == "light" || t == "dark" ? t : nil
+  }
+
+  static func saveTheme(_ mode: String) {
+    guard mode != (theme ?? "") else { return }
+    UserDefaults(suiteName: group)?.set(mode, forKey: "theme")
+    WidgetCenter.shared.reloadAllTimelines()
+  }
+
   static func load() -> WidgetSnapshot {
     guard let file, let data = try? Data(contentsOf: file),
           let snapshot = try? JSONDecoder().decode(WidgetSnapshot.self, from: data) else { return .empty }

@@ -53,6 +53,8 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
     case "theme":
       // Read by PlannerApp (@AppStorage) → the window starts in this theme next time, no flash.
       UserDefaults.standard.set(body["mode"] as? String ?? "", forKey: "theme")
+      // …and the widgets take the same light / dark look
+      WidgetStore.saveTheme(body["mode"] as? String ?? "")
     case "speech":
       switch body["action"] as? String {
       case "start": speech.start()

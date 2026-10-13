@@ -176,19 +176,28 @@ extension EnvironmentValues {
   }
 }
 
+/// Light or dark: the planner's own theme if one is chosen, otherwise the system's.
+private func isDark(_ scheme: ColorScheme) -> Bool {
+  switch WidgetStore.theme {
+  case "dark": true
+  case "light": false
+  default: scheme == .dark
+  }
+}
+
 /// Supplies the palette for the current appearance.
 struct Painted<Content: View>: View {
   @Environment(\.colorScheme) private var scheme
   @ViewBuilder let content: () -> Content
   var body: some View {
-    let p = Palette(WidgetStore.accent, dark: scheme == .dark)
+    let p = Palette(WidgetStore.accent, dark: isDark(scheme))
     content().environment(\.palette, p).foregroundStyle(p.fg)
   }
 }
 
 struct WidgetBackground: View {
   @Environment(\.colorScheme) private var scheme
-  var body: some View { Palette(WidgetStore.accent, dark: scheme == .dark).bg }
+  var body: some View { Palette(WidgetStore.accent, dark: isDark(scheme)).bg }
 }
 
 private func mono(_ size: CGFloat, _ weight: Font.Weight = .bold) -> Font { .system(size: size, weight: weight, design: .monospaced) }
