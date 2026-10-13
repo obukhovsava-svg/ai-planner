@@ -158,7 +158,7 @@ const Month = memo(function Month({
     >
       <div className="grid grid-cols-7 pt-3" style={{ height: HEAD_H }}>
         <h2
-          className={`truncate pb-1 pl-1.5 text-[20px] font-bold ${isCurrent ? 'text-red' : ''}`}
+          className={`truncate pb-1 pl-1.5 text-[20px] font-bold ${isCurrent ? 'text-today-text' : ''}`}
           style={{ gridColumnStart: Math.min(offset + 1, 5), gridColumnEnd: 'span 3' }}
         >
           {MONTHS[first.getMonth()]}
@@ -212,8 +212,8 @@ function DayCell({
       style={{ height: ROW_H, gridColumnStart: col }}
     >
       <span
-        className={`mx-auto grid size-[26px] shrink-0 place-items-center rounded-full text-[16px] tabular-nums ${
-          isToday ? 'bg-red font-semibold text-white' : weekend ? 'text-muted' : ''
+        className={`mx-auto flex size-[26px] shrink-0 items-center justify-center rounded-full text-[16px] leading-none tabular-nums ${
+          isToday ? 'bg-today font-semibold text-today-fg' : weekend ? 'text-muted' : ''
         }`}
       >
         {d.getDate()}

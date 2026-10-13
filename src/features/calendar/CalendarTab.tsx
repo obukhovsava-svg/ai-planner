@@ -59,7 +59,7 @@ export function CalendarTab() {
             <button
               type="button"
               onClick={() => setTodaySignal((n) => n + 1)}
-              className={`transition-opacity active:opacity-50 ${showingCurrent ? 'text-muted' : 'text-red'}`}
+              className={`transition-opacity active:opacity-50 ${showingCurrent ? 'text-muted' : 'text-today-text'}`}
             >
               {showingCurrent ? monthTitle(todayKey()) : 'Сегодня'}
             </button>

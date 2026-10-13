@@ -94,7 +94,7 @@ export function DayView({ open, onBack, onCreate, onOpenEvent }: DayViewProps) {
               <button
                 type="button"
                 onClick={() => setSelected(todayKey())}
-                className="animate-fade-in rounded-full px-2 py-1 text-[17px] text-red transition-opacity active:opacity-50"
+                className="animate-fade-in rounded-full px-2 py-1 text-[17px] text-today-text transition-opacity active:opacity-50"
               >
                 Сегодня
               </button>
