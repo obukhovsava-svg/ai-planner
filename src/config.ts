@@ -9,3 +9,6 @@ export const AI_URL = 'https://ai-planner-brain.savelyobuhov.workers.dev';
  * throttle Cloudflare, so heavy uploads (the wallpaper) go this way.
  */
 export const RELAY_URL = 'https://plan-relay.containerapps.ru';
+
+/** The bot, for invite links (t.me/<bot>?startapp=…). */
+export const BOT_USERNAME = 'myliveplaners_bot';

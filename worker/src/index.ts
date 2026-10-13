@@ -546,6 +546,23 @@ async function usersText(env: Env): Promise<string> {
   return `👥 Пользователи (${rows.length}), от активных к неактивным\n🟢 активен · 🟡 засыпает · ⚪️ зашёл, ничего не сделал · 🔴 мёртвый\n\n${lines.join('\n')}`;
 }
 
+/**
+ * «Пригласить друга»: t.me/<bot>?startapp=ref_<id> opens the planner with that start_param.
+ * Counted once, and only for someone new (seen for the first time in the last 10 minutes).
+ */
+async function recordReferral(env: Env, user: string, initData: string) {
+  try {
+    const ref = new URLSearchParams(initData).get('start_param')?.match(/^ref_(\d{3,20})$/)?.[1];
+    if (!ref || ref === user || isDeviceUser(user)) return;
+    await env.DB.prepare('CREATE TABLE IF NOT EXISTS referrals (user_id TEXT PRIMARY KEY, ref_by TEXT NOT NULL, at INTEGER NOT NULL)').run();
+    const { results } = await env.DB.prepare('SELECT first_at FROM seen WHERE user_id = ?1').bind(user).all<{ first_at: number }>();
+    if (results[0] && Date.now() - results[0].first_at > 10 * 60_000) return;
+    await env.DB.prepare('INSERT OR IGNORE INTO referrals (user_id, ref_by, at) VALUES (?1, ?2, ?3)').bind(user, ref, Date.now()).run();
+  } catch {
+    /* best-effort */
+  }
+}
+
 async function statsText(env: Env): Promise<string> {
   await ensureStats(env);
   await ensureDigestTables(env);
@@ -587,6 +604,10 @@ async function statsText(env: Env): Promise<string> {
     }
   }
 
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS referrals (user_id TEXT PRIMARY KEY, ref_by TEXT NOT NULL, at INTEGER NOT NULL)').run();
+  const refs = (await one<{ n: number; today: number }>('SELECT COUNT(*) n, COALESCE(SUM(at >= ?1), 0) today FROM referrals', today))!;
+  const topRef = await one<{ ref_by: string; n: number }>('SELECT ref_by, COUNT(*) n FROM referrals GROUP BY ref_by ORDER BY n DESC LIMIT 1');
+
   return [
     `📊 <b>Статистика ПЛАН</b> · ${new Date(Date.now() + MSK).toISOString().slice(11, 16)} МСК`,
     '',
@@ -601,6 +622,7 @@ async function statsText(env: Env): Promise<string> {
     `✨ Запросов к ИИ: сегодня ${ai.d} · за 7 дней ${ai.w}`,
     `☀️ Сводку включили: ${digest.n}`,
     `💬 Отзывов: ${feedback.n}`,
+    `🤝 По приглашениям: <b>${refs.n}</b>${refs.n ? ` · сегодня ${refs.today}` : ''}${topRef ? ` · больше всех привёл ${topRef.ref_by} (${topRef.n})` : ''}`,
   ].join('\n');
 }
 
@@ -1092,7 +1114,7 @@ export default {
       if (JSON.stringify(merged).length > MAX_DOC) return json({ error: 'too_large' }, 413, headers);
       await saveDoc(env, user, merged, tz);
       await env.DB.prepare('UPDATE users SET tz = ?2 WHERE user_id = ?1').bind(user, tz).run();
-      ctx.waitUntil(track(env, null, user));
+      ctx.waitUntil(track(env, null, user).then(() => recordReferral(env, user, request.headers.get('X-Telegram-Init-Data') ?? '')));
       return json({ doc: merged }, 200, headers);
     }
 
