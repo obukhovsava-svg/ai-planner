@@ -48,6 +48,9 @@ export function AssistantTab() {
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const [typing, setTyping] = useState(false);
+  // Typed a message → no big mic over the conversation until it's gone (the field has a small one)
+  const [textMode, setTextMode] = useState(false);
+  const orbAwayRef = useRef(false);
   const ai = useSyncExternalStore(aiStatus.subscribe, aiStatus.get);
   const showToast = useUIStore((s) => s.showToast);
   const scroller = useRef<HTMLDivElement>(null);
@@ -105,7 +108,10 @@ export function AssistantTab() {
   const toggleMic = () => {
     haptic.impact(listening ? 'light' : 'medium');
     if (listening) speech.stop();
-    else speech.start();
+    else {
+      setTextMode(false);
+      speech.start();
+    }
   };
 
   /**
@@ -267,6 +273,14 @@ export function AssistantTab() {
       return;
     }
     wasTyping.current = false;
+    if (orbAwayRef.current) {
+      // a typed conversation: the orb stays away, the line just fades out
+      melted.current = false;
+      stopMelt();
+      cancelMorph();
+      band.current?.animate([{ opacity: 0.6 }, { opacity: 0 }], { duration: 250, fill: 'forwards' });
+      return;
+    }
     // Everything has settled; the orb is back in the layout (hidden) — the line gathers into it.
     const g = ghost.current, b = band.current, w = orbWrap.current, btn = orbBtn.current;
     if (!g || !b || !w || !btn) return;
@@ -306,6 +320,12 @@ export function AssistantTab() {
 
   // The hero stays while listening, so the orb doesn't move when tapped.
   const showHero = !visible && !thinking;
+  const orbAway = textMode && !showHero;
+  orbAwayRef.current = orbAway;
+  // the conversation is gone → the mic comes back
+  useEffect(() => {
+    if (showHero) setTextMode(false);
+  }, [showHero]);
 
   return (
     <div ref={root} className="relative flex h-full flex-col">
@@ -360,6 +380,7 @@ export function AssistantTab() {
                     disabled={thinking}
                     onClick={() => {
                       haptic.impact('light');
+                      setTextMode(true);
                       void submit(ex);
                     }}
                     className="rounded-full bg-surface px-4 py-2 text-[15px] text-fg shadow-[0_0_0_0.5px_var(--line)] transition-transform duration-300 ease-spring active:scale-[0.96]"
@@ -373,7 +394,7 @@ export function AssistantTab() {
         </Collapse>
 
         {/* voice orb — steps aside while the keyboard is up */}
-        <Collapse open={!typing} instant={TOUCH}>
+        <Collapse open={!typing && !orbAway} instant={TOUCH}>
           <div ref={orbWrap} className="flex shrink-0 flex-col items-center gap-1 pt-1">
             <VoiceOrb ref={orbBtn} size={showHero ? 92 : 72} listening={listening} level={speech.level} onPress={toggleMic} />
             <div className="flex min-h-6 items-center px-6 text-center">
@@ -417,6 +438,7 @@ export function AssistantTab() {
             className="mt-2 flex items-center gap-2 rounded-full bg-surface py-1 pl-4 pr-1 shadow-[0_0_0_0.5px_var(--line)]"
             onSubmit={(e) => {
               e.preventDefault();
+              if (input.trim()) setTextMode(true);
               submit(input);
             }}
           >
@@ -430,8 +452,19 @@ export function AssistantTab() {
               tabIndex={listening ? -1 : 0}
               className="min-w-0 flex-1 bg-transparent py-1.5 text-[17px] text-fg outline-none placeholder:text-muted"
             />
+            {orbAway && !input.trim() && (
+              <button
+                type="button"
+                aria-label="Сказать голосом"
+                onClick={toggleMic}
+                className="animate-fade-in grid size-[34px] shrink-0 place-items-center rounded-full text-muted active:opacity-60"
+              >
+                <MicGlyph size={20} />
+              </button>
+            )}
             <button
               type="submit"
+              hidden={orbAway && !input.trim()}
               disabled={!input.trim() || thinking}
               aria-label="Отправить"
               className={`grid shrink-0 place-items-center rounded-full bg-blue text-white transition-all duration-500 ease-spring active:scale-90 ${
