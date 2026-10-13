@@ -23,6 +23,9 @@ interface UIState {
   setAccent(accent: AccentId): void;
   /** iOS widgets: pastel field with deep text, or the deep shade with pastel text. */
   widgetTone: 'pastel' | 'dark';
+  /** Screens painted in the accent colour too (Настройки → Цветной фон). */
+  tintBg: boolean;
+  setTintBg(on: boolean): void;
   setWidgetTone(tone: 'pastel' | 'dark'): void;
 
   selectedDate: DateKey;
@@ -67,6 +70,8 @@ export const useUIStore = create<UIState>()(
       accent: 'blue',
       setAccent: (accent) => set({ accent }),
       widgetTone: 'pastel',
+      tintBg: true,
+      setTintBg: (tintBg) => set({ tintBg }),
       setWidgetTone: (widgetTone) => set({ widgetTone }),
 
       selectedDate: todayKey(),
@@ -101,6 +106,7 @@ export const useUIStore = create<UIState>()(
         themeOverride: s.themeOverride,
         accent: s.accent,
         widgetTone: s.widgetTone,
+        tintBg: s.tintBg,
         hideDoneNextDay: s.hideDoneNextDay,
         digestPrompted: s.digestPrompted,
       }),

@@ -24,7 +24,8 @@
           var tg = window.Telegram && Telegram.WebApp && Telegram.WebApp.initData ? Telegram.WebApp.colorScheme : null;
           var dark = s.themeOverride ? s.themeOverride === 'dark' : tg ? tg === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
           if (dark) document.documentElement.classList.add('dark');
-          if (s.accent && s.accent !== 'blue') document.documentElement.dataset.accent = s.accent;
+          document.documentElement.dataset.accent = s.accent || 'blue';
+          if (s.tintBg !== false) document.documentElement.dataset.tint = '';
         } catch (e) {}
       })();
     </script>

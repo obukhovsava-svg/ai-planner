@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, Palette, Smartphone, Sparkles, Sun } from 'lucide-react';
+import { CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, PaintBucket, Palette, Smartphone, Sparkles, Sun } from 'lucide-react';
 import { ACCENTS } from '@/lib/accent';
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
@@ -60,6 +60,8 @@ export function SettingsSheet() {
   const accent = useUIStore((s) => s.accent);
   const setAccent = useUIStore((s) => s.setAccent);
   const widgetTone = useUIStore((s) => s.widgetTone);
+  const tintBg = useUIStore((s) => s.tintBg);
+  const setTintBg = useUIStore((s) => s.setTintBg);
   const setWidgetTone = useUIStore((s) => s.setWidgetTone);
   const wallpaperOpen = useUIStore((s) => s.wallpaperOpen);
   const setWallpaperOpen = useUIStore((s) => s.setWallpaperOpen);
@@ -249,6 +251,15 @@ export function SettingsSheet() {
                 ))}
               </div>
             </div>
+            <Row icon={<PaintBucket className="size-[17px]" />} iconBg="bg-[#ff9500]" label="Цветной фон">
+              <Switch
+                checked={tintBg}
+                onChange={(v) => {
+                  haptic.selection();
+                  setTintBg(v);
+                }}
+              />
+            </Row>
             {isNative() && (
               <Row icon={<LayoutGrid className="size-[18px]" />} iconBg="bg-blue" label="Фон виджета">
                 <div className="flex rounded-[9px] bg-surface-2 p-[2px]">

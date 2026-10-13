@@ -46,10 +46,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => postNative({ type: 'theme', mode: override }), [override]);
 
   const accent = useUIStore((s) => s.accent);
+  const tintBg = useUIStore((s) => s.tintBg);
   useLayoutEffect(() => {
-    if (accent === 'blue') delete document.documentElement.dataset.accent;
-    else document.documentElement.dataset.accent = accent;
-  }, [accent]);
+    const root = document.documentElement;
+    root.dataset.accent = accent;
+    if (tintBg) root.dataset.tint = '';
+    else delete root.dataset.tint;
+  }, [accent, tintBg]);
   // iOS app: the widgets are painted in the same colour
   const widgetTone = useUIStore((s) => s.widgetTone);
   useEffect(() => postNative({ type: 'accent', accent, tone: widgetTone }), [accent, widgetTone]);
@@ -57,9 +60,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     const root = document.documentElement;
     root.classList.toggle('dark', theme === 'dark');
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', BG[theme]);
-    syncTelegramChrome(BG[theme]);
-  }, [theme]);
+    // the actual page colour (the accent's when «Цветной фон» is on)
+    const bg = getComputedStyle(root).getPropertyValue('--bg').trim() || BG[theme];
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg);
+    syncTelegramChrome(bg);
+  }, [theme, accent, tintBg]);
 
   const applyWithTransition = useCallback((next: ThemeMode | null, origin?: { x: number; y: number }) => {
     const root = document.documentElement;

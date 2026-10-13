@@ -87,6 +87,122 @@
   color: #1c1a17 !important;
 }
 
+/* ---------- Цветной фон (Настройки): the screens take the accent colour, as the widgets do ---------- */
+/* light: a pastel field, cards a lighter pastel, buttons in the deep shade (white text) */
+/* dark: the deep shade, cards a touch lighter, buttons pastel (dark text) */
+:root[data-tint][data-accent='blue'] {
+  --bg: #cdd0f7; --cal-bg: #cdd0f7; --surface: color-mix(in srgb, #cdd0f7 35%, #fff); --surface-2: color-mix(in srgb, #0b1166 10%, transparent);
+  --navbar: color-mix(in srgb, #cdd0f7 82%, transparent); --navbar-plain: color-mix(in srgb, #cdd0f7 82%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #cdd0f7 45%, #fff) 72%, transparent); --tab-pill: color-mix(in srgb, #0b1166 12%, transparent);
+  --line: color-mix(in srgb, #0b1166 16%, transparent); --blue: #0b1166; --sky: #0b1166;
+}
+:root.dark[data-tint][data-accent='blue'] {
+  --bg: #0b1166; --cal-bg: #0b1166; --surface: color-mix(in srgb, #0b1166 86%, #fff); --surface-2: color-mix(in srgb, #cdd0f7 14%, transparent);
+  --navbar: color-mix(in srgb, #0b1166 80%, transparent); --navbar-plain: color-mix(in srgb, #0b1166 80%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #0b1166 82%, #fff) 70%, transparent); --tab-pill: color-mix(in srgb, #cdd0f7 16%, transparent);
+  --line: color-mix(in srgb, #cdd0f7 16%, transparent); --blue: #cdd0f7; --sky: #cdd0f7;
+}
+:root.dark[data-tint][data-accent='blue'] .bg-blue { background-color: #cdd0f7 !important; color: #0b1166 !important; }
+:root[data-tint][data-accent='blue']:not(.dark) .bg-blue { background-color: #0b1166 !important; color: #fff !important; }
+:root[data-tint][data-accent='sage'] {
+  --bg: #d7ebc6; --cal-bg: #d7ebc6; --surface: color-mix(in srgb, #d7ebc6 35%, #fff); --surface-2: color-mix(in srgb, #27501b 10%, transparent);
+  --navbar: color-mix(in srgb, #d7ebc6 82%, transparent); --navbar-plain: color-mix(in srgb, #d7ebc6 82%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #d7ebc6 45%, #fff) 72%, transparent); --tab-pill: color-mix(in srgb, #27501b 12%, transparent);
+  --line: color-mix(in srgb, #27501b 16%, transparent); --blue: #27501b; --sky: #27501b;
+}
+:root.dark[data-tint][data-accent='sage'] {
+  --bg: #27501b; --cal-bg: #27501b; --surface: color-mix(in srgb, #27501b 86%, #fff); --surface-2: color-mix(in srgb, #d7ebc6 14%, transparent);
+  --navbar: color-mix(in srgb, #27501b 80%, transparent); --navbar-plain: color-mix(in srgb, #27501b 80%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #27501b 82%, #fff) 70%, transparent); --tab-pill: color-mix(in srgb, #d7ebc6 16%, transparent);
+  --line: color-mix(in srgb, #d7ebc6 16%, transparent); --blue: #d7ebc6; --sky: #d7ebc6;
+}
+:root.dark[data-tint][data-accent='sage'] .bg-blue { background-color: #d7ebc6 !important; color: #27501b !important; }
+:root[data-tint][data-accent='sage']:not(.dark) .bg-blue { background-color: #27501b !important; color: #fff !important; }
+:root[data-tint][data-accent='lime'] {
+  --bg: #d3f5a8; --cal-bg: #d3f5a8; --surface: color-mix(in srgb, #d3f5a8 35%, #fff); --surface-2: color-mix(in srgb, #1f5a0f 10%, transparent);
+  --navbar: color-mix(in srgb, #d3f5a8 82%, transparent); --navbar-plain: color-mix(in srgb, #d3f5a8 82%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #d3f5a8 45%, #fff) 72%, transparent); --tab-pill: color-mix(in srgb, #1f5a0f 12%, transparent);
+  --line: color-mix(in srgb, #1f5a0f 16%, transparent); --blue: #1f5a0f; --sky: #1f5a0f;
+}
+:root.dark[data-tint][data-accent='lime'] {
+  --bg: #1f5a0f; --cal-bg: #1f5a0f; --surface: color-mix(in srgb, #1f5a0f 86%, #fff); --surface-2: color-mix(in srgb, #d3f5a8 14%, transparent);
+  --navbar: color-mix(in srgb, #1f5a0f 80%, transparent); --navbar-plain: color-mix(in srgb, #1f5a0f 80%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #1f5a0f 82%, #fff) 70%, transparent); --tab-pill: color-mix(in srgb, #d3f5a8 16%, transparent);
+  --line: color-mix(in srgb, #d3f5a8 16%, transparent); --blue: #d3f5a8; --sky: #d3f5a8;
+}
+:root.dark[data-tint][data-accent='lime'] .bg-blue { background-color: #d3f5a8 !important; color: #1f5a0f !important; }
+:root[data-tint][data-accent='lime']:not(.dark) .bg-blue { background-color: #1f5a0f !important; color: #fff !important; }
+:root[data-tint][data-accent='mist'] {
+  --bg: #cbe6f8; --cal-bg: #cbe6f8; --surface: color-mix(in srgb, #cbe6f8 35%, #fff); --surface-2: color-mix(in srgb, #0b3b60 10%, transparent);
+  --navbar: color-mix(in srgb, #cbe6f8 82%, transparent); --navbar-plain: color-mix(in srgb, #cbe6f8 82%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #cbe6f8 45%, #fff) 72%, transparent); --tab-pill: color-mix(in srgb, #0b3b60 12%, transparent);
+  --line: color-mix(in srgb, #0b3b60 16%, transparent); --blue: #0b3b60; --sky: #0b3b60;
+}
+:root.dark[data-tint][data-accent='mist'] {
+  --bg: #0b3b60; --cal-bg: #0b3b60; --surface: color-mix(in srgb, #0b3b60 86%, #fff); --surface-2: color-mix(in srgb, #cbe6f8 14%, transparent);
+  --navbar: color-mix(in srgb, #0b3b60 80%, transparent); --navbar-plain: color-mix(in srgb, #0b3b60 80%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #0b3b60 82%, #fff) 70%, transparent); --tab-pill: color-mix(in srgb, #cbe6f8 16%, transparent);
+  --line: color-mix(in srgb, #cbe6f8 16%, transparent); --blue: #cbe6f8; --sky: #cbe6f8;
+}
+:root.dark[data-tint][data-accent='mist'] .bg-blue { background-color: #cbe6f8 !important; color: #0b3b60 !important; }
+:root[data-tint][data-accent='mist']:not(.dark) .bg-blue { background-color: #0b3b60 !important; color: #fff !important; }
+:root[data-tint][data-accent='pink'] {
+  --bg: #f8c9d8; --cal-bg: #f8c9d8; --surface: color-mix(in srgb, #f8c9d8 35%, #fff); --surface-2: color-mix(in srgb, #5c1030 10%, transparent);
+  --navbar: color-mix(in srgb, #f8c9d8 82%, transparent); --navbar-plain: color-mix(in srgb, #f8c9d8 82%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #f8c9d8 45%, #fff) 72%, transparent); --tab-pill: color-mix(in srgb, #5c1030 12%, transparent);
+  --line: color-mix(in srgb, #5c1030 16%, transparent); --blue: #5c1030; --sky: #5c1030;
+}
+:root.dark[data-tint][data-accent='pink'] {
+  --bg: #5c1030; --cal-bg: #5c1030; --surface: color-mix(in srgb, #5c1030 86%, #fff); --surface-2: color-mix(in srgb, #f8c9d8 14%, transparent);
+  --navbar: color-mix(in srgb, #5c1030 80%, transparent); --navbar-plain: color-mix(in srgb, #5c1030 80%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #5c1030 82%, #fff) 70%, transparent); --tab-pill: color-mix(in srgb, #f8c9d8 16%, transparent);
+  --line: color-mix(in srgb, #f8c9d8 16%, transparent); --blue: #f8c9d8; --sky: #f8c9d8;
+}
+:root.dark[data-tint][data-accent='pink'] .bg-blue { background-color: #f8c9d8 !important; color: #5c1030 !important; }
+:root[data-tint][data-accent='pink']:not(.dark) .bg-blue { background-color: #5c1030 !important; color: #fff !important; }
+:root[data-tint][data-accent='red'] {
+  --bg: #f4a09a; --cal-bg: #f4a09a; --surface: color-mix(in srgb, #f4a09a 35%, #fff); --surface-2: color-mix(in srgb, #5e0a08 10%, transparent);
+  --navbar: color-mix(in srgb, #f4a09a 82%, transparent); --navbar-plain: color-mix(in srgb, #f4a09a 82%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #f4a09a 45%, #fff) 72%, transparent); --tab-pill: color-mix(in srgb, #5e0a08 12%, transparent);
+  --line: color-mix(in srgb, #5e0a08 16%, transparent); --blue: #5e0a08; --sky: #5e0a08;
+}
+:root.dark[data-tint][data-accent='red'] {
+  --bg: #5e0a08; --cal-bg: #5e0a08; --surface: color-mix(in srgb, #5e0a08 86%, #fff); --surface-2: color-mix(in srgb, #f4a09a 14%, transparent);
+  --navbar: color-mix(in srgb, #5e0a08 80%, transparent); --navbar-plain: color-mix(in srgb, #5e0a08 80%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #5e0a08 82%, #fff) 70%, transparent); --tab-pill: color-mix(in srgb, #f4a09a 16%, transparent);
+  --line: color-mix(in srgb, #f4a09a 16%, transparent); --blue: #f4a09a; --sky: #f4a09a;
+}
+:root.dark[data-tint][data-accent='red'] .bg-blue { background-color: #f4a09a !important; color: #5e0a08 !important; }
+:root[data-tint][data-accent='red']:not(.dark) .bg-blue { background-color: #5e0a08 !important; color: #fff !important; }
+:root[data-tint][data-accent='yellow'] {
+  --bg: #f6e3a1; --cal-bg: #f6e3a1; --surface: color-mix(in srgb, #f6e3a1 35%, #fff); --surface-2: color-mix(in srgb, #4f3b00 10%, transparent);
+  --navbar: color-mix(in srgb, #f6e3a1 82%, transparent); --navbar-plain: color-mix(in srgb, #f6e3a1 82%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #f6e3a1 45%, #fff) 72%, transparent); --tab-pill: color-mix(in srgb, #4f3b00 12%, transparent);
+  --line: color-mix(in srgb, #4f3b00 16%, transparent); --blue: #4f3b00; --sky: #4f3b00;
+}
+:root.dark[data-tint][data-accent='yellow'] {
+  --bg: #4f3b00; --cal-bg: #4f3b00; --surface: color-mix(in srgb, #4f3b00 86%, #fff); --surface-2: color-mix(in srgb, #f6e3a1 14%, transparent);
+  --navbar: color-mix(in srgb, #4f3b00 80%, transparent); --navbar-plain: color-mix(in srgb, #4f3b00 80%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #4f3b00 82%, #fff) 70%, transparent); --tab-pill: color-mix(in srgb, #f6e3a1 16%, transparent);
+  --line: color-mix(in srgb, #f6e3a1 16%, transparent); --blue: #f6e3a1; --sky: #f6e3a1;
+}
+:root.dark[data-tint][data-accent='yellow'] .bg-blue { background-color: #f6e3a1 !important; color: #4f3b00 !important; }
+:root[data-tint][data-accent='yellow']:not(.dark) .bg-blue { background-color: #4f3b00 !important; color: #fff !important; }
+:root[data-tint][data-accent='milk'] {
+  --bg: #efe4d2; --cal-bg: #efe4d2; --surface: color-mix(in srgb, #efe4d2 35%, #fff); --surface-2: color-mix(in srgb, #4a3826 10%, transparent);
+  --navbar: color-mix(in srgb, #efe4d2 82%, transparent); --navbar-plain: color-mix(in srgb, #efe4d2 82%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #efe4d2 45%, #fff) 72%, transparent); --tab-pill: color-mix(in srgb, #4a3826 12%, transparent);
+  --line: color-mix(in srgb, #4a3826 16%, transparent); --blue: #4a3826; --sky: #4a3826;
+}
+:root.dark[data-tint][data-accent='milk'] {
+  --bg: #4a3826; --cal-bg: #4a3826; --surface: color-mix(in srgb, #4a3826 86%, #fff); --surface-2: color-mix(in srgb, #efe4d2 14%, transparent);
+  --navbar: color-mix(in srgb, #4a3826 80%, transparent); --navbar-plain: color-mix(in srgb, #4a3826 80%, transparent);
+  --tabbar: color-mix(in srgb, color-mix(in srgb, #4a3826 82%, #fff) 70%, transparent); --tab-pill: color-mix(in srgb, #efe4d2 16%, transparent);
+  --line: color-mix(in srgb, #efe4d2 16%, transparent); --blue: #efe4d2; --sky: #efe4d2;
+}
+:root.dark[data-tint][data-accent='milk'] .bg-blue { background-color: #efe4d2 !important; color: #4a3826 !important; }
+:root[data-tint][data-accent='milk']:not(.dark) .bg-blue { background-color: #4a3826 !important; color: #fff !important; }
+
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);

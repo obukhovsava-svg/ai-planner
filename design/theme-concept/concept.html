@@ -1,0 +1,92 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Theme concept — ПЛАН</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#18181b;padding:50px;width:max-content;font-family:system-ui,-apple-system,"Helvetica Neue",'SF Pro Text',system-ui}
+h1{color:#fff;font:700 30px system-ui,-apple-system,"Helvetica Neue";margin-bottom:6px}
+.note{color:rgba(255,255,255,.55);font:500 17px system-ui,-apple-system,"Helvetica Neue";margin-bottom:34px}
+.row{display:flex;gap:34px;margin-bottom:56px;align-items:flex-start}
+.label{color:rgba(255,255,255,.75);font:700 18px system-ui,-apple-system,"Helvetica Neue";margin:0 0 14px 4px}
+.mono{font-family:'SF Mono',ui-monospace,Menlo,monospace}
+.ph{width:340px;height:736px;border-radius:52px;overflow:hidden;position:relative;background:var(--bg);color:var(--fg);box-shadow:0 0 0 10px #0d0d10,0 30px 70px rgba(0,0,0,.5)}
+.lime{--bg:#d3f5a8;--fg:#1f5a0f;--card:rgba(31,90,15,.08);--line:rgba(31,90,15,.14);--soft:rgba(31,90,15,.6);--late:#e5484d;--pill:#1f5a0f;--pillfg:#d3f5a8}
+.pink{--bg:#f8c9d8;--fg:#5c1030;--card:rgba(92,16,48,.08);--line:rgba(92,16,48,.14);--soft:rgba(92,16,48,.6);--late:#d93a3a;--pill:#5c1030;--pillfg:#f8c9d8}
+.navy{--bg:#0b1166;--fg:#cdd0f7;--card:rgba(205,208,247,.09);--line:rgba(205,208,247,.14);--soft:rgba(205,208,247,.6);--late:#ff8a80;--pill:#cdd0f7;--pillfg:#0b1166}
+.status{height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 28px;font:600 15px system-ui,-apple-system,"Helvetica Neue"}
+.island{position:absolute;left:50%;top:10px;width:96px;height:28px;margin-left:-48px;background:#000;border-radius:20px}
+.pad{padding:8px 20px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-top:6px}
+.big{font:900 30px/1 'SF Mono',ui-monospace,Menlo,monospace;letter-spacing:-.5px}
+.ring{width:44px;height:44px}
+.sec{font:800 11px system-ui,-apple-system,"Helvetica Neue";letter-spacing:.08em;color:var(--soft);margin:18px 0 8px}
+.ev{display:flex;gap:10px;background:var(--card);border-radius:16px;padding:11px 12px;margin-bottom:8px}
+.bar{width:4px;border-radius:2px;flex-shrink:0}
+.evt{font:800 15px 'SF Mono',ui-monospace,Menlo,monospace}
+.evs{font:600 11px 'SF Mono',ui-monospace,Menlo,monospace;color:var(--soft);margin-top:3px}
+.now{background:var(--pill);color:var(--pillfg)}.now .evs{color:var(--pillfg);opacity:.75}
+.tk{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1.5px solid var(--line);font:700 15px 'SF Mono',ui-monospace,Menlo,monospace}
+.tk:last-child{border:0}
+.c{width:20px;height:20px;border-radius:50%;border:2.4px solid var(--fg);flex-shrink:0;display:grid;place-items:center}
+.c.late{border-color:var(--late)}
+.c.done{background:var(--fg)}
+.c.done::after{content:'';width:8px;height:4px;border-left:2.4px solid var(--bg);border-bottom:2.4px solid var(--bg);transform:rotate(-45deg) translate(1px,-1px)}
+.d{margin-left:auto;font:600 11px 'SF Mono',ui-monospace,Menlo,monospace;color:var(--soft)}
+.strike{text-decoration:line-through;color:var(--soft)}
+.chips{display:flex;gap:6px;margin:14px 0 4px;flex-wrap:wrap}
+.chip{font:700 12px 'SF Mono',ui-monospace,Menlo,monospace;padding:7px 11px;border-radius:99px;background:var(--card)}
+.chip.on{background:var(--pill);color:var(--pillfg)}
+.tab{position:absolute;left:14px;right:14px;bottom:18px;height:62px;border-radius:31px;background:var(--card);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:space-around;font:800 11px 'SF Mono',ui-monospace,Menlo,monospace;box-shadow:inset 0 0 0 1.5px var(--line)}
+.tab div{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 18px;border-radius:24px}
+.tab .on{background:var(--pill);color:var(--pillfg)}
+.ico{width:20px;height:20px;border:2.4px solid currentColor;border-radius:6px}
+.week{display:flex;justify-content:space-between;margin-top:14px}
+.wd{display:flex;flex-direction:column;align-items:center;gap:4px;font:700 11px 'SF Mono',ui-monospace,Menlo,monospace;color:var(--soft)}
+.wd b{font:800 16px 'SF Mono',ui-monospace,Menlo,monospace;color:var(--fg);width:34px;height:34px;display:grid;place-items:center;border-radius:12px}
+.wd.on b{background:var(--pill);color:var(--pillfg)}
+.orb{width:104px;height:104px;border-radius:50%;background:var(--pill);margin:30px auto 12px;display:grid;place-items:center}
+.hero{text-align:center;margin-top:44px}
+.hero h2{font:900 26px/1.1 'SF Mono',ui-monospace,Menlo,monospace}
+.hero p{font:600 13px/1.4 'SF Mono',ui-monospace,Menlo,monospace;color:var(--soft);margin:10px 14px 0}
+.ex{display:block;margin:8px auto 0;width:max-content;max-width:290px;font:700 12px 'SF Mono',ui-monospace,Menlo,monospace;padding:9px 14px;border-radius:99px;background:var(--card)}
+.input{position:absolute;left:16px;right:16px;bottom:96px;height:48px;border-radius:24px;background:var(--card);box-shadow:inset 0 0 0 1.5px var(--line);display:flex;align-items:center;padding:0 18px;font:600 14px 'SF Mono',ui-monospace,Menlo,monospace;color:var(--soft)}
+</style></head><body>
+<h1>Концепт: весь планер в цвет темы</h1>
+<p class="note">Фон экранов — цвет темы, как у виджетов. Жирный моноширинный шрифт, карточки и кнопки в тон. Слева направо: план дня · задачи · ассистент.</p>
+<div id="rows"></div>
+<script>
+const ring = (done, total) => { const r = 18, c = 2 * Math.PI * r, v = done / total; return `<svg class="ring" viewBox="0 0 44 44"><circle cx="22" cy="22" r="${r}" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="3.2"/><circle cx="22" cy="22" r="${r}" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="${c * v} ${c}" transform="rotate(-90 22 22)"/><text x="22" y="26" text-anchor="middle" font-family="SF Mono, Menlo, monospace" font-weight="800" font-size="11" fill="currentColor">${done}/${total}</text></svg>`; };
+const tabs = (on) => `<div class="tab">${['План', 'Ассистент', 'Задачи'].map((t, i) => `<div class="${i === on ? 'on' : ''}"><span class="ico" style="${i === 1 ? 'border-radius:50%' : ''}"></span>${t}</div>`).join('')}</div>`;
+const statusBar = `<div class="island"></div><div class="status"><span>9:41</span><span>●●● ▮</span></div>`;
+const plan = () => `${statusBar}<div class="pad">
+  <div class="hdr"><div class="big">ВТОРНИК<br>13 ОКТ</div>${ring(1, 4)}</div>
+  <div class="week">${['П|12', 'В|13', 'С|14', 'Ч|15', 'П|16', 'С|17', 'В|18'].map((d, i) => { const [w, n] = d.split('|'); return `<div class="wd ${i === 1 ? 'on' : ''}">${w}<b>${n}</b></div>`; }).join('')}</div>
+  <div class="sec">ПЛАНЫ · 3</div>
+  <div class="ev"><span class="bar" style="background:#007aff"></span><div><div class="evt">Планёрка</div><div class="evs">09:30–10:00</div></div></div>
+  <div class="ev now"><span class="bar" style="background:#ff6b6b"></span><div><div class="evt">Созвон с командой</div><div class="evs">СЕЙЧАС · ДО 16:00</div></div></div>
+  <div class="ev"><span class="bar" style="background:#34c759"></span><div><div class="evt">Тренировка</div><div class="evs">19:00–20:00</div></div></div>
+  <div class="sec">ЗАДАЧИ НА ДЕНЬ</div>
+  <div class="tk"><span class="c late"></span>Правки<span class="d" style="color:var(--late)">вчера</span></div>
+  <div class="tk"><span class="c"></span>Оплатить интернет<span class="d">18:00</span></div>
+</div>${tabs(0)}`;
+const tasks = () => `${statusBar}<div class="pad">
+  <div class="hdr"><div class="big">ЗАДАЧИ</div>${ring(1, 4)}</div>
+  <div class="chips"><span class="chip on">Все</span><span class="chip">Работа</span><span class="chip">Личное</span><span class="chip">Здоровье</span></div>
+  <div class="sec">ПРОСРОЧЕНО</div>
+  <div class="tk"><span class="c late"></span>Правки<span class="d" style="color:var(--late)">12 окт</span></div>
+  <div class="sec">СЕГОДНЯ</div>
+  <div class="tk"><span class="c"></span>Reels на тему<span class="d">работа</span></div>
+  <div class="tk"><span class="c"></span>Оплатить интернет<span class="d">18:00</span></div>
+  <div class="tk"><span class="c done"></span><span class="strike">Позвонить маме</span></div>
+  <div class="sec">БЕЗ ДАТЫ</div>
+  <div class="tk"><span class="c"></span>Купить продукты</div>
+  <div class="tk"><span class="c"></span>Записаться к врачу</div>
+</div>${tabs(2)}`;
+const assistant = () => `${statusBar}<div class="pad">
+  <div class="big" style="margin-top:6px">АССИСТЕНТ</div>
+  <div class="hero"><h2>ЧЕМ ПОМОЧЬ?</h2><p>Скажите или напишите — разложу по плану</p></div>
+  <div class="orb"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--pillfg)" stroke-width="2.6" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+  <span class="ex">«Завтра в 10 врач, в 19 тренировка»</span>
+  <span class="ex">«Купить продукты»</span>
+</div><div class="input">Или напишите…</div>${tabs(1)}`;
+const themes = [['lime', 'Лайм · пастельный'], ['pink', 'Розовый · пастельный'], ['navy', 'Синий · тёмный']];
+document.getElementById('rows').innerHTML = themes.map(([cls, name]) => `<div class="label">${name}</div><div class="row">${[plan, tasks, assistant].map((f) => `<div class="ph ${cls}">${f()}</div>`).join('')}</div>`).join('');
+</script></body></html>
