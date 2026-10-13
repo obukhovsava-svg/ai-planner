@@ -97,6 +97,17 @@ nonisolated enum WidgetStore {
     return (obj["at"] as? NSNumber)?.doubleValue
   }
 
+  /// The planner's accent colour (Настройки → Цвет оформления): the widgets are painted in it.
+  static var accent: String {
+    UserDefaults(suiteName: group)?.string(forKey: "accent") ?? "blue"
+  }
+
+  static func saveAccent(_ accent: String) {
+    guard accent != self.accent else { return }
+    UserDefaults(suiteName: group)?.set(accent, forKey: "accent")
+    WidgetCenter.shared.reloadAllTimelines()
+  }
+
   static func load() -> WidgetSnapshot {
     guard let file, let data = try? Data(contentsOf: file),
           let snapshot = try? JSONDecoder().decode(WidgetSnapshot.self, from: data) else { return .empty }

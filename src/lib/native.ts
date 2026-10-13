@@ -21,7 +21,9 @@ type NativeMessage =
   | { type: 'wallpaper'; action: 'pick' | 'reset' | 'state' }
   /** The chosen theme, so the app starts in it (no flash): null = follow the system. */
   | { type: 'theme'; mode: 'light' | 'dark' | null }
-  | { type: 'widget'; snapshot: WidgetSnapshot };
+  | { type: 'widget'; snapshot: WidgetSnapshot }
+  /** The accent colour, so the widgets match the app. */
+  | { type: 'accent'; accent: string };
 
 /** What the home-screen widget shows: the next week, day by day (the widget can't run this code). */
 export interface WidgetSnapshot {

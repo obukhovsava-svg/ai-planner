@@ -48,6 +48,8 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
         sendWallpaperState()
       default: sendWallpaperState()
       }
+    case "accent":
+      if let accent = body["accent"] as? String { WidgetStore.saveAccent(accent) }
     case "theme":
       // Read by PlannerApp (@AppStorage) → the window starts in this theme next time, no flash.
       UserDefaults.standard.set(body["mode"] as? String ?? "", forKey: "theme")

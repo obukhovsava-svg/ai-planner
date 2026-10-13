@@ -132,15 +132,66 @@ private func shortDate(_ key: String) -> String {
 }
 
 // MARK: - Style
+// Flat colour of the app's accent (Настройки → Цвет оформления): a pastel field with deep text in
+// light mode, the deep shade with pastel text in dark mode. Bold monospaced type throughout.
 
 private func hex(_ v: UInt32) -> Color {
   Color(red: Double(v >> 16 & 0xff) / 255, green: Double(v >> 8 & 0xff) / 255, blue: Double(v & 0xff) / 255)
 }
 
-/// The app icon's colours: sky blue → lavender → pink.
-private let brandA = hex(0x7a9dfe), brandB = hex(0xa48bfa), brandC = hex(0xf48eae)
-private let brand = LinearGradient(colors: [brandA, brandB, brandC], startPoint: .leading, endPoint: .trailing)
-private let lateRed = hex(0xff3b30)
+/// pastel, deep — per accent.
+private let palettes: [String: (UInt32, UInt32)] = [
+  "blue": (0xcdd0f7, 0x0b1166),
+  "sage": (0xd7ebc6, 0x27501b),
+  "lime": (0xd3f5a8, 0x1f5a0f),
+  "mist": (0xcbe6f8, 0x0b3b60),
+  "pink": (0xf8c9d8, 0x5c1030),
+  "red": (0xf4a09a, 0x5e0a08),
+  "yellow": (0xf6e3a1, 0x4f3b00),
+  "milk": (0xefe4d2, 0x4a3826),
+]
+
+struct Palette {
+  let bg: Color
+  let fg: Color
+  let late: Color
+
+  init(_ accent: String, dark: Bool) {
+    let (pastel, deep) = palettes[accent] ?? palettes["blue"]!
+    bg = hex(dark ? deep : pastel)
+    fg = hex(dark ? pastel : deep)
+    // overdue stands out in coral — on the red theme coral is the background itself, so it's white there
+    late = accent == "red" ? .white : hex(dark ? 0xff8a80 : 0xe5484d)
+  }
+
+  var secondary: Color { fg.opacity(0.62) }
+  var faint: Color { fg.opacity(0.14) }
+}
+
+private struct PaletteKey: EnvironmentKey { static let defaultValue = Palette("blue", dark: false) }
+extension EnvironmentValues {
+  var palette: Palette {
+    get { self[PaletteKey.self] }
+    set { self[PaletteKey.self] = newValue }
+  }
+}
+
+/// Supplies the palette for the current appearance.
+struct Painted<Content: View>: View {
+  @Environment(\.colorScheme) private var scheme
+  @ViewBuilder let content: () -> Content
+  var body: some View {
+    let p = Palette(WidgetStore.accent, dark: scheme == .dark)
+    content().environment(\.palette, p).foregroundStyle(p.fg)
+  }
+}
+
+struct WidgetBackground: View {
+  @Environment(\.colorScheme) private var scheme
+  var body: some View { Palette(WidgetStore.accent, dark: scheme == .dark).bg }
+}
+
+private func mono(_ size: CGFloat, _ weight: Font.Weight = .bold) -> Font { .system(size: size, weight: weight, design: .monospaced) }
 
 func eventColor(_ name: String) -> Color {
   switch name {
@@ -149,20 +200,6 @@ func eventColor(_ name: String) -> Color {
   case "green": hex(0x34c759)
   case "amber": hex(0xff9500)
   default: hex(0x007aff)
-  }
-}
-
-/// Soft glows of the brand colours over a plain base.
-struct WidgetBackground: View {
-  @Environment(\.colorScheme) private var scheme
-
-  var body: some View {
-    let dark = scheme == .dark
-    ZStack {
-      dark ? hex(0x15141c) : Color.white
-      RadialGradient(colors: [brandB.opacity(dark ? 0.32 : 0.2), .clear], center: .topTrailing, startRadius: 0, endRadius: 230)
-      RadialGradient(colors: [brandA.opacity(dark ? 0.22 : 0.14), .clear], center: .bottomLeading, startRadius: 0, endRadius: 210)
-    }
   }
 }
 
@@ -175,123 +212,102 @@ private func tasksLabel(_ n: Int) -> String { "\(n) \(plural(n, "задача", 
 
 // MARK: - Pieces
 
-/// Today's tasks done / all of today's tasks.
+/// Today's tasks done / all — an outlined circle with the count.
 private struct ProgressRing: View {
   let done: Int
   let total: Int
-  var size: CGFloat = 34
+  var size: CGFloat = 26
+  @Environment(\.palette) private var p
 
   var body: some View {
     let value = total == 0 ? 0 : Double(done) / Double(total)
     ZStack {
-      Circle().stroke(Color.primary.opacity(0.08), lineWidth: size * 0.12)
-      Circle().trim(from: 0, to: value)
-        .stroke(AngularGradient(colors: [brandA, brandB, brandC, brandA], center: .center), style: StrokeStyle(lineWidth: size * 0.12, lineCap: .round))
-        .rotationEffect(.degrees(-90))
-      if total > 0 && done == total {
-        Image(systemName: "checkmark").font(.system(size: size * 0.34, weight: .bold)).foregroundStyle(brandB)
-      } else {
-        Text("\(done)/\(total)").font(.system(size: size * 0.28, weight: .semibold, design: .rounded)).monospacedDigit()
-      }
+      Circle().stroke(p.fg.opacity(0.35), lineWidth: 1.8)
+      Circle().trim(from: 0, to: value).stroke(p.fg, style: StrokeStyle(lineWidth: 1.8, lineCap: .round)).rotationEffect(.degrees(-90))
+      Text("\(done)/\(total)").font(mono(size * 0.34)).minimumScaleFactor(0.6).lineLimit(1).padding(2)
     }
     .frame(width: size, height: size)
   }
 }
 
+/// ВТОРНИК / 13 ОКТ and the ring.
 private struct Header: View {
   let day: DayPlan
-  var compact = false
+  var size: CGFloat = 22
+  var ring: CGFloat? = nil
 
   var body: some View {
-    HStack(alignment: .center, spacing: 8) {
-      VStack(alignment: .leading, spacing: 0) {
+    HStack(alignment: .top, spacing: 6) {
+      VStack(alignment: .leading, spacing: -3) {
         Text(day.date.formatted(.dateTime.weekday(.wide).locale(ru)).uppercased())
-          .font(.system(size: 11, weight: .bold)).foregroundStyle(brand).lineLimit(1)
-        Text(compact ? day.date.formatted(.dateTime.day().month(.abbreviated).locale(ru)).replacingOccurrences(of: ".", with: "")
-                     : day.date.formatted(.dateTime.day().month(.wide).locale(ru)))
-          .font(.system(size: compact ? 18 : 21, weight: .bold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7)
+        Text(day.date.formatted(.dateTime.day().month(.abbreviated).locale(ru)).replacingOccurrences(of: ".", with: "").uppercased())
       }
+      .font(mono(size, .heavy)).lineLimit(1).minimumScaleFactor(0.55)
       Spacer(minLength: 0)
-      if !day.tasks.isEmpty { ProgressRing(done: day.doneCount, total: day.tasks.count, size: compact ? 30 : 36) }
+      ProgressRing(done: day.doneCount, total: day.tasks.count, size: ring ?? size * 1.2)
     }
   }
 }
 
 private struct SectionTitle: View {
-  let icon: String
   let title: String
   var badge: String? = nil
+  @Environment(\.palette) private var p
 
   var body: some View {
-    HStack(spacing: 4) {
-      Image(systemName: icon).font(.system(size: 10, weight: .bold))
-      Text(title.uppercased()).font(.system(size: 10, weight: .bold)).kerning(0.4)
-      if let badge {
-        Text(badge).font(.system(size: 10, weight: .bold)).monospacedDigit()
-          .padding(.horizontal, 5).padding(.vertical, 1)
-          .background(Color.primary.opacity(0.07), in: Capsule())
-      }
+    HStack(spacing: 5) {
+      Text(title.uppercased()).font(mono(10, .heavy)).kerning(0.3)
+      if let badge { Text(badge).font(mono(10, .heavy)) }
       Spacer(minLength: 0)
     }
-    .foregroundStyle(.secondary)
+    .foregroundStyle(p.secondary)
   }
 }
 
-/// Time · colour bar · title — a little timeline.
+/// Colour bar · title / time.
 private struct PlanRow: View {
   let event: WidgetSnapshot.Event
   let now: Bool
-  var showEnd = true
-  /// Small widget: no time column, the time goes under the title.
-  var compact = false
+  var titleSize: CGFloat = 13
+  @Environment(\.palette) private var p
 
   var body: some View {
-    let color = eventColor(event.color)
-    HStack(spacing: 7) {
-      if !compact {
-        Text(event.start).font(.system(size: 12, weight: .semibold, design: .rounded)).monospacedDigit()
-          .foregroundStyle(now ? color : .secondary).frame(width: 37, alignment: .leading)
-      }
-      Capsule().fill(color).frame(width: 3.5).padding(.vertical, 1)
-      VStack(alignment: .leading, spacing: 0) {
-        Text(event.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-        if now {
-          Text("сейчас · до \(event.end)").font(.system(size: 10, weight: .semibold)).foregroundStyle(color).lineLimit(1)
-        } else if compact {
-          Text("\(event.start)–\(event.end)").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
-        } else if showEnd {
-          Text("до \(event.end)").font(.system(size: 10)).foregroundStyle(.secondary)
-        }
+    HStack(spacing: 6) {
+      Capsule().fill(eventColor(event.color)).frame(width: 3).padding(.vertical, 1)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(event.title).font(mono(titleSize)).lineLimit(1)
+        Text(now ? "сейчас · до \(event.end)" : "\(event.start)-\(event.end)").font(mono(8, now ? .heavy : .semibold))
+          .foregroundStyle(now ? p.fg : p.secondary).lineLimit(1)
       }
       Spacer(minLength: 0)
     }
     .fixedSize(horizontal: false, vertical: true)
-    .padding(.vertical, now ? 3 : 0).padding(.horizontal, now ? 5 : 0)
-    .background(now ? color.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 8))
-    .padding(.horizontal, now ? -5 : 0)
   }
 }
 
 private struct TodoRow: View {
   let item: TodoItem
+  var size: CGFloat = 14
+  /// Small widget: titles only, as in the design.
+  var showDetail = true
+  @Environment(\.palette) private var p
 
   var body: some View {
-    HStack(spacing: 7) {
+    HStack(spacing: 5) {
       ZStack {
         if item.done {
-          Circle().fill(brand)
-          Image(systemName: "checkmark").font(.system(size: 7.5, weight: .heavy)).foregroundStyle(.white)
+          Circle().fill(p.fg)
+          Image(systemName: "checkmark").font(.system(size: size * 0.5, weight: .heavy)).foregroundStyle(p.bg)
         } else {
-          Circle().strokeBorder(item.kind == .late ? AnyShapeStyle(lateRed) : AnyShapeStyle(brand), lineWidth: 1.6)
+          Circle().strokeBorder(item.kind == .late ? p.late : p.fg, lineWidth: 2)
         }
       }
-      .frame(width: 15, height: 15)
-      Text(item.title).font(.system(size: 13)).lineLimit(1)
-        .strikethrough(item.done).foregroundStyle(item.done ? .secondary : .primary)
+      .frame(width: size + 1, height: size + 1)
+      Text(item.title).font(mono(size)).lineLimit(1).truncationMode(.tail)
+        .strikethrough(item.done).foregroundStyle(item.done ? p.secondary : p.fg)
       Spacer(minLength: 0)
-      if let d = item.detail {
-        Text(d).font(.system(size: 10, weight: .medium)).monospacedDigit()
-          .foregroundStyle(item.kind == .late ? lateRed : .secondary).lineLimit(1)
+      if showDetail, let d = item.detail, !item.done {
+        Text(d).font(mono(9, .semibold)).foregroundStyle(item.kind == .late ? p.late : p.secondary).lineLimit(1)
       }
     }
   }
@@ -299,19 +315,21 @@ private struct TodoRow: View {
 
 private struct More: View {
   let count: Int
+  @Environment(\.palette) private var p
   var body: some View {
-    if count > 0 { Text("ещё \(count)").font(.system(size: 10, weight: .medium)).foregroundStyle(.tertiary) }
+    if count > 0 { Text("ещё \(count)").font(mono(9, .semibold)).foregroundStyle(p.secondary) }
   }
 }
 
 private struct Placeholder: View {
   let title: String
   let subtitle: String
+  @Environment(\.palette) private var p
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 1) {
-      Text(title).font(.system(size: 13, weight: .semibold))
-      Text(subtitle).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
+    VStack(alignment: .leading, spacing: 2) {
+      Text(title).font(mono(13))
+      Text(subtitle).font(mono(9, .semibold)).foregroundStyle(p.secondary).lineLimit(2)
     }
   }
 }
@@ -319,15 +337,12 @@ private struct Placeholder: View {
 private struct PlansList: View {
   let day: DayPlan
   let limit: Int
-  var showEnd = true
 
   var body: some View {
     let shown = Array(day.events.prefix(limit))
     VStack(alignment: .leading, spacing: 6) {
-      if shown.isEmpty {
-        Placeholder(title: day.isToday ? "Планов нет" : "Пусто", subtitle: "Скажите ассистенту, что запланировать")
-      }
-      ForEach(Array(shown.enumerated()), id: \.offset) { _, e in PlanRow(event: e, now: day.isNow(e), showEnd: showEnd) }
+      if shown.isEmpty { Placeholder(title: day.isToday ? "Планов нет" : "Пусто", subtitle: "Скажите ассистенту") }
+      ForEach(Array(shown.enumerated()), id: \.offset) { _, e in PlanRow(event: e, now: day.isNow(e)) }
       More(count: day.events.count - shown.count)
     }
   }
@@ -336,18 +351,15 @@ private struct PlansList: View {
 private struct TodoList: View {
   let day: DayPlan
   let limit: Int
+  var size: CGFloat = 13
 
   var body: some View {
-    // Done tasks only if there's room left after the open ones.
     let open = day.openTodo, done = day.todo.filter(\.done)
     let shown = Array((open + done).prefix(limit))
-    VStack(alignment: .leading, spacing: 6) {
-      if open.isEmpty && done.isEmpty {
-        Placeholder(title: "Задач нет", subtitle: "Можно отдохнуть")
-      } else if open.isEmpty {
-        Placeholder(title: "Всё сделано", subtitle: "Отличный день")
-      }
-      ForEach(Array(shown.enumerated()), id: \.offset) { _, t in TodoRow(item: t) }
+    VStack(alignment: .leading, spacing: 5) {
+      if open.isEmpty && done.isEmpty { Placeholder(title: "Задач нет", subtitle: "Можно отдохнуть") }
+      else if open.isEmpty { Placeholder(title: "Всё сделано", subtitle: "Отличный день") }
+      ForEach(Array(shown.enumerated()), id: \.offset) { _, t in TodoRow(item: t, size: size) }
       More(count: open.count - shown.filter { !$0.done }.count)
     }
   }
@@ -362,9 +374,9 @@ struct TodayView: View {
   var body: some View {
     let today = DayPlan(entry.snapshot, at: entry.date)
     switch family {
-    case .systemSmall: SmallView(day: today)
-    case .systemMedium: MediumView(day: today)
-    case .systemLarge: LargeView(day: today, tomorrow: DayPlan(entry.snapshot, at: entry.date, dayOffset: 1))
+    case .systemSmall: Painted { SmallView(day: today) }
+    case .systemMedium: Painted { MediumView(day: today) }
+    case .systemLarge: Painted { LargeView(day: today, tomorrow: DayPlan(entry.snapshot, at: entry.date, dayOffset: 1)) }
     case .accessoryRectangular: RectangularView(day: today)
     case .accessoryCircular: CircularView(day: today)
     default: InlineView(day: today)
@@ -372,21 +384,23 @@ struct TodayView: View {
   }
 }
 
+/// The reference layout: date, the next plan, then tasks.
 struct SmallView: View {
   let day: DayPlan
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Header(day: day, compact: true)
+    VStack(alignment: .leading, spacing: 7) {
+      Header(day: day, size: 24, ring: 24)
       if day.isEmpty {
         Spacer(minLength: 0)
         Placeholder(title: "Свободный день", subtitle: "Скажите ассистенту, что запланировать")
       } else {
-        if let e = day.next { PlanRow(event: e, now: day.isNow(e), compact: true) }
-        let n = day.next == nil ? 3 : 2
-        ForEach(Array(day.openTodo.prefix(n).enumerated()), id: \.offset) { _, t in TodoRow(item: t) }
+        if let e = day.next { PlanRow(event: e, now: day.isNow(e)) }
+        let n = day.next == nil ? 4 : 3
+        VStack(alignment: .leading, spacing: 4) {
+          ForEach(Array(day.openTodo.prefix(n).enumerated()), id: \.offset) { _, t in TodoRow(item: t, size: 14, showDetail: false) }
+        }
         Spacer(minLength: 0)
-        More(count: max(0, day.events.count - 1) + max(0, day.openTodo.count - n))
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -397,21 +411,20 @@ struct MediumView: View {
   let day: DayPlan
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 9) {
-      Header(day: day, compact: true)
-      HStack(alignment: .top, spacing: 12) {
-        VStack(alignment: .leading, spacing: 6) {
-          SectionTitle(icon: "calendar", title: "Планы", badge: day.events.isEmpty ? nil : "\(day.events.count)")
-          PlansList(day: day, limit: 2, showEnd: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        VStack(alignment: .leading, spacing: 6) {
-          SectionTitle(icon: "checklist", title: "Задачи", badge: day.openTodo.isEmpty ? nil : "\(day.openTodo.count)")
-          TodoList(day: day, limit: 3)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    HStack(alignment: .top, spacing: 14) {
+      VStack(alignment: .leading, spacing: 8) {
+        Header(day: day)
+        SectionTitle(title: "Планы", badge: day.events.isEmpty ? nil : "\(day.events.count)")
+        PlansList(day: day, limit: 2)
+        Spacer(minLength: 0)
       }
-      Spacer(minLength: 0)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      VStack(alignment: .leading, spacing: 6) {
+        SectionTitle(title: "Задачи", badge: day.openTodo.isEmpty ? nil : "\(day.openTodo.count)")
+        TodoList(day: day, limit: 5, size: 13)
+        Spacer(minLength: 0)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
@@ -420,31 +433,31 @@ struct MediumView: View {
 struct LargeView: View {
   let day: DayPlan
   let tomorrow: DayPlan
+  @Environment(\.palette) private var p
 
   var body: some View {
     let plans = min(max(day.events.count, 1), 3)
-    let todos = (tomorrow.next == nil ? 9 : 8) - plans
-    VStack(alignment: .leading, spacing: 8) {
-      Header(day: day)
+    VStack(alignment: .leading, spacing: 10) {
+      Header(day: day, size: 26)
       VStack(alignment: .leading, spacing: 6) {
-        SectionTitle(icon: "calendar", title: "Планы", badge: day.events.isEmpty ? nil : "\(day.events.count)")
+        SectionTitle(title: "Планы", badge: day.events.isEmpty ? nil : "\(day.events.count)")
         PlansList(day: day, limit: plans)
       }
-      Rectangle().fill(Color.primary.opacity(0.06)).frame(height: 1)
+      Rectangle().fill(p.faint).frame(height: 1.5)
       VStack(alignment: .leading, spacing: 6) {
-        SectionTitle(icon: "checklist", title: "Задачи", badge: day.openTodo.isEmpty ? nil : "\(day.openTodo.count)")
-        TodoList(day: day, limit: min(todos, 5))
+        SectionTitle(title: "Задачи", badge: day.openTodo.isEmpty ? nil : "\(day.openTodo.count)")
+        TodoList(day: day, limit: 7 - plans, size: 14)
       }
       Spacer(minLength: 0)
       if let e = tomorrow.next {
-        HStack(spacing: 5) {
-          Text("Завтра").font(.system(size: 11, weight: .bold)).foregroundStyle(brand)
-          Text("\(e.start) \(e.title)").font(.system(size: 11, weight: .medium)).lineLimit(1)
-          if tomorrow.events.count > 1 { Text("+\(tomorrow.events.count - 1)").font(.system(size: 11)).foregroundStyle(.secondary) }
+        HStack(spacing: 6) {
+          Text("ЗАВТРА").font(mono(10, .heavy))
+          Text("\(e.start) \(e.title)").font(mono(10, .semibold)).lineLimit(1)
+          if tomorrow.events.count > 1 { Text("+\(tomorrow.events.count - 1)").font(mono(10, .semibold)).foregroundStyle(p.secondary) }
           Spacer(minLength: 0)
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(Color.primary.opacity(0.05), in: Capsule())
+        .background(p.faint, in: Capsule())
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -468,10 +481,10 @@ struct RectangularView: View {
         ForEach(Array(day.events.prefix(2).enumerated()), id: \.offset) { _, e in
           let now = day.isNow(e)
           HStack(spacing: 5) {
-            Text(e.start).font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
+            Text(e.start).font(.system(size: 13, weight: .bold, design: .monospaced)).monospacedDigit()
               .fixedSize()
             Capsule().frame(width: 3, height: 13).opacity(now ? 1 : 0.5).widgetAccentable()
-            Text(e.title).font(.system(size: 14, weight: now ? .bold : .regular)).lineLimit(1)
+            Text(e.title).font(.system(size: 13, weight: now ? .heavy : .semibold, design: .monospaced)).lineLimit(1)
           }
         }
         Spacer(minLength: 0)
@@ -491,7 +504,7 @@ private struct LockTitle: View {
       Image(systemName: icon)
       Text(count > 0 ? "\(title.uppercased()) · \(count)" : title.uppercased())
     }
-    .font(.system(size: 11, weight: .bold)).opacity(0.75).widgetAccentable()
+    .font(.system(size: 11, weight: .heavy, design: .monospaced)).opacity(0.75).widgetAccentable()
   }
 }
 
@@ -510,7 +523,7 @@ struct TasksRect: View {
         ForEach(Array(day.openTodo.prefix(3).enumerated()), id: \.offset) { _, t in
           HStack(spacing: 4) {
             Image(systemName: t.kind == .late ? "exclamationmark.circle" : "circle").font(.system(size: 10, weight: .semibold))
-            Text(t.title).font(.system(size: 13)).lineLimit(1)
+            Text(t.title).font(.system(size: 13, weight: .semibold, design: .monospaced)).lineLimit(1)
           }
         }
       }
@@ -534,7 +547,7 @@ private struct LockRing: View {
       if total > 0 && done == total {
         Image(systemName: "checkmark").font(.system(size: size * 0.32, weight: .bold))
       } else {
-        Text("\(done)/\(total)").font(.system(size: size * 0.27, weight: .bold, design: .rounded)).monospacedDigit()
+        Text("\(done)/\(total)").font(.system(size: size * 0.27, weight: .bold, design: .monospaced))
       }
     }
     .frame(width: size, height: size)

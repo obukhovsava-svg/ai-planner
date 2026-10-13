@@ -50,6 +50,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (accent === 'blue') delete document.documentElement.dataset.accent;
     else document.documentElement.dataset.accent = accent;
   }, [accent]);
+  // iOS app: the widgets are painted in the same colour
+  useEffect(() => postNative({ type: 'accent', accent }), [accent]);
 
   useLayoutEffect(() => {
     const root = document.documentElement;

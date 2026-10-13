@@ -1,0 +1,290 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="1234" viewBox="0 0 1040 1234"><defs><linearGradient id="brand" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7a9dfe"/><stop offset="0.52" stop-color="#a48bfa"/><stop offset="1" stop-color="#f48eae"/></linearGradient></defs><rect id="Светлая тема · фон" x="0" y="0" width="1040" height="462" fill="#e9e9ee"/><g id="Small 170×170 · light" transform="translate(40,40)">
+<defs><clipPath id="clipSmalllight"><rect width="170" height="170" rx="24"/></clipPath><radialGradient id="gaSmalllight" cx="170" cy="0" r="230" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#a48bfa" stop-opacity="0.22"/><stop offset="1" stop-color="#a48bfa" stop-opacity="0"/></radialGradient><radialGradient id="gbSmalllight" cx="0" cy="170" r="210" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7a9dfe" stop-opacity="0.16"/><stop offset="1" stop-color="#7a9dfe" stop-opacity="0"/></radialGradient></defs>
+<g clip-path="url(#clipSmalllight)"><rect id="background" width="170" height="170" fill="#ffffff"/><rect id="glow" width="170" height="170" fill="url(#gaSmalllight)"/><rect id="glow 2" width="170" height="170" fill="url(#gbSmalllight)"/>
+<text id="weekday" x="16" y="27" font-family="SF Pro" font-size="11" font-weight="700" fill="url(#brand)" letter-spacing="0" text-anchor="start">ВТОРНИК</text>
+<text id="date" x="16" y="48" font-family="SF Pro Rounded" font-size="18" font-weight="700" fill="#000000" letter-spacing="0" text-anchor="start">14 окт</text>
+<g id="Progress Ring"><circle cx="139" cy="36" r="13.2" fill="none" stroke="rgba(0,0,0,0.07)" stroke-width="3.5999999999999996"/>
+<path d="M139.00 22.80 A13.20 13.20 0 0 1 150.43 42.60" fill="none" stroke="url(#brand)" stroke-width="3.5999999999999996" stroke-linecap="round"/>
+<text id="value" x="139" y="37.512" font-family="SF Pro Rounded" font-size="8.4" font-weight="600" fill="#000000" letter-spacing="0" text-anchor="middle">1/3</text>
+</g>
+<g id="Plan Row/compact">
+<rect x="16" y="69" width="3.5" height="25" rx="1.75" fill="#007aff"/>
+<text id="title" x="26.5" y="80" font-family="SF Pro" font-size="13" font-weight="600" fill="#000000" letter-spacing="0" text-anchor="start">Созвон с командой</text>
+<text id="subtitle" x="26.5" y="93" font-family="SF Pro" font-size="10" font-weight="500" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="start">15:00–16:00</text>
+</g>
+<g id="Todo Row/late">
+<circle cx="23.5" cy="110.5" r="6.7" fill="none" stroke="#ff3b30" stroke-width="1.6"/>
+<text id="title" x="38" y="115" font-family="SF Pro" font-size="13" font-weight="400" fill="#000000" letter-spacing="0" text-anchor="start">Сдать отчёт</text>
+<text id="detail" x="154" y="114.5" font-family="SF Pro" font-size="10" font-weight="500" fill="#ff3b30" letter-spacing="0" text-anchor="end">12 окт</text>
+</g>
+<g id="Todo Row/open">
+<circle cx="23.5" cy="133.5" r="6.7" fill="none" stroke="url(#brand)" stroke-width="1.6"/>
+<text id="title" x="38" y="138" font-family="SF Pro" font-size="13" font-weight="400" fill="#000000" letter-spacing="0" text-anchor="start">Купить продукты</text>
+</g>
+<text id="more" x="16" y="154" font-family="SF Pro" font-size="10" font-weight="500" fill="rgba(60,60,67,0.3)" letter-spacing="0" text-anchor="start">ещё 3</text>
+</g></g><g id="Medium 364×170 · light" transform="translate(250,40)">
+<defs><clipPath id="clipMediumlight"><rect width="364" height="170" rx="24"/></clipPath><radialGradient id="gaMediumlight" cx="364" cy="0" r="230" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#a48bfa" stop-opacity="0.22"/><stop offset="1" stop-color="#a48bfa" stop-opacity="0"/></radialGradient><radialGradient id="gbMediumlight" cx="0" cy="170" r="210" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7a9dfe" stop-opacity="0.16"/><stop offset="1" stop-color="#7a9dfe" stop-opacity="0"/></radialGradient></defs>
+<g clip-path="url(#clipMediumlight)"><rect id="background" width="364" height="170" fill="#ffffff"/><rect id="glow" width="364" height="170" fill="url(#gaMediumlight)"/><rect id="glow 2" width="364" height="170" fill="url(#gbMediumlight)"/>
+<text id="weekday" x="16" y="27" font-family="SF Pro" font-size="11" font-weight="700" fill="url(#brand)" letter-spacing="0" text-anchor="start">ВТОРНИК</text>
+<text id="date" x="16" y="48" font-family="SF Pro Rounded" font-size="18" font-weight="700" fill="#000000" letter-spacing="0" text-anchor="start">14 окт</text>
+<g id="Progress Ring"><circle cx="333" cy="36" r="13.2" fill="none" stroke="rgba(0,0,0,0.07)" stroke-width="3.5999999999999996"/>
+<path d="M333.00 22.80 A13.20 13.20 0 0 1 344.43 42.60" fill="none" stroke="url(#brand)" stroke-width="3.5999999999999996" stroke-linecap="round"/>
+<text id="value" x="333" y="37.512" font-family="SF Pro Rounded" font-size="8.4" font-weight="600" fill="#000000" letter-spacing="0" text-anchor="middle">1/3</text>
+</g>
+<g id="Section/Планы">
+<g transform="translate(16,70) scale(0.4583)" fill="none" stroke="rgba(60,60,67,0.6)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></g>
+<text id="ПЛАНЫ" x="31" y="79" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(60,60,67,0.6)" letter-spacing="0.4" text-anchor="start">ПЛАНЫ</text>
+<rect x="70.5" y="69" width="16" height="13" rx="6.5" fill="rgba(0,0,0,0.07)"/>
+<text id="count" x="78.5" y="79" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="middle">2</text>
+</g>
+<g id="Plan Row/now">
+<rect x="11" y="85" width="170.0" height="33" rx="8" fill="#007aff" fill-opacity="0.13"/>
+<text id="time" x="16" y="100" font-family="SF Pro Rounded" font-size="12" font-weight="600" fill="#007aff" letter-spacing="0" text-anchor="start">15:00</text>
+<rect x="60" y="89" width="3.5" height="25" rx="1.75" fill="#007aff"/>
+<text id="title" x="70.5" y="100" font-family="SF Pro" font-size="13" font-weight="600" fill="#000000" letter-spacing="0" text-anchor="start">Созвон</text>
+<text id="subtitle" x="70.5" y="113" font-family="SF Pro" font-size="10" font-weight="600" fill="#007aff" letter-spacing="0" text-anchor="start">сейчас · до 16:00</text>
+</g>
+<g id="Plan Row/default">
+<text id="time" x="16" y="133" font-family="SF Pro Rounded" font-size="12" font-weight="600" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="start">19:00</text>
+<rect x="60" y="122" width="3.5" height="25" rx="1.75" fill="#ff3b30"/>
+<text id="title" x="70.5" y="133" font-family="SF Pro" font-size="13" font-weight="600" fill="#000000" letter-spacing="0" text-anchor="start">Тренировка</text>
+<text id="subtitle" x="70.5" y="146" font-family="SF Pro" font-size="10" font-weight="400" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="start">до 20:00</text>
+</g>
+<g id="Section/Задачи">
+<g transform="translate(188.0,70) scale(0.4583)" fill="none" stroke="rgba(60,60,67,0.6)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 2 2 4-4M3 17l2 2 4-4M13 6h8M13 12h8M13 18h8"/></g>
+<text id="ЗАДАЧИ" x="203.0" y="79" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(60,60,67,0.6)" letter-spacing="0.4" text-anchor="start">ЗАДАЧИ</text>
+<rect x="249.6" y="69" width="16" height="13" rx="6.5" fill="rgba(0,0,0,0.07)"/>
+<text id="count" x="257.6" y="79" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="middle">3</text>
+</g>
+<g id="Todo Row/late">
+<circle cx="195.5" cy="95.5" r="6.7" fill="none" stroke="#ff3b30" stroke-width="1.6"/>
+<text id="title" x="210.0" y="100" font-family="SF Pro" font-size="13" font-weight="400" fill="#000000" letter-spacing="0" text-anchor="start">Сдать отчёт</text>
+<text id="detail" x="348.0" y="99.5" font-family="SF Pro" font-size="10" font-weight="500" fill="#ff3b30" letter-spacing="0" text-anchor="end">12 окт</text>
+</g>
+<g id="Todo Row/open">
+<circle cx="195.5" cy="116.5" r="6.7" fill="none" stroke="url(#brand)" stroke-width="1.6"/>
+<text id="title" x="210.0" y="121" font-family="SF Pro" font-size="13" font-weight="400" fill="#000000" letter-spacing="0" text-anchor="start">Оплатить интернет</text>
+<text id="detail" x="348.0" y="120.5" font-family="SF Pro" font-size="10" font-weight="500" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="end">18:00</text>
+</g>
+<g id="Todo Row/open">
+<circle cx="195.5" cy="137.5" r="6.7" fill="none" stroke="url(#brand)" stroke-width="1.6"/>
+<text id="title" x="210.0" y="142" font-family="SF Pro" font-size="13" font-weight="400" fill="#000000" letter-spacing="0" text-anchor="start">Купить продукты</text>
+</g>
+</g></g><g id="Large 364×382 · light" transform="translate(630,40)">
+<defs><clipPath id="clipLargelight"><rect width="364" height="382" rx="24"/></clipPath><radialGradient id="gaLargelight" cx="364" cy="0" r="230" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#a48bfa" stop-opacity="0.22"/><stop offset="1" stop-color="#a48bfa" stop-opacity="0"/></radialGradient><radialGradient id="gbLargelight" cx="0" cy="382" r="210" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7a9dfe" stop-opacity="0.16"/><stop offset="1" stop-color="#7a9dfe" stop-opacity="0"/></radialGradient></defs>
+<g clip-path="url(#clipLargelight)"><rect id="background" width="364" height="382" fill="#ffffff"/><rect id="glow" width="364" height="382" fill="url(#gaLargelight)"/><rect id="glow 2" width="364" height="382" fill="url(#gbLargelight)"/>
+<text id="weekday" x="16" y="27" font-family="SF Pro" font-size="11" font-weight="700" fill="url(#brand)" letter-spacing="0" text-anchor="start">ВТОРНИК</text>
+<text id="date" x="16" y="51" font-family="SF Pro Rounded" font-size="21" font-weight="700" fill="#000000" letter-spacing="0" text-anchor="start">14 октября</text>
+<g id="Progress Ring"><circle cx="330" cy="38" r="15.84" fill="none" stroke="rgba(0,0,0,0.07)" stroke-width="4.32"/>
+<path d="M330.00 22.16 A15.84 15.84 0 0 1 343.72 45.92" fill="none" stroke="url(#brand)" stroke-width="4.32" stroke-linecap="round"/>
+<text id="value" x="330" y="39.8144" font-family="SF Pro Rounded" font-size="10.080000000000002" font-weight="600" fill="#000000" letter-spacing="0" text-anchor="middle">1/3</text>
+</g>
+<g id="Section/Планы">
+<g transform="translate(16,75) scale(0.4583)" fill="none" stroke="rgba(60,60,67,0.6)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></g>
+<text id="ПЛАНЫ" x="31" y="84" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(60,60,67,0.6)" letter-spacing="0.4" text-anchor="start">ПЛАНЫ</text>
+<rect x="70.5" y="74" width="16" height="13" rx="6.5" fill="rgba(0,0,0,0.07)"/>
+<text id="count" x="78.5" y="84" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="middle">2</text>
+</g>
+<g id="Plan Row/now">
+<rect x="11" y="90" width="342" height="33" rx="8" fill="#007aff" fill-opacity="0.13"/>
+<text id="time" x="16" y="105" font-family="SF Pro Rounded" font-size="12" font-weight="600" fill="#007aff" letter-spacing="0" text-anchor="start">15:00</text>
+<rect x="60" y="94" width="3.5" height="25" rx="1.75" fill="#007aff"/>
+<text id="title" x="70.5" y="105" font-family="SF Pro" font-size="13" font-weight="600" fill="#000000" letter-spacing="0" text-anchor="start">Созвон с командой</text>
+<text id="subtitle" x="70.5" y="118" font-family="SF Pro" font-size="10" font-weight="600" fill="#007aff" letter-spacing="0" text-anchor="start">сейчас · до 16:00</text>
+</g>
+<g id="Plan Row/default">
+<text id="time" x="16" y="138" font-family="SF Pro Rounded" font-size="12" font-weight="600" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="start">19:00</text>
+<rect x="60" y="127" width="3.5" height="25" rx="1.75" fill="#ff3b30"/>
+<text id="title" x="70.5" y="138" font-family="SF Pro" font-size="13" font-weight="600" fill="#000000" letter-spacing="0" text-anchor="start">Тренировка</text>
+<text id="subtitle" x="70.5" y="151" font-family="SF Pro" font-size="10" font-weight="400" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="start">до 20:00</text>
+</g>
+<rect id="divider" x="16" y="161" width="332" height="1" fill="rgba(0,0,0,0.06)"/>
+<g id="Section/Задачи">
+<g transform="translate(16,171) scale(0.4583)" fill="none" stroke="rgba(60,60,67,0.6)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 2 2 4-4M3 17l2 2 4-4M13 6h8M13 12h8M13 18h8"/></g>
+<text id="ЗАДАЧИ" x="31" y="180" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(60,60,67,0.6)" letter-spacing="0.4" text-anchor="start">ЗАДАЧИ</text>
+<rect x="77.6" y="170" width="16" height="13" rx="6.5" fill="rgba(0,0,0,0.07)"/>
+<text id="count" x="85.6" y="180" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="middle">3</text>
+</g>
+<g id="Todo Row/late">
+<circle cx="23.5" cy="196.5" r="6.7" fill="none" stroke="#ff3b30" stroke-width="1.6"/>
+<text id="title" x="38" y="201" font-family="SF Pro" font-size="13" font-weight="400" fill="#000000" letter-spacing="0" text-anchor="start">Сдать отчёт</text>
+<text id="detail" x="348" y="200.5" font-family="SF Pro" font-size="10" font-weight="500" fill="#ff3b30" letter-spacing="0" text-anchor="end">12 окт</text>
+</g>
+<g id="Todo Row/open">
+<circle cx="23.5" cy="217.5" r="6.7" fill="none" stroke="url(#brand)" stroke-width="1.6"/>
+<text id="title" x="38" y="222" font-family="SF Pro" font-size="13" font-weight="400" fill="#000000" letter-spacing="0" text-anchor="start">Оплатить интернет</text>
+<text id="detail" x="348" y="221.5" font-family="SF Pro" font-size="10" font-weight="500" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="end">18:00</text>
+</g>
+<g id="Todo Row/open">
+<circle cx="23.5" cy="238.5" r="6.7" fill="none" stroke="url(#brand)" stroke-width="1.6"/>
+<text id="title" x="38" y="243" font-family="SF Pro" font-size="13" font-weight="400" fill="#000000" letter-spacing="0" text-anchor="start">Купить продукты</text>
+</g>
+<g id="Todo Row/done">
+<circle cx="23.5" cy="259.5" r="7.5" fill="url(#brand)"/><path d="M20.6 259.7 l2 1.9 3.8-4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<text id="title" x="38" y="264" font-family="SF Pro" font-size="13" font-weight="400" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="start" text-decoration="line-through">Позвонить врачу</text>
+</g>
+<g id="Завтра"><rect x="16" y="340" width="332" height="26" rx="13" fill="#000000" fill-opacity="0.05"/>
+<text id="Завтра" x="26" y="357" font-family="SF Pro" font-size="11" font-weight="700" fill="url(#brand)" letter-spacing="0" text-anchor="start">Завтра</text>
+<text id="09:30 Планёрка" x="72" y="357" font-family="SF Pro" font-size="11" font-weight="500" fill="#000000" letter-spacing="0" text-anchor="start">09:30 Планёрка</text>
+<text id="+1" x="156" y="357" font-family="SF Pro" font-size="11" font-weight="400" fill="rgba(60,60,67,0.6)" letter-spacing="0" text-anchor="start">+1</text>
+</g>
+</g></g><rect id="Тёмная тема · фон" x="0" y="462" width="1040" height="462" fill="#000000"/><g id="Small 170×170 · dark" transform="translate(40,502)">
+<defs><clipPath id="clipSmalldark"><rect width="170" height="170" rx="24"/></clipPath><radialGradient id="gaSmalldark" cx="170" cy="0" r="230" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#a48bfa" stop-opacity="0.34"/><stop offset="1" stop-color="#a48bfa" stop-opacity="0"/></radialGradient><radialGradient id="gbSmalldark" cx="0" cy="170" r="210" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7a9dfe" stop-opacity="0.24"/><stop offset="1" stop-color="#7a9dfe" stop-opacity="0"/></radialGradient></defs>
+<g clip-path="url(#clipSmalldark)"><rect id="background" width="170" height="170" fill="#15141c"/><rect id="glow" width="170" height="170" fill="url(#gaSmalldark)"/><rect id="glow 2" width="170" height="170" fill="url(#gbSmalldark)"/>
+<text id="weekday" x="16" y="27" font-family="SF Pro" font-size="11" font-weight="700" fill="url(#brand)" letter-spacing="0" text-anchor="start">ВТОРНИК</text>
+<text id="date" x="16" y="48" font-family="SF Pro Rounded" font-size="18" font-weight="700" fill="#ffffff" letter-spacing="0" text-anchor="start">14 окт</text>
+<g id="Progress Ring"><circle cx="139" cy="36" r="13.2" fill="none" stroke="rgba(255,255,255,0.09)" stroke-width="3.5999999999999996"/>
+<path d="M139.00 22.80 A13.20 13.20 0 0 1 150.43 42.60" fill="none" stroke="url(#brand)" stroke-width="3.5999999999999996" stroke-linecap="round"/>
+<text id="value" x="139" y="37.512" font-family="SF Pro Rounded" font-size="8.4" font-weight="600" fill="#ffffff" letter-spacing="0" text-anchor="middle">1/3</text>
+</g>
+<g id="Plan Row/compact">
+<rect x="16" y="69" width="3.5" height="25" rx="1.75" fill="#007aff"/>
+<text id="title" x="26.5" y="80" font-family="SF Pro" font-size="13" font-weight="600" fill="#ffffff" letter-spacing="0" text-anchor="start">Созвон с командой</text>
+<text id="subtitle" x="26.5" y="93" font-family="SF Pro" font-size="10" font-weight="500" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="start">15:00–16:00</text>
+</g>
+<g id="Todo Row/late">
+<circle cx="23.5" cy="110.5" r="6.7" fill="none" stroke="#ff3b30" stroke-width="1.6"/>
+<text id="title" x="38" y="115" font-family="SF Pro" font-size="13" font-weight="400" fill="#ffffff" letter-spacing="0" text-anchor="start">Сдать отчёт</text>
+<text id="detail" x="154" y="114.5" font-family="SF Pro" font-size="10" font-weight="500" fill="#ff3b30" letter-spacing="0" text-anchor="end">12 окт</text>
+</g>
+<g id="Todo Row/open">
+<circle cx="23.5" cy="133.5" r="6.7" fill="none" stroke="url(#brand)" stroke-width="1.6"/>
+<text id="title" x="38" y="138" font-family="SF Pro" font-size="13" font-weight="400" fill="#ffffff" letter-spacing="0" text-anchor="start">Купить продукты</text>
+</g>
+<text id="more" x="16" y="154" font-family="SF Pro" font-size="10" font-weight="500" fill="rgba(235,235,245,0.3)" letter-spacing="0" text-anchor="start">ещё 3</text>
+</g></g><g id="Medium 364×170 · dark" transform="translate(250,502)">
+<defs><clipPath id="clipMediumdark"><rect width="364" height="170" rx="24"/></clipPath><radialGradient id="gaMediumdark" cx="364" cy="0" r="230" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#a48bfa" stop-opacity="0.34"/><stop offset="1" stop-color="#a48bfa" stop-opacity="0"/></radialGradient><radialGradient id="gbMediumdark" cx="0" cy="170" r="210" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7a9dfe" stop-opacity="0.24"/><stop offset="1" stop-color="#7a9dfe" stop-opacity="0"/></radialGradient></defs>
+<g clip-path="url(#clipMediumdark)"><rect id="background" width="364" height="170" fill="#15141c"/><rect id="glow" width="364" height="170" fill="url(#gaMediumdark)"/><rect id="glow 2" width="364" height="170" fill="url(#gbMediumdark)"/>
+<text id="weekday" x="16" y="27" font-family="SF Pro" font-size="11" font-weight="700" fill="url(#brand)" letter-spacing="0" text-anchor="start">ВТОРНИК</text>
+<text id="date" x="16" y="48" font-family="SF Pro Rounded" font-size="18" font-weight="700" fill="#ffffff" letter-spacing="0" text-anchor="start">14 окт</text>
+<g id="Progress Ring"><circle cx="333" cy="36" r="13.2" fill="none" stroke="rgba(255,255,255,0.09)" stroke-width="3.5999999999999996"/>
+<path d="M333.00 22.80 A13.20 13.20 0 0 1 344.43 42.60" fill="none" stroke="url(#brand)" stroke-width="3.5999999999999996" stroke-linecap="round"/>
+<text id="value" x="333" y="37.512" font-family="SF Pro Rounded" font-size="8.4" font-weight="600" fill="#ffffff" letter-spacing="0" text-anchor="middle">1/3</text>
+</g>
+<g id="Section/Планы">
+<g transform="translate(16,70) scale(0.4583)" fill="none" stroke="rgba(235,235,245,0.6)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></g>
+<text id="ПЛАНЫ" x="31" y="79" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(235,235,245,0.6)" letter-spacing="0.4" text-anchor="start">ПЛАНЫ</text>
+<rect x="70.5" y="69" width="16" height="13" rx="6.5" fill="rgba(255,255,255,0.09)"/>
+<text id="count" x="78.5" y="79" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="middle">2</text>
+</g>
+<g id="Plan Row/now">
+<rect x="11" y="85" width="170.0" height="33" rx="8" fill="#007aff" fill-opacity="0.13"/>
+<text id="time" x="16" y="100" font-family="SF Pro Rounded" font-size="12" font-weight="600" fill="#007aff" letter-spacing="0" text-anchor="start">15:00</text>
+<rect x="60" y="89" width="3.5" height="25" rx="1.75" fill="#007aff"/>
+<text id="title" x="70.5" y="100" font-family="SF Pro" font-size="13" font-weight="600" fill="#ffffff" letter-spacing="0" text-anchor="start">Созвон</text>
+<text id="subtitle" x="70.5" y="113" font-family="SF Pro" font-size="10" font-weight="600" fill="#007aff" letter-spacing="0" text-anchor="start">сейчас · до 16:00</text>
+</g>
+<g id="Plan Row/default">
+<text id="time" x="16" y="133" font-family="SF Pro Rounded" font-size="12" font-weight="600" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="start">19:00</text>
+<rect x="60" y="122" width="3.5" height="25" rx="1.75" fill="#ff3b30"/>
+<text id="title" x="70.5" y="133" font-family="SF Pro" font-size="13" font-weight="600" fill="#ffffff" letter-spacing="0" text-anchor="start">Тренировка</text>
+<text id="subtitle" x="70.5" y="146" font-family="SF Pro" font-size="10" font-weight="400" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="start">до 20:00</text>
+</g>
+<g id="Section/Задачи">
+<g transform="translate(188.0,70) scale(0.4583)" fill="none" stroke="rgba(235,235,245,0.6)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 2 2 4-4M3 17l2 2 4-4M13 6h8M13 12h8M13 18h8"/></g>
+<text id="ЗАДАЧИ" x="203.0" y="79" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(235,235,245,0.6)" letter-spacing="0.4" text-anchor="start">ЗАДАЧИ</text>
+<rect x="249.6" y="69" width="16" height="13" rx="6.5" fill="rgba(255,255,255,0.09)"/>
+<text id="count" x="257.6" y="79" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="middle">3</text>
+</g>
+<g id="Todo Row/late">
+<circle cx="195.5" cy="95.5" r="6.7" fill="none" stroke="#ff3b30" stroke-width="1.6"/>
+<text id="title" x="210.0" y="100" font-family="SF Pro" font-size="13" font-weight="400" fill="#ffffff" letter-spacing="0" text-anchor="start">Сдать отчёт</text>
+<text id="detail" x="348.0" y="99.5" font-family="SF Pro" font-size="10" font-weight="500" fill="#ff3b30" letter-spacing="0" text-anchor="end">12 окт</text>
+</g>
+<g id="Todo Row/open">
+<circle cx="195.5" cy="116.5" r="6.7" fill="none" stroke="url(#brand)" stroke-width="1.6"/>
+<text id="title" x="210.0" y="121" font-family="SF Pro" font-size="13" font-weight="400" fill="#ffffff" letter-spacing="0" text-anchor="start">Оплатить интернет</text>
+<text id="detail" x="348.0" y="120.5" font-family="SF Pro" font-size="10" font-weight="500" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="end">18:00</text>
+</g>
+<g id="Todo Row/open">
+<circle cx="195.5" cy="137.5" r="6.7" fill="none" stroke="url(#brand)" stroke-width="1.6"/>
+<text id="title" x="210.0" y="142" font-family="SF Pro" font-size="13" font-weight="400" fill="#ffffff" letter-spacing="0" text-anchor="start">Купить продукты</text>
+</g>
+</g></g><g id="Large 364×382 · dark" transform="translate(630,502)">
+<defs><clipPath id="clipLargedark"><rect width="364" height="382" rx="24"/></clipPath><radialGradient id="gaLargedark" cx="364" cy="0" r="230" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#a48bfa" stop-opacity="0.34"/><stop offset="1" stop-color="#a48bfa" stop-opacity="0"/></radialGradient><radialGradient id="gbLargedark" cx="0" cy="382" r="210" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7a9dfe" stop-opacity="0.24"/><stop offset="1" stop-color="#7a9dfe" stop-opacity="0"/></radialGradient></defs>
+<g clip-path="url(#clipLargedark)"><rect id="background" width="364" height="382" fill="#15141c"/><rect id="glow" width="364" height="382" fill="url(#gaLargedark)"/><rect id="glow 2" width="364" height="382" fill="url(#gbLargedark)"/>
+<text id="weekday" x="16" y="27" font-family="SF Pro" font-size="11" font-weight="700" fill="url(#brand)" letter-spacing="0" text-anchor="start">ВТОРНИК</text>
+<text id="date" x="16" y="51" font-family="SF Pro Rounded" font-size="21" font-weight="700" fill="#ffffff" letter-spacing="0" text-anchor="start">14 октября</text>
+<g id="Progress Ring"><circle cx="330" cy="38" r="15.84" fill="none" stroke="rgba(255,255,255,0.09)" stroke-width="4.32"/>
+<path d="M330.00 22.16 A15.84 15.84 0 0 1 343.72 45.92" fill="none" stroke="url(#brand)" stroke-width="4.32" stroke-linecap="round"/>
+<text id="value" x="330" y="39.8144" font-family="SF Pro Rounded" font-size="10.080000000000002" font-weight="600" fill="#ffffff" letter-spacing="0" text-anchor="middle">1/3</text>
+</g>
+<g id="Section/Планы">
+<g transform="translate(16,75) scale(0.4583)" fill="none" stroke="rgba(235,235,245,0.6)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></g>
+<text id="ПЛАНЫ" x="31" y="84" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(235,235,245,0.6)" letter-spacing="0.4" text-anchor="start">ПЛАНЫ</text>
+<rect x="70.5" y="74" width="16" height="13" rx="6.5" fill="rgba(255,255,255,0.09)"/>
+<text id="count" x="78.5" y="84" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="middle">2</text>
+</g>
+<g id="Plan Row/now">
+<rect x="11" y="90" width="342" height="33" rx="8" fill="#007aff" fill-opacity="0.13"/>
+<text id="time" x="16" y="105" font-family="SF Pro Rounded" font-size="12" font-weight="600" fill="#007aff" letter-spacing="0" text-anchor="start">15:00</text>
+<rect x="60" y="94" width="3.5" height="25" rx="1.75" fill="#007aff"/>
+<text id="title" x="70.5" y="105" font-family="SF Pro" font-size="13" font-weight="600" fill="#ffffff" letter-spacing="0" text-anchor="start">Созвон с командой</text>
+<text id="subtitle" x="70.5" y="118" font-family="SF Pro" font-size="10" font-weight="600" fill="#007aff" letter-spacing="0" text-anchor="start">сейчас · до 16:00</text>
+</g>
+<g id="Plan Row/default">
+<text id="time" x="16" y="138" font-family="SF Pro Rounded" font-size="12" font-weight="600" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="start">19:00</text>
+<rect x="60" y="127" width="3.5" height="25" rx="1.75" fill="#ff3b30"/>
+<text id="title" x="70.5" y="138" font-family="SF Pro" font-size="13" font-weight="600" fill="#ffffff" letter-spacing="0" text-anchor="start">Тренировка</text>
+<text id="subtitle" x="70.5" y="151" font-family="SF Pro" font-size="10" font-weight="400" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="start">до 20:00</text>
+</g>
+<rect id="divider" x="16" y="161" width="332" height="1" fill="rgba(255,255,255,0.08)"/>
+<g id="Section/Задачи">
+<g transform="translate(16,171) scale(0.4583)" fill="none" stroke="rgba(235,235,245,0.6)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 2 2 4-4M3 17l2 2 4-4M13 6h8M13 12h8M13 18h8"/></g>
+<text id="ЗАДАЧИ" x="31" y="180" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(235,235,245,0.6)" letter-spacing="0.4" text-anchor="start">ЗАДАЧИ</text>
+<rect x="77.6" y="170" width="16" height="13" rx="6.5" fill="rgba(255,255,255,0.09)"/>
+<text id="count" x="85.6" y="180" font-family="SF Pro" font-size="10" font-weight="700" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="middle">3</text>
+</g>
+<g id="Todo Row/late">
+<circle cx="23.5" cy="196.5" r="6.7" fill="none" stroke="#ff3b30" stroke-width="1.6"/>
+<text id="title" x="38" y="201" font-family="SF Pro" font-size="13" font-weight="400" fill="#ffffff" letter-spacing="0" text-anchor="start">Сдать отчёт</text>
+<text id="detail" x="348" y="200.5" font-family="SF Pro" font-size="10" font-weight="500" fill="#ff3b30" letter-spacing="0" text-anchor="end">12 окт</text>
+</g>
+<g id="Todo Row/open">
+<circle cx="23.5" cy="217.5" r="6.7" fill="none" stroke="url(#brand)" stroke-width="1.6"/>
+<text id="title" x="38" y="222" font-family="SF Pro" font-size="13" font-weight="400" fill="#ffffff" letter-spacing="0" text-anchor="start">Оплатить интернет</text>
+<text id="detail" x="348" y="221.5" font-family="SF Pro" font-size="10" font-weight="500" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="end">18:00</text>
+</g>
+<g id="Todo Row/open">
+<circle cx="23.5" cy="238.5" r="6.7" fill="none" stroke="url(#brand)" stroke-width="1.6"/>
+<text id="title" x="38" y="243" font-family="SF Pro" font-size="13" font-weight="400" fill="#ffffff" letter-spacing="0" text-anchor="start">Купить продукты</text>
+</g>
+<g id="Todo Row/done">
+<circle cx="23.5" cy="259.5" r="7.5" fill="url(#brand)"/><path d="M20.6 259.7 l2 1.9 3.8-4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<text id="title" x="38" y="264" font-family="SF Pro" font-size="13" font-weight="400" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="start" text-decoration="line-through">Позвонить врачу</text>
+</g>
+<g id="Завтра"><rect x="16" y="340" width="332" height="26" rx="13" fill="#ffffff" fill-opacity="0.05"/>
+<text id="Завтра" x="26" y="357" font-family="SF Pro" font-size="11" font-weight="700" fill="url(#brand)" letter-spacing="0" text-anchor="start">Завтра</text>
+<text id="09:30 Планёрка" x="72" y="357" font-family="SF Pro" font-size="11" font-weight="500" fill="#ffffff" letter-spacing="0" text-anchor="start">09:30 Планёрка</text>
+<text id="+1" x="156" y="357" font-family="SF Pro" font-size="11" font-weight="400" fill="rgba(235,235,245,0.6)" letter-spacing="0" text-anchor="start">+1</text>
+</g>
+</g></g><g id="Экран блокировки" transform="translate(40,964)">
+<defs><linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f4f73"/><stop offset="0.55" stop-color="#5b7aa0"/><stop offset="1" stop-color="#3b2a2a"/></linearGradient></defs>
+<rect id="wallpaper" width="420" height="230" rx="28" fill="url(#wall)"/>
+<g id="Lock/Планы 172×76" transform="translate(20,24)"><rect width="172" height="76" rx="14" fill="#fff" fill-opacity="0.12"/>
+<text id="ПЛАНЫ · 2" x="10" y="17" font-family="SF Pro" font-size="11" font-weight="700" fill="#fff" fill-opacity="0.75">ПЛАНЫ · 2</text>
+<text id="15:00" x="10" y="38" font-family="SF Pro Rounded" font-size="13" font-weight="600" fill="#fff" fill-opacity="1">15:00</text>
+<rect x="50" y="27" width="3" height="13" rx="1.5" fill="#fff" fill-opacity="1"/>
+<text id="Созвон" x="58" y="38" font-family="SF Pro" font-size="14" font-weight="700" fill="#fff" fill-opacity="1">Созвон</text>
+<text id="19:00" x="10" y="57" font-family="SF Pro Rounded" font-size="13" font-weight="600" fill="#fff" fill-opacity="1">19:00</text>
+<rect x="50" y="46" width="3" height="13" rx="1.5" fill="#fff" fill-opacity="0.5"/>
+<text id="Тренировка" x="58" y="57" font-family="SF Pro" font-size="14" font-weight="400" fill="#fff" fill-opacity="1">Тренировка</text>
+</g>
+<g id="Lock/Задачи 172×76" transform="translate(220,24)"><rect width="172" height="76" rx="14" fill="#fff" fill-opacity="0.12"/>
+<circle cx="29" cy="38" r="16.91" fill="none" stroke="#fff" stroke-opacity="0.25" stroke-width="4.18"/>
+<path d="M29 21.09 A16.91 16.91 0 0 1 43.64 46.45" fill="none" stroke="#fff" stroke-width="4.18" stroke-linecap="round"/>
+<text x="29" y="41.6" text-anchor="middle" font-family="SF Pro Rounded" font-size="10.3" font-weight="700" fill="#fff">1/3</text>
+<circle cx="62" cy="18" r="4.3" fill="none" stroke="#fff" stroke-width="1.4"/><path d="M62 15.8v2.4" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>
+<text id="Сдать отчёт" x="71" y="22" font-family="SF Pro" font-size="13" font-weight="400" fill="#fff" fill-opacity="1">Сдать отчёт</text>
+<circle cx="62" cy="37" r="4.3" fill="none" stroke="#fff" stroke-width="1.4"/>
+<text id="Купить продукты" x="71" y="41" font-family="SF Pro" font-size="13" font-weight="400" fill="#fff" fill-opacity="1">Купить продукты</text>
+<circle cx="62" cy="56" r="4.3" fill="none" stroke="#fff" stroke-width="1.4"/>
+<text id="Полить цветы" x="71" y="60" font-family="SF Pro" font-size="13" font-weight="400" fill="#fff" fill-opacity="1">Полить цветы</text>
+</g>
+<g id="Lock/Кольцо 76×76" transform="translate(20,128)"><circle cx="38" cy="38" r="38" fill="#fff" fill-opacity="0.12"/>
+<circle cx="38" cy="38" r="23.14" fill="none" stroke="#fff" stroke-opacity="0.25" stroke-width="5.72"/><path d="M38 14.86 A23.14 23.14 0 0 1 58.04 49.57" fill="none" stroke="#fff" stroke-width="5.72" stroke-linecap="round"/>
+<text x="38" y="43" text-anchor="middle" font-family="SF Pro Rounded" font-size="14" font-weight="700" fill="#fff">1/3</text></g>
+<g id="Lock/Строка" transform="translate(120,150)">
+<text id="15:00 Созвон с командой" x="0" y="16" font-family="SF Pro" font-size="15" font-weight="500" fill="#fff" fill-opacity="1">15:00 Созвон с командой</text>
+</g>
+</g></svg>
