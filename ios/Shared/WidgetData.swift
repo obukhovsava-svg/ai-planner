@@ -13,6 +13,8 @@ nonisolated struct WidgetSnapshot: Codable, Sendable {
   }
 
   struct Task: Codable, Hashable, Sendable {
+    /// The planner's task id — a tap on the widget's circle completes it.
+    var id: String? = nil
     let title: String
     let time: String?
     let done: Bool
@@ -27,12 +29,14 @@ nonisolated struct WidgetSnapshot: Codable, Sendable {
   }
 
   struct Late: Codable, Hashable, Sendable {
+    var id: String? = nil
     let title: String
     let date: String
     var hi: Bool? = nil
   }
 
   struct Inbox: Codable, Hashable, Sendable {
+    var id: String? = nil
     let title: String
   }
 
@@ -115,6 +119,32 @@ nonisolated enum WidgetStore {
     guard (tone == "dark") != darkTone else { return }
     UserDefaults(suiteName: group)?.set(tone, forKey: "tone")
     WidgetCenter.shared.reloadAllTimelines()
+  }
+
+  /// The app's account key, for the widget's own requests (a tap on a task). The App Group is
+  /// private to this app and its widget.
+  static var deviceKey: String? { UserDefaults(suiteName: group)?.string(forKey: "deviceKey") }
+  static func shareDeviceKey(_ key: String) { UserDefaults(suiteName: group)?.set(key, forKey: "deviceKey") }
+
+  /// Marks a task done in the saved data right away (the widget redraws before the server answers):
+  /// today's task gets its tick, an overdue or undated one leaves the list.
+  static func markDone(_ id: String) {
+    guard let file, let data = try? Data(contentsOf: file),
+          var obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+    if var days = obj["days"] as? [[String: Any]] {
+      for i in days.indices {
+        guard var tasks = days[i]["tasks"] as? [[String: Any]] else { continue }
+        for j in tasks.indices where tasks[j]["id"] as? String == id { tasks[j]["done"] = true }
+        days[i]["tasks"] = tasks
+      }
+      obj["days"] = days
+    }
+    for key in ["late", "inbox"] {
+      if let list = obj[key] as? [[String: Any]] { obj[key] = list.filter { $0["id"] as? String != id } }
+    }
+    obj["overdue"] = (obj["late"] as? [Any])?.count ?? obj["overdue"]
+    obj["at"] = Date().timeIntervalSince1970 * 1000
+    if let out = try? JSONSerialization.data(withJSONObject: obj, options: .sortedKeys) { save(out) }
   }
 
   static func load() -> WidgetSnapshot {

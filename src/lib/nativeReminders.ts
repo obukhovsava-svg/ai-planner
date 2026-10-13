@@ -40,18 +40,18 @@ function widgetSnapshot(): WidgetSnapshot {
       tasks: tasks
         .filter((t) => t.date === date)
         .sort((a, b) => Number(a.done) - Number(b.done) || (a.time ?? '99').localeCompare(b.time ?? '99'))
-        .map((t) => ({ title: t.title, time: t.time, done: t.done, hi: t.priority === 'high' || undefined })),
+        .map((t) => ({ id: t.id, title: t.title, time: t.time, done: t.done, hi: t.priority === 'high' || undefined })),
     };
   });
   const late = tasks
     .filter((t) => !t.done && t.date && t.date < today)
     .sort((a, b) => a.date!.localeCompare(b.date!))
-    .map((t) => ({ title: t.title, date: t.date!, hi: t.priority === 'high' || undefined }));
+    .map((t) => ({ id: t.id, title: t.title, date: t.date!, hi: t.priority === 'high' || undefined }));
   const inbox = tasks
     .filter((t) => !t.done && !t.date)
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 10)
-    .map((t) => ({ title: t.title }));
+    .map((t) => ({ id: t.id, title: t.title }));
   return { days, overdue: late.length, late: late.slice(0, 10), inbox, at: Date.now() };
 }
 

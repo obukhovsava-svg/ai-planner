@@ -30,13 +30,13 @@ export interface WidgetSnapshot {
   days: {
     date: string;
     events: { title: string; start: string; end: string; color: string }[];
-    tasks: { title: string; time?: string; done: boolean; hi?: boolean }[];
+    tasks: { id?: string; title: string; time?: string; done: boolean; hi?: boolean }[];
   }[];
   /** Undone tasks from earlier days. */
   overdue: number;
   /** The same overdue tasks, oldest first, and undone tasks without a date (newest first). */
-  late: { title: string; date: string; hi?: boolean }[];
-  inbox: { title: string }[];
+  late: { id?: string; title: string; date: string; hi?: boolean }[];
+  inbox: { id?: string; title: string }[];
   /** When this data was current (ms) — older server copies don't overwrite it. */
   at: number;
 }

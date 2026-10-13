@@ -406,18 +406,18 @@ function widgetSnapshot(doc: PlannerDoc, today: string) {
       tasks: doc.tasks
         .filter((t) => t.date === date)
         .sort((a, b) => Number(a.done) - Number(b.done) || (a.time ?? '99').localeCompare(b.time ?? '99'))
-        .map((t) => ({ title: t.title, time: t.time, done: t.done, hi: t.priority === 'high' || undefined })),
+        .map((t) => ({ id: t.id, title: t.title, time: t.time, done: t.done, hi: t.priority === 'high' || undefined })),
     };
   });
   const late = doc.tasks
     .filter((t) => !t.done && t.date && t.date < today)
     .sort((a, b) => a.date!.localeCompare(b.date!))
-    .map((t) => ({ title: t.title, date: t.date!, hi: t.priority === 'high' || undefined }));
+    .map((t) => ({ id: t.id, title: t.title, date: t.date!, hi: t.priority === 'high' || undefined }));
   const inbox = doc.tasks
     .filter((t) => !t.done && !t.date)
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 10)
-    .map((t) => ({ title: t.title }));
+    .map((t) => ({ id: t.id, title: t.title }));
   return { days, overdue: late.length, late: late.slice(0, 10), inbox };
 }
 
@@ -1186,6 +1186,29 @@ export default {
       const reminders = res.doc ? nativeReminders(res.doc, tz) : null;
       const snapshot = res.doc ? { ...widgetSnapshot(res.doc, localNow(tz).today), at: Date.now() } : null;
       return json({ answer: res.answer, reminders, snapshot }, 200, headers);
+    }
+
+    // A tap on a task's circle in the iOS widget: done (an overdue one leaves the list, as in the
+    // app). Answers with the fresh widget data and reminders.
+    if (request.method === 'POST' && url.pathname === '/task/done') {
+      const user = await authUser(request, env);
+      if (!user || !isDeviceUser(user)) return json({ error: 'unauthorized' }, 401, headers);
+      const body = (await request.json().catch(() => ({}))) as { id?: string; tz?: number };
+      const stored = await loadDoc(env, user);
+      const tz = Number.isFinite(body.tz) ? Math.round(body.tz!) : (stored.tz ?? 0);
+      const today = localNow(tz).today, now = Date.now();
+      const doc = stored.doc;
+      const task = doc.tasks.find((t) => t.id === body.id);
+      if (task && !task.done) {
+        if (task.date && task.date < today) {
+          doc.tasks = doc.tasks.filter((t) => t.id !== task.id);
+          doc.deleted[task.id] = now;
+        } else {
+          doc.tasks = doc.tasks.map((t) => (t.id === task.id ? { ...t, done: true, completedAt: now, updatedAt: now } : t));
+        }
+        await saveDoc(env, user, doc, tz);
+      }
+      return json({ ok: Boolean(task), snapshot: { ...widgetSnapshot(doc, today), at: now }, reminders: nativeReminders(doc, tz) }, 200, headers);
     }
 
     // iOS app in the background (wallpaper action, background refresh): the fresh widget data

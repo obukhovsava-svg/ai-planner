@@ -79,6 +79,7 @@ struct Provider: TimelineProvider {
 /// A row in the task list: today's tasks, plus overdue ones and those without a date.
 struct TodoItem: Hashable {
   enum Kind { case today, late, inbox }
+  var id: String? = nil
   let title: String
   let done: Bool
   let kind: Kind
@@ -105,10 +106,10 @@ struct DayPlan {
     isToday = dayOffset == 0
     overdue = isToday ? snapshot.overdue : 0
     let dated = tasks.filter { !$0.done } + tasks.filter(\.done)
-    var todo = dated.map { TodoItem(title: $0.title, done: $0.done, kind: .today, detail: $0.done ? nil : $0.time) }
+    var todo = dated.map { TodoItem(id: $0.id, title: $0.title, done: $0.done, kind: .today, detail: $0.done ? nil : $0.time) }
     if isToday {
-      todo.insert(contentsOf: snapshot.late.map { TodoItem(title: $0.title, done: false, kind: .late, detail: shortDate($0.date)) }, at: 0)
-      todo += snapshot.inbox.map { TodoItem(title: $0.title, done: false, kind: .inbox, detail: nil) }
+      todo.insert(contentsOf: snapshot.late.map { TodoItem(id: $0.id, title: $0.title, done: false, kind: .late, detail: shortDate($0.date)) }, at: 0)
+      todo += snapshot.inbox.map { TodoItem(id: $0.id, title: $0.title, done: false, kind: .inbox, detail: nil) }
     }
     self.todo = todo
   }
@@ -308,17 +309,27 @@ private struct TodoRow: View {
   var showDetail = true
   @Environment(\.palette) private var p
 
+  private var check: some View {
+    ZStack {
+      if item.done {
+        Circle().fill(p.fg)
+        Image(systemName: "checkmark").font(.system(size: size * 0.5, weight: .heavy)).foregroundStyle(p.bg)
+      } else {
+        Circle().strokeBorder(item.kind == .late ? p.late : p.fg, lineWidth: 2)
+      }
+    }
+    .frame(width: size + 1, height: size + 1)
+    .contentShape(Rectangle().inset(by: -6))
+  }
+
   var body: some View {
     HStack(spacing: 5) {
-      ZStack {
-        if item.done {
-          Circle().fill(p.fg)
-          Image(systemName: "checkmark").font(.system(size: size * 0.5, weight: .heavy)).foregroundStyle(p.bg)
-        } else {
-          Circle().strokeBorder(item.kind == .late ? p.late : p.fg, lineWidth: 2)
-        }
+      // a tap on the circle completes the task without opening the app
+      if let id = item.id, !item.done {
+        Button(intent: CompleteTaskIntent(id: id)) { check }.buttonStyle(.plain)
+      } else {
+        check
       }
-      .frame(width: size + 1, height: size + 1)
       Text(item.title).font(mono(size)).lineLimit(1).truncationMode(.tail)
         .strikethrough(item.done).foregroundStyle(item.done ? p.secondary : p.fg)
       Spacer(minLength: 0)
