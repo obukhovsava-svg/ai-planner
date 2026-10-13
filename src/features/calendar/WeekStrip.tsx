@@ -41,7 +41,7 @@ export function WeekStrip({ selected, onSelect }: { selected: DateKey; onSelect(
             >
               <span className={`text-[11px] font-semibold ${i >= 5 ? 'text-faint' : 'text-muted'}`}>{LETTERS[i]}</span>
               <span
-                className={`flex size-[34px] items-center justify-center rounded-full text-[19px] leading-none tabular-nums transition-[background-color,color] duration-300 ${
+                className={`flex size-[34px] items-center justify-center rounded-full text-[19px] leading-none transition-[background-color,color] duration-300 ${
                   isSel ? (isToday ? 'bg-today font-semibold text-today-fg' : 'bg-fg font-semibold text-bg') : isToday ? 'font-semibold text-today-text' : ''
                 }`}
               >

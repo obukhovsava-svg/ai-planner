@@ -212,7 +212,7 @@ function DayCell({
       style={{ height: ROW_H, gridColumnStart: col }}
     >
       <span
-        className={`mx-auto flex size-[26px] shrink-0 items-center justify-center rounded-full text-[16px] leading-none tabular-nums ${
+        className={`mx-auto flex size-[26px] shrink-0 items-center justify-center rounded-full text-[16px] leading-none ${
           isToday ? 'bg-today font-semibold text-today-fg' : weekend ? 'text-muted' : ''
         }`}
       >
