@@ -25,15 +25,16 @@ struct PlannerApp: App {
         // On the Mac the planner lives in a phone-sized window: the layout is made for that width.
         .onAppear {
           for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
-            scene.sizeRestrictions?.minimumSize = CGSize(width: 390, height: 640)
-            scene.sizeRestrictions?.maximumSize = CGSize(width: 520, height: 1400)
+            scene.sizeRestrictions?.minimumSize = CGSize(width: 390, height: 600)
+            // never taller than the screen minus the menu bar and the Dock, or the tab bar hides under the Dock
+            scene.sizeRestrictions?.maximumSize = CGSize(width: 520, height: max(600, scene.screen.bounds.height - 150))
             scene.titlebar?.titleVisibility = .hidden
           }
         }
         #endif
     }
     #if targetEnvironment(macCatalyst)
-    .defaultSize(width: 430, height: 880)
+    .defaultSize(width: 430, height: 740)
     #endif
   }
 }
