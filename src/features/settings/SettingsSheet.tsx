@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, Palette, Share, Smartphone, Sparkles, Sun, UserPlus } from 'lucide-react';
-import { inviteFriend, shareDayToStory } from '@/features/share/invite';
+import { CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, Palette, Smartphone, Sparkles, Sun } from 'lucide-react';
 import { ACCENTS } from '@/lib/accent';
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
@@ -180,37 +179,7 @@ export function SettingsSheet() {
             </Group>
           )}
 
-          {digestAvailable() && !isNative() && (
-          <Group title="Друзья" footer="Друг откроет планер по вашей ссылке. Сторис — картинка с вашим планом на сегодня.">
-            <Row
-              icon={<UserPlus className="size-[18px]" />}
-              iconBg="bg-green"
-              label="Пригласить друга"
-              onClick={() => {
-                haptic.impact('light');
-                inviteFriend();
-              }}
-            >
-              <ChevronRight className="size-5 text-faint" />
-            </Row>
-            <Row
-              icon={<Share className="size-[17px]" />}
-              iconBg="bg-[#ff2d55]"
-              label="Поделиться планом в сторис"
-              onClick={async () => {
-                haptic.impact('light');
-                showToast('Готовлю картинку…');
-                const r = await shareDayToStory();
-                if (r === 'unsupported') showToast('Сторис из мини-приложений доступны в новой версии Telegram на телефоне');
-                else if (r === 'failed') showToast('Не получилось — попробуйте ещё раз');
-              }}
-            >
-              <ChevronRight className="size-5 text-faint" />
-            </Row>
-          </Group>
-        )}
-
-        <Group title="Задачи" footer={hideDone ? 'Выполненные остаются до конца дня, а на следующий день исчезают из списка.' : 'Выполненные задачи остаются в списке, пока вы их не удалите.'}>
+          <Group title="Задачи" footer={hideDone ? 'Выполненные остаются до конца дня, а на следующий день исчезают из списка.' : 'Выполненные задачи остаются в списке, пока вы их не удалите.'}>
             <Row icon={<CheckCheck className="size-[18px]" />} iconBg="bg-green" label="Скрывать выполненные">
               <Switch
                 checked={hideDone}

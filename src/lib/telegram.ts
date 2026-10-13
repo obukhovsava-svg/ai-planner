@@ -20,7 +20,7 @@ interface SafeAreaInset {
 
 interface TelegramWebApp {
   initData: string;
-  initDataUnsafe?: { start_param?: string; user?: { id: number } };
+  initDataUnsafe?: { start_param?: string };
   version: string;
   platform: string;
   colorScheme: 'light' | 'dark';
@@ -35,8 +35,6 @@ interface TelegramWebApp {
   setBottomBarColor?(color: string): void;
   disableVerticalSwipes?(): void;
   openLink?(url: string, options?: { try_instant_view?: boolean }): void;
-  openTelegramLink?(url: string): void;
-  shareToStory?(mediaUrl: string, params?: { text?: string; widget_link?: { url: string; name?: string } }): void;
   onEvent(event: string, cb: () => void): void;
   offEvent(event: string, cb: () => void): void;
   BackButton: {
@@ -65,26 +63,6 @@ function getWebApp(): TelegramWebApp | undefined {
 /** start_param of a t.me/<bot>?startapp=… link. */
 export function getStartParam(): string | undefined {
   return getWebApp()?.initDataUnsafe?.start_param;
-}
-
-/** The signed-in Telegram user's id (for the personal invite link). */
-export function getTelegramUserId(): number | undefined {
-  return getWebApp()?.initDataUnsafe?.user?.id;
-}
-
-/** Opens a t.me link inside Telegram (share sheet, chats) — outside it, a new tab. */
-export function openTelegramLink(url: string) {
-  const wa = getWebApp();
-  if (wa?.openTelegramLink && isInTelegram()) wa.openTelegramLink(url);
-  else window.open(url, '_blank', 'noopener');
-}
-
-/** Telegram's story editor with this picture (Bot API 7.8+); false where it isn't available. */
-export function shareToStory(mediaUrl: string, text: string): boolean {
-  const wa = getWebApp();
-  if (!wa?.shareToStory || !isInTelegram() || !supports('7.8')) return false;
-  wa.shareToStory(mediaUrl, { text });
-  return true;
 }
 
 /** Signed launch data; the AI worker uses it to verify requests come from this Mini App. */
