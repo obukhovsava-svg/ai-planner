@@ -251,15 +251,17 @@ export function SettingsSheet() {
                 ))}
               </div>
             </div>
-            <Row icon={<PaintBucket className="size-[17px]" />} iconBg="bg-[#ff9500]" label="Цветной фон">
-              <Switch
-                checked={tintBg}
-                onChange={(v) => {
-                  haptic.selection();
-                  setTintBg(v);
-                }}
-              />
-            </Row>
+            {isNative() && (
+              <Row icon={<PaintBucket className="size-[17px]" />} iconBg="bg-[#ff9500]" label="Цветной фон">
+                <Switch
+                  checked={tintBg}
+                  onChange={(v) => {
+                    haptic.selection();
+                    setTintBg(v);
+                  }}
+                />
+              </Row>
+            )}
             {isNative() && (
               <Row icon={<LayoutGrid className="size-[18px]" />} iconBg="bg-blue" label="Фон виджета">
                 <div className="flex rounded-[9px] bg-surface-2 p-[2px]">

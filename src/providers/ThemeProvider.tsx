@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import type { ThemeMode } from '@/types';
 import { useUIStore } from '@/store/useUIStore';
 import { getTelegramColorScheme, haptic, onTelegramThemeChange, syncTelegramChrome } from '@/lib/telegram';
-import { postNative } from '@/lib/native';
+import { isNative, postNative } from '@/lib/native';
 
 interface ThemeContextValue {
   theme: ThemeMode;
@@ -50,7 +50,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     const root = document.documentElement;
     root.dataset.accent = accent;
-    if (tintBg) root.dataset.tint = '';
+    // the coloured screens are an app feature; Telegram keeps the plain look
+    if (tintBg && isNative()) root.dataset.tint = '';
     else delete root.dataset.tint;
   }, [accent, tintBg]);
   // iOS app: the widgets are painted in the same colour
