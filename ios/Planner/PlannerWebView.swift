@@ -50,15 +50,16 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
       }
     case "accent":
       if let accent = body["accent"] as? String {
-        // The page reports its colour on every launch; the icon follows only a real choice —
-        // not the very first report (iOS would greet a new user with an "icon changed" note).
-        let first = UserDefaults(suiteName: WidgetStore.group)?.string(forKey: "accent") == nil
-        let changed = accent != WidgetStore.accent
+        let tone = body["tone"] as? String ?? "pastel"
         WidgetStore.saveAccent(accent)
-        if first { UserDefaults(suiteName: WidgetStore.group)?.set(accent, forKey: "accent") }
-        else if changed { setAppIcon(for: accent) }
+        WidgetStore.saveTone(tone)
+        // The page reports its colours on every launch; the icon follows only a real choice — not
+        // the very first report (iOS would greet a new user with an "icon changed" note).
+        let icon = "\(accent)\(tone == "dark" ? "-dark" : "")"
+        let defaults = UserDefaults(suiteName: WidgetStore.group)
+        if let last = defaults?.string(forKey: "icon"), last != icon { setAppIcon(accent: accent, dark: tone == "dark") }
+        defaults?.set(icon, forKey: "icon")
       }
-      if let tone = body["tone"] as? String { WidgetStore.saveTone(tone) }
     case "theme":
       // Read by PlannerApp (@AppStorage) → the window starts in this theme next time, no flash.
       UserDefaults.standard.set(body["mode"] as? String ?? "", forKey: "theme")
@@ -276,15 +277,17 @@ extension Bridge: PHPickerViewControllerDelegate {
 }
 
 
-/// The home-screen icon in the accent's pastel: lime is the main icon, the others are alternates
-/// (AppIcon-<accent> in the asset catalog). iOS shows its own "icon changed" note — so only on a real change.
+/// The home-screen icon in the widget's colours: the accent, pastel or dark (Настройки → Фон
+/// виджета). Pastel lime is the main icon, the rest are alternates «AppIcon-<accent>[-dark]».
+/// iOS shows its own "icon changed" note — so this runs only on a real change.
 @MainActor
-func setAppIcon(for accent: String) {
+func setAppIcon(accent: String, dark: Bool) {
   let app = UIApplication.shared
   guard app.supportsAlternateIcons else { return }
-  let wanted: String? = accent == "lime" ? nil : "AppIcon-\(accent)"
-  let known = ["blue", "sage", "mist", "pink", "red", "yellow", "milk"]
-  guard wanted == nil || known.contains(accent), app.alternateIconName != wanted else { return }
+  let known = ["blue", "sage", "lime", "mist", "pink", "red", "yellow", "milk"]
+  guard known.contains(accent) else { return }
+  let wanted: String? = accent == "lime" && !dark ? nil : "AppIcon-\(accent)\(dark ? "-dark" : "")"
+  guard app.alternateIconName != wanted else { return }
   app.setAlternateIconName(wanted) { error in
     if let error { print("app icon:", error.localizedDescription) }
   }
