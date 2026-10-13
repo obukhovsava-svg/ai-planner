@@ -7,20 +7,10 @@ import Foundation
 /// background refresh.
 enum BackgroundSync {
   static let taskID = "com.obukhov.planner.refresh"
-  private static let url = URL(string: "https://ai-planner-brain.savelyobuhov.workers.dev/snapshot")!
-
   /// Fetches and applies; false if offline or slow (the old data simply stays).
   @discardableResult
   static func refresh(timeout: TimeInterval = 8) async -> Bool {
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.timeoutInterval = timeout
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue(DeviceKey.value, forHTTPHeaderField: "X-Device-Key")
-    request.httpBody = try? JSONSerialization.data(withJSONObject: ["tz": -TimeZone.current.secondsFromGMT() / 60])
-    guard let (data, response) = try? await URLSession.shared.data(for: request),
-          (response as? HTTPURLResponse)?.statusCode == 200,
-          let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+    guard let body = await Server.post("/snapshot", ["tz": -TimeZone.current.secondsFromGMT() / 60], timeout: timeout) else { return false }
     await apply(snapshot: body["snapshot"], reminders: body["reminders"])
     return true
   }

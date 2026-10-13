@@ -33,25 +33,15 @@ struct AddToPlanIntent: AppIntent {
 
   @MainActor
   func perform() async throws -> some IntentResult & ProvidesDialog {
-    var request = URLRequest(url: URL(string: "https://ai-planner-brain.savelyobuhov.workers.dev/shortcut/device")!)
-    request.httpMethod = "POST"
-    request.timeoutInterval = 25
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue(DeviceKey.value, forHTTPHeaderField: "X-Device-Key")
     let tz = -TimeZone.current.secondsFromGMT() / 60 // same sign as JS getTimezoneOffset()
-    request.httpBody = try JSONSerialization.data(withJSONObject: ["text": text, "tz": tz])
-    do {
-      let (data, _) = try await URLSession.shared.data(for: request)
-      guard let reply = try JSONSerialization.jsonObject(with: data) as? [String: Any], let answer = reply["answer"] as? String else {
-        return .result(dialog: "Нет связи с сервером — попробуйте ещё раз.")
-      }
-      // New reminders become the app's own notifications right away, and the widgets update,
-      // even if the app isn't opened.
-      BackgroundSync.apply(snapshot: reply["snapshot"].flatMap { $0 is NSNull ? nil : $0 }, reminders: reply["reminders"].flatMap { $0 is NSNull ? nil : $0 })
-      return .result(dialog: IntentDialog(stringLiteral: answer))
-    } catch {
+    // «Команды» give an action about 30 s; the model usually answers in a few
+    guard let reply = await Server.post("/shortcut/device", ["text": text, "tz": tz], timeout: 24), let answer = reply["answer"] as? String else {
       return .result(dialog: "Нет связи с сервером — попробуйте ещё раз.")
     }
+    // New reminders become the app's own notifications right away, and the widgets update,
+    // even if the app isn't opened.
+    BackgroundSync.apply(snapshot: reply["snapshot"].flatMap { $0 is NSNull ? nil : $0 }, reminders: reply["reminders"].flatMap { $0 is NSNull ? nil : $0 })
+    return .result(dialog: IntentDialog(stringLiteral: answer))
   }
 }
 
