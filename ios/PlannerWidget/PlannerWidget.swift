@@ -215,7 +215,8 @@ private func tasksLabel(_ n: Int) -> String { "\(n) \(plural(n, "задача", 
 
 // MARK: - Pieces
 
-/// Today's tasks done / all — an outlined circle with the count.
+/// Today's tasks done / all: the arc fills task by task (animated when it changes) and turns
+/// into a closed circle with a tick once everything is done.
 private struct ProgressRing: View {
   let done: Int
   let total: Int
@@ -223,12 +224,24 @@ private struct ProgressRing: View {
   @Environment(\.palette) private var p
 
   var body: some View {
-    let value = total == 0 ? 0 : Double(done) / Double(total)
+    let all = total > 0 && done >= total
+    let value = total == 0 ? 0 : min(1, Double(done) / Double(total))
     ZStack {
-      Circle().stroke(p.fg.opacity(0.35), lineWidth: 1.8)
-      Circle().trim(from: 0, to: value).stroke(p.fg, style: StrokeStyle(lineWidth: 1.8, lineCap: .round)).rotationEffect(.degrees(-90))
-      Text("\(done)/\(total)").font(mono(size * 0.34)).minimumScaleFactor(0.6).lineLimit(1).padding(2)
+      Circle().stroke(p.fg.opacity(0.3), lineWidth: 2)
+      Circle().trim(from: 0, to: value)
+        .stroke(p.fg, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
+        .rotationEffect(.degrees(-90))
+        .animation(.spring(duration: 0.8, bounce: 0.15), value: value)
+      if all {
+        Circle().fill(p.fg).padding(size * 0.16)
+        Image(systemName: "checkmark").font(.system(size: size * 0.36, weight: .heavy)).foregroundStyle(p.bg)
+          .transition(.scale.combined(with: .opacity))
+      } else {
+        Text("\(done)/\(total)").font(mono(size * 0.34)).minimumScaleFactor(0.6).lineLimit(1).padding(2)
+          .contentTransition(.numericText(value: Double(done)))
+      }
     }
+    .animation(.spring(duration: 0.6, bounce: 0.25), value: all)
     .frame(width: size, height: size)
   }
 }
@@ -259,7 +272,7 @@ private struct SectionTitle: View {
 
   var body: some View {
     HStack(spacing: 5) {
-      Text(title.uppercased()).font(mono(10, .heavy)).kerning(0.3)
+      Text(title.uppercased()).font(.system(size: 10.5, weight: .heavy)).kerning(0.6)
       if let badge { Text(badge).font(mono(10, .heavy)) }
       Spacer(minLength: 0)
     }
@@ -396,7 +409,8 @@ struct SmallView: View {
       Header(day: day, size: 24, ring: 24)
       if day.isEmpty {
         Spacer(minLength: 0)
-        Placeholder(title: "Свободный день", subtitle: "Скажите ассистенту, что запланировать")
+        if day.doneCount > 0 { Placeholder(title: "Всё сделано", subtitle: "Отличный день") }
+        else { Placeholder(title: "Свободный день", subtitle: "Скажите ассистенту, что запланировать") }
       } else {
         if let e = day.next { PlanRow(event: e, now: day.isNow(e)) }
         let n = day.next == nil ? 4 : 3
@@ -507,7 +521,7 @@ private struct LockTitle: View {
       Image(systemName: icon)
       Text(count > 0 ? "\(title.uppercased()) · \(count)" : title.uppercased())
     }
-    .font(.system(size: 11, weight: .heavy, design: .monospaced)).opacity(0.75).widgetAccentable()
+    .font(.system(size: 11, weight: .heavy)).opacity(0.75).widgetAccentable()
   }
 }
 
