@@ -27,7 +27,7 @@ export function Toast() {
         {toast.action && (
           <button
             type="button"
-            className="shrink-0 rounded-full px-3 py-1 font-semibold text-[#0a84ff] active:opacity-60"
+            className="shrink-0 rounded-full px-3 py-1 font-semibold text-blue active:opacity-60"
             onClick={() => {
               toast.action!.run();
               hide();

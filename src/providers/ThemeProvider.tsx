@@ -45,6 +45,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // iOS app: remember the choice natively, so the next launch starts in this theme.
   useEffect(() => postNative({ type: 'theme', mode: override }), [override]);
 
+  const accent = useUIStore((s) => s.accent);
+  useLayoutEffect(() => {
+    if (accent === 'blue') delete document.documentElement.dataset.accent;
+    else document.documentElement.dataset.accent = accent;
+  }, [accent]);
+
   useLayoutEffect(() => {
     const root = document.documentElement;
     root.classList.toggle('dark', theme === 'dark');

@@ -59,6 +59,25 @@
   color-scheme: dark;
 }
 
+/* ---------- Accent colours (Настройки → Цвет оформления); blue = the tokens above ---------- */
+:root[data-accent='sage'] { --blue: #6a9f52; --sky: #6a9f52; --ai-1: #c2e59b; --ai-2: #7fb862; --ai-3: #4fa68a; }
+:root.dark[data-accent='sage'] { --blue: #8cc46f; --sky: #8cc46f; }
+:root[data-accent='mist'] { --blue: #4a97d0; --sky: #4a97d0; --ai-1: #a9dcff; --ai-2: #5aa9e0; --ai-3: #8c9cff; }
+:root.dark[data-accent='mist'] { --blue: #6cb8ec; --sky: #6cb8ec; }
+:root[data-accent='pink'] { --blue: #d9688f; --sky: #d9688f; --ai-1: #ffbfd2; --ai-2: #e8799f; --ai-3: #b99bff; }
+:root.dark[data-accent='pink'] { --blue: #f08db0; --sky: #f08db0; }
+:root[data-accent='red'] { --blue: #de5a54; --sky: #de5a54; --ai-1: #ffad99; --ai-2: #ea6862; --ai-3: #ff86b0; }
+:root.dark[data-accent='red'] { --blue: #f2766f; --sky: #f2766f; }
+:root[data-accent='yellow'] { --blue: #c99a1c; --sky: #c99a1c; --ai-1: #ffe39a; --ai-2: #e2ae38; --ai-3: #ff9f66; }
+:root.dark[data-accent='yellow'] { --blue: #e8bb45; --sky: #e8bb45; }
+:root[data-accent='milk'] { --blue: #ad906c; --sky: #ad906c; --ai-1: #f5e7d2; --ai-2: #cdb08c; --ai-3: #e9b9a4; }
+:root.dark[data-accent='milk'] { --blue: #d9c3a5; --sky: #d9c3a5; }
+/* light accents in dark mode: white on cream / honey reads poorly — dark text on those fills */
+:root.dark[data-accent='milk'] .bg-blue,
+:root.dark[data-accent='yellow'] .bg-blue {
+  color: #1c1a17 !important;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);

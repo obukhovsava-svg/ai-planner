@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, ChevronRight, Clock, ImagePlus, MessageCircle, Moon, Palette, Smartphone, Sun } from 'lucide-react';
+import { CheckCheck, ChevronRight, Clock, ImagePlus, MessageCircle, Moon, Palette, Smartphone, Sparkles, Sun } from 'lucide-react';
+import { ACCENTS } from '@/lib/accent';
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
 import { useUIStore } from '@/store/useUIStore';
@@ -56,6 +57,8 @@ export function SettingsSheet() {
   const open = useUIStore((s) => s.settingsOpen);
   const setOpen = useUIStore((s) => s.setSettingsOpen);
   const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
+  const accent = useUIStore((s) => s.accent);
+  const setAccent = useUIStore((s) => s.setAccent);
   const wallpaperOpen = useUIStore((s) => s.wallpaperOpen);
   const setWallpaperOpen = useUIStore((s) => s.setWallpaperOpen);
   // opened from here → closing it comes back here (it can also be opened from the next-step offer)
@@ -216,6 +219,34 @@ export function SettingsSheet() {
                 ))}
               </div>
             </Row>
+            {/* accent colour: buttons, the active tab, the assistant's gradient */}
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="grid size-[30px] shrink-0 place-items-center rounded-[8px] text-white" style={{ background: 'var(--gemini)' }}>
+                  <Sparkles className="size-[17px]" />
+                </span>
+                <span className="min-w-0 flex-1 text-[17px]">Цвет оформления</span>
+                <span className="text-[15px] text-muted">{ACCENTS.find((a) => a.id === accent)?.label}</span>
+              </div>
+              <div className="mt-3 flex justify-between pl-[42px]">
+                {ACCENTS.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    aria-label={a.label}
+                    aria-pressed={accent === a.id}
+                    onClick={() => {
+                      haptic.selection();
+                      setAccent(a.id);
+                    }}
+                    className="grid size-[34px] place-items-center rounded-full transition-transform duration-300 ease-spring active:scale-90"
+                    style={{ boxShadow: accent === a.id ? `0 0 0 2px var(--surface), 0 0 0 4px ${a.swatch}` : undefined }}
+                  >
+                    <span className="size-[26px] rounded-full" style={{ background: a.swatch }} />
+                  </button>
+                ))}
+              </div>
+            </div>
             {online && (
               <Row icon={<MessageCircle className="size-[18px]" />} iconBg="bg-[#30b0c7]" label="Написать отзыв" onClick={() => setFeedback(feedback === null ? '' : null)}>
                 <ChevronRight className={`size-5 text-faint transition-transform duration-300 ${feedback !== null ? 'rotate-90' : ''}`} />

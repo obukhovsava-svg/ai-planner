@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { DateKey, TabId, ThemeMode } from '@/types';
 import { STORAGE_KEYS, storage } from '@/lib/storage';
 import { todayKey } from '@/lib/date';
+import type { AccentId } from '@/lib/accent';
 
 export interface Toast {
   id: number;
@@ -17,6 +18,9 @@ interface UIState {
   /** null = follow Telegram / system; otherwise manual override. */
   themeOverride: ThemeMode | null;
   setThemeOverride(mode: ThemeMode | null): void;
+  /** Accent colour of buttons, the active tab and the assistant's gradient. */
+  accent: AccentId;
+  setAccent(accent: AccentId): void;
 
   selectedDate: DateKey;
   setSelectedDate(date: DateKey): void;
@@ -57,6 +61,8 @@ export const useUIStore = create<UIState>()(
 
       themeOverride: null,
       setThemeOverride: (themeOverride) => set({ themeOverride }),
+      accent: 'blue',
+      setAccent: (accent) => set({ accent }),
 
       selectedDate: todayKey(),
       setSelectedDate: (selectedDate) => set({ selectedDate }),
@@ -88,6 +94,7 @@ export const useUIStore = create<UIState>()(
       // Only durable preferences — the app always opens on today's date.
       partialize: (s) => ({
         themeOverride: s.themeOverride,
+        accent: s.accent,
         hideDoneNextDay: s.hideDoneNextDay,
         digestPrompted: s.digestPrompted,
       }),
