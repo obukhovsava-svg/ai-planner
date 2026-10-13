@@ -72,6 +72,15 @@
 :root.dark[data-accent='yellow'] { --blue: #e8bb45; --sky: #e8bb45; }
 :root[data-accent='milk'] { --blue: #ad906c; --sky: #ad906c; --ai-1: #f5e7d2; --ai-2: #cdb08c; --ai-3: #e9b9a4; }
 :root.dark[data-accent='milk'] { --blue: #d9c3a5; --sky: #d9c3a5; }
+/* Лайм #D3F5A8: fills are exactly that with dark text; as text on a light background it would
+   vanish, so links and icons there use a deeper lime */
+:root[data-accent='lime'] { --blue: #5e9a2c; --sky: #5e9a2c; --ai-1: #eaffc9; --ai-2: #b8ec7c; --ai-3: #8fdcb4; }
+:root.dark[data-accent='lime'] { --blue: #d3f5a8; --sky: #d3f5a8; }
+:root[data-accent='lime'] .bg-blue {
+  background-color: #d3f5a8 !important;
+  color: #1f2a12 !important;
+}
+
 /* light accents in dark mode: white on cream / honey reads poorly — dark text on those fills */
 :root.dark[data-accent='milk'] .bg-blue,
 :root.dark[data-accent='yellow'] .bg-blue {

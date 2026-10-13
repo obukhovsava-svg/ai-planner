@@ -28,19 +28,19 @@ page.on('request', (q) => {
   q.continue();
 });
 const shots = [];
-for (const [accent, theme] of [['blue', 'light'], ['sage', 'light'], ['mist', 'dark'], ['pink', 'light'], ['yellow', 'dark'], ['milk', 'dark']]) {
+for (const [accent, theme] of [['lime', 'light'], ['lime', 'dark']]) {
   await page.evaluateOnNewDocument((accent, theme) => {
     localStorage.setItem('planner:ui', JSON.stringify({ state: { accent, themeOverride: theme, digestPrompted: true, tab: 'tasks' }, version: 0 }));
     localStorage.setItem('planner:next-step', '1');
   }, accent, theme);
   await page.goto('http://localhost:5199/');
   await new Promise((r) => setTimeout(r, 1200));
-  await page.screenshot({ path: `shots/accent-${accent}-tasks.png` });
+  await page.screenshot({ path: `shots/accent-${accent}-${theme}-tasks.png` });
   await page.evaluate(() => document.querySelector('[aria-label="Настройки"]')?.click());
   await new Promise((r) => setTimeout(r, 900));
   await page.evaluate(() => document.querySelector('[aria-label="Синий"]')?.scrollIntoView({ block: 'center' }));
   await new Promise((r) => setTimeout(r, 300));
-  await page.screenshot({ path: `shots/accent-${accent}-settings.png` });
+  await page.screenshot({ path: `shots/accent-${accent}-${theme}-settings.png` });
   shots.push(accent);
 }
 console.log(shots.join(' '));

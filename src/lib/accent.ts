@@ -6,6 +6,7 @@
 export const ACCENTS = [
   { id: 'blue', label: 'Синий', swatch: '#0a84ff' },
   { id: 'sage', label: 'Салатовый', swatch: '#8cc46f' },
+  { id: 'lime', label: 'Лайм', swatch: '#d3f5a8' },
   { id: 'mist', label: 'Голубой', swatch: '#6cb8ec' },
   { id: 'pink', label: 'Розовый', swatch: '#f08db0' },
   { id: 'red', label: 'Красный', swatch: '#f2766f' },
