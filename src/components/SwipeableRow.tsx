@@ -1,5 +1,4 @@
 import { useRef, type ReactNode } from 'react';
-import { Trash2 } from 'lucide-react';
 import { haptic } from '@/lib/telegram';
 
 interface SwipeableRowProps {
@@ -7,14 +6,14 @@ interface SwipeableRowProps {
   onDelete(): void;
 }
 
-const REVEAL = 76; // open position: room for the round button
+const REVEAL = 88; // open position: room for the «Удалить» button
 const COMMIT = 0.5; // swiping past half the row deletes on release
 const SPRING = 'cubic-bezier(0.32, 0.72, 0, 1)';
 
 /**
- * Telegram-style swipe-to-delete: a round red trash button grows out of the right edge.
- * Short swipe → the row stays open; long swipe → the button follows the row's edge and
- * the row is deleted on release.
+ * iOS Alarm-style swipe-to-delete: a full-height red «Удалить» stretches out from the right edge
+ * after the finger. Short swipe → the row stays open on the button; past half the row the label
+ * jumps to the row's edge and the row is deleted on release.
  *
  * Smoothness: the drag writes transforms straight to the DOM (no React re-render per frame),
  * and deleting is one continuous motion — the row slides out while its height is already
@@ -42,17 +41,17 @@ export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
     const b = button.current;
     if (!c || !a || !b) return;
     const committed = -x > width() * COMMIT;
-    const progress = Math.min(1, -x / REVEAL);
     const t = animate ? `transform 0.45s ${SPRING}` : 'none';
     c.style.transition = t;
     c.style.transform = `translate3d(${x}px,0,0)`;
-    a.style.transition = animate ? `width 0.45s ${SPRING}, padding 0.3s` : 'padding 0.2s';
+    // the red area is exactly the uncovered part; its label sits in the middle of the button until
+    // the swipe goes long, then rides at the row's edge (iOS jumps it over with a spring)
+    a.style.transition = animate ? `width 0.45s ${SPRING}` : 'none';
     a.style.width = `${Math.max(0, -x)}px`;
-    a.style.justifyContent = committed ? 'flex-start' : 'center';
-    a.style.paddingLeft = committed ? '16px' : '0px';
-    b.style.transition = animate ? `transform 0.4s ${SPRING}, opacity 0.3s` : 'transform 0.2s ease';
-    b.style.transform = `scale(${committed ? 1.08 : 0.4 + 0.6 * progress})`;
-    b.style.opacity = String(Math.min(1, progress * 1.4));
+    const w = Math.max(0, -x);
+    b.style.transition = animate || committed !== pastCommit.current ? `transform 0.35s ${SPRING}, opacity 0.2s` : 'opacity 0.2s';
+    b.style.transform = `translate3d(${committed ? 0 : Math.max(0, w - REVEAL)}px,0,0)`;
+    b.style.opacity = String(Math.min(1, w / (REVEAL * 0.7)));
     b.tabIndex = x < 0 ? 0 : -1;
   };
 
@@ -72,25 +71,24 @@ export function SwipeableRow({ children, onDelete }: SwipeableRowProps) {
       easing: 'cubic-bezier(0.4, 0, 1, 1)',
       fill: 'forwards',
     });
-    button.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: 'forwards' });
+    action.current?.animate([{ width: `${-offset.current}px` }, { width: `${w}px` }], { duration: 220, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
     el.style.willChange = 'height';
     el.animate([{ height: `${h}px` }, { height: '0px' }], { duration: 300, delay: 120, easing: SPRING, fill: 'forwards' }).finished.then(onDelete, onDelete);
   };
 
   return (
     <div ref={root} data-swipe-lock className="relative overflow-hidden">
-      {/* action area behind the row */}
-      <div ref={action} className="absolute inset-y-0 right-0 flex items-center justify-center" style={{ width: 0 }}>
+      {/* the red «Удалить» behind the row, as wide as the row has moved */}
+      <div ref={action} className="absolute inset-y-0 right-0 overflow-hidden bg-red" style={{ width: 0 }}>
         <button
           ref={button}
           type="button"
           onClick={remove}
-          aria-label="Удалить"
           tabIndex={-1}
-          className="grid size-11 shrink-0 place-items-center rounded-full bg-red text-white shadow-[0_4px_14px_rgb(255_59_48/0.35)] active:scale-90"
-          style={{ opacity: 0, transform: 'scale(0.4)' }}
+          className="flex h-full items-center justify-center text-[16px] font-medium text-white active:opacity-70"
+          style={{ width: REVEAL, opacity: 0 }}
         >
-          <Trash2 className="size-[19px]" strokeWidth={2.2} />
+          Удалить
         </button>
       </div>
 
