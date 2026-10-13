@@ -299,16 +299,25 @@ async function onTelegramUpdate(update: any, env: Env) {
   // name and @username (from getChat: what the bot can see anyway).
   if (text.startsWith('/users')) {
     if (!env.ADMIN_CHAT_ID || String(msg.chat.id) !== env.ADMIN_CHAT_ID) return;
-    // Telegram caps a message at 4096 characters: split on line breaks
-    let chunk = '';
-    for (const line of (await usersText(env)).split('\n')) {
-      if (chunk.length + line.length > 3800) {
-        await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: chunk }).catch(() => null);
-        chunk = '';
+    try {
+      // Telegram caps a message at 4096 characters: split on line breaks
+      const say = async (t: string) => {
+        const r = await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: t });
+        if (!r.ok) console.error('/users send failed:', r.description);
+      };
+      let chunk = '';
+      for (const line of (await usersText(env)).split('\n')) {
+        if (chunk.length + line.length > 3500) {
+          await say(chunk);
+          chunk = '';
+        }
+        chunk += (chunk ? '\n' : '') + line;
       }
-      chunk += (chunk ? '\n' : '') + line;
+      if (chunk) await say(chunk);
+    } catch (e) {
+      console.error('/users failed:', String(e));
+      await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `/users: ошибка ${String(e).slice(0, 300)}` }).catch(() => null);
     }
-    if (chunk) await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: chunk }).catch(() => null);
     return;
   }
   // "/broadcast" — admin only: preview of the announcement and who gets it; "/broadcast_send" sends it.
@@ -373,8 +382,10 @@ async function transcribe(env: Env, fileId: string): Promise<string | null> {
     if (!f.result?.file_path || (f.result.file_size ?? 0) > 5_000_000) return null;
     const audio = await (await fetch(`https://api.telegram.org/file/bot${env.BOT_TOKEN}/${f.result.file_path}`)).arrayBuffer();
     const out = (await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio: toBase64(new Uint8Array(audio)), language: 'ru' })) as { text?: string };
+    console.log('voice →', audio.byteLength, 'bytes,', out.text ? `${out.text.length} chars` : 'no text');
     return out.text?.trim() || null;
-  } catch {
+  } catch (e) {
+    console.error('voice transcription failed:', String(e));
     return null;
   }
 }
@@ -510,14 +521,24 @@ async function usersText(env: Env): Promise<string> {
     return { ...r, items, week, days, score, status };
   });
   rows.sort((a, b) => b.score - a.score);
+  // Names are cached: a Worker may make only ~50 outside requests per run, so getChat goes out
+  // for at most 35 people not seen yet (the rest come with the next /users).
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS tg_names (user_id TEXT PRIMARY KEY, label TEXT NOT NULL, at INTEGER NOT NULL)').run();
+  const { results: cached } = await env.DB.prepare('SELECT user_id, label FROM tg_names').all<{ user_id: string; label: string }>();
+  const names = new Map(cached.map((c) => [c.user_id, c.label]));
+  let budget = 35;
+  for (const r of rows) {
+    if (r.user_id.startsWith('dev:') || names.has(r.user_id) || budget-- <= 0) continue;
+    const c = (await tg(env, 'getChat', { chat_id: r.user_id }).catch(() => null)) as { ok?: boolean; result?: { username?: string; first_name?: string; last_name?: string } } | null;
+    if (!c?.ok) continue;
+    const name = [c.result?.first_name, c.result?.last_name].filter(Boolean).join(' ');
+    const label = `${c.result?.username ? '@' + c.result.username : 'без юзернейма'}${name ? ` (${name})` : ''}`;
+    names.set(r.user_id, label);
+    await env.DB.prepare('INSERT INTO tg_names (user_id, label, at) VALUES (?1, ?2, ?3) ON CONFLICT (user_id) DO UPDATE SET label = ?2, at = ?3').bind(r.user_id, label, now).run();
+  }
   const lines: string[] = [];
   for (const [i, r] of rows.entries()) {
-    let who = r.user_id.startsWith('dev:') ? `📱 приложение ${r.user_id.slice(4, 10)}` : r.user_id;
-    if (!r.user_id.startsWith('dev:')) {
-      const c = (await tg(env, 'getChat', { chat_id: r.user_id }).catch(() => null)) as { result?: { username?: string; first_name?: string; last_name?: string } } | null;
-      const name = [c?.result?.first_name, c?.result?.last_name].filter(Boolean).join(' ');
-      who = `${c?.result?.username ? '@' + c.result.username : 'без юзернейма'}${name ? ` (${name})` : ''} · ${r.user_id}`;
-    }
+    const who = r.user_id.startsWith('dev:') ? `📱 приложение ${r.user_id.slice(4, 10)}` : `${names.get(r.user_id) ?? 'имя загрузится в следующий раз'} · ${r.user_id}`;
     const extras = `${r.tok ? '🎙' : ''}${r.wp ? '🖼' : ''}`;
     const ago = r.days < 1 ? 'сегодня' : `${Math.floor(r.days)} дн. назад`;
     lines.push(`${r.status} ${i + 1}. ${who}\n    записей ${r.items} (за неделю ${r.week}) · был ${ago} ${extras}`);
