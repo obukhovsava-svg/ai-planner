@@ -108,15 +108,12 @@ nonisolated enum WidgetStore {
     WidgetCenter.shared.reloadAllTimelines()
   }
 
-  /// The planner's theme: "light" / "dark", or nil = follow the system (Настройки → Тема).
-  static var theme: String? {
-    let t = UserDefaults(suiteName: group)?.string(forKey: "theme")
-    return t == "light" || t == "dark" ? t : nil
-  }
+  /// Настройки → Фон виджета: the deep shade ("dark") or the pastel one (default).
+  static var darkTone: Bool { UserDefaults(suiteName: group)?.string(forKey: "tone") == "dark" }
 
-  static func saveTheme(_ mode: String) {
-    guard mode != (theme ?? "") else { return }
-    UserDefaults(suiteName: group)?.set(mode, forKey: "theme")
+  static func saveTone(_ tone: String) {
+    guard (tone == "dark") != darkTone else { return }
+    UserDefaults(suiteName: group)?.set(tone, forKey: "tone")
     WidgetCenter.shared.reloadAllTimelines()
   }
 

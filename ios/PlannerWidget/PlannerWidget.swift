@@ -176,14 +176,8 @@ extension EnvironmentValues {
   }
 }
 
-/// Light or dark: the planner's own theme if one is chosen, otherwise the system's.
-private func isDark(_ scheme: ColorScheme) -> Bool {
-  switch WidgetStore.theme {
-  case "dark": true
-  case "light": false
-  default: scheme == .dark
-  }
-}
+/// Pastel or deep field — chosen in the planner (Настройки → Фон виджета).
+private func isDark(_ scheme: ColorScheme) -> Bool { WidgetStore.darkTone }
 
 /// Supplies the palette for the current appearance.
 struct Painted<Content: View>: View {

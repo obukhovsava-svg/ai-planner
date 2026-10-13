@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, ChevronRight, Clock, ImagePlus, MessageCircle, Moon, Palette, Smartphone, Sparkles, Sun } from 'lucide-react';
+import { CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, Palette, Smartphone, Sparkles, Sun } from 'lucide-react';
 import { ACCENTS } from '@/lib/accent';
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
@@ -59,6 +59,8 @@ export function SettingsSheet() {
   const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
   const accent = useUIStore((s) => s.accent);
   const setAccent = useUIStore((s) => s.setAccent);
+  const widgetTone = useUIStore((s) => s.widgetTone);
+  const setWidgetTone = useUIStore((s) => s.setWidgetTone);
   const wallpaperOpen = useUIStore((s) => s.wallpaperOpen);
   const setWallpaperOpen = useUIStore((s) => s.setWallpaperOpen);
   // opened from here → closing it comes back here (it can also be opened from the next-step offer)
@@ -247,6 +249,30 @@ export function SettingsSheet() {
                 ))}
               </div>
             </div>
+            {isNative() && (
+              <Row icon={<LayoutGrid className="size-[18px]" />} iconBg="bg-blue" label="Фон виджета">
+                <div className="flex rounded-[9px] bg-surface-2 p-[2px]">
+                  {(
+                    [
+                      ['pastel', 'Пастельный'],
+                      ['dark', 'Тёмный'],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => {
+                        haptic.selection();
+                        setWidgetTone(id);
+                      }}
+                      className={`rounded-[7px] px-2.5 py-1 text-[13px] font-medium transition-colors ${widgetTone === id ? 'bg-surface text-fg shadow-[0_1px_3px_rgb(0_0_0/0.15)]' : 'text-muted'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </Row>
+            )}
             {online && (
               <Row icon={<MessageCircle className="size-[18px]" />} iconBg="bg-[#30b0c7]" label="Написать отзыв" onClick={() => setFeedback(feedback === null ? '' : null)}>
                 <ChevronRight className={`size-5 text-faint transition-transform duration-300 ${feedback !== null ? 'rotate-90' : ''}`} />

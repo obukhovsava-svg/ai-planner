@@ -21,6 +21,9 @@ interface UIState {
   /** Accent colour of buttons, the active tab and the assistant's gradient. */
   accent: AccentId;
   setAccent(accent: AccentId): void;
+  /** iOS widgets: pastel field with deep text, or the deep shade with pastel text. */
+  widgetTone: 'pastel' | 'dark';
+  setWidgetTone(tone: 'pastel' | 'dark'): void;
 
   selectedDate: DateKey;
   setSelectedDate(date: DateKey): void;
@@ -63,6 +66,8 @@ export const useUIStore = create<UIState>()(
       setThemeOverride: (themeOverride) => set({ themeOverride }),
       accent: 'blue',
       setAccent: (accent) => set({ accent }),
+      widgetTone: 'pastel',
+      setWidgetTone: (widgetTone) => set({ widgetTone }),
 
       selectedDate: todayKey(),
       setSelectedDate: (selectedDate) => set({ selectedDate }),
@@ -95,6 +100,7 @@ export const useUIStore = create<UIState>()(
       partialize: (s) => ({
         themeOverride: s.themeOverride,
         accent: s.accent,
+        widgetTone: s.widgetTone,
         hideDoneNextDay: s.hideDoneNextDay,
         digestPrompted: s.digestPrompted,
       }),

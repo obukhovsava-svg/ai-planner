@@ -23,7 +23,7 @@ type NativeMessage =
   | { type: 'theme'; mode: 'light' | 'dark' | null }
   | { type: 'widget'; snapshot: WidgetSnapshot }
   /** The accent colour, so the widgets match the app. */
-  | { type: 'accent'; accent: string };
+  | { type: 'accent'; accent: string; tone: 'pastel' | 'dark' };
 
 /** What the home-screen widget shows: the next week, day by day (the widget can't run this code). */
 export interface WidgetSnapshot {

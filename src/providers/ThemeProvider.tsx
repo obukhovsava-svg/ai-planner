@@ -51,7 +51,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     else document.documentElement.dataset.accent = accent;
   }, [accent]);
   // iOS app: the widgets are painted in the same colour
-  useEffect(() => postNative({ type: 'accent', accent }), [accent]);
+  const widgetTone = useUIStore((s) => s.widgetTone);
+  useEffect(() => postNative({ type: 'accent', accent, tone: widgetTone }), [accent, widgetTone]);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
