@@ -140,10 +140,15 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
           a.kindWord === 'event' ||
           (a.kindWord !== 'task' && (Boolean(a.repeat) || (a.eventHint && !(a.taskHint && !a.eventHint)) || Boolean(date && start && end) || (Boolean(start) && !a.taskHint)));
         const category = (['work', 'personal', 'health', 'study', 'other'] as const).includes(a.category) ? a.category : 'other';
-        // An event needs a day, a start and an end (or a duration). Missing → the app asks.
-        if (isEvent && (!start || (!date && !a.repeat) || (!end && !Number.isInteger(a.duration)) || a.needsStart)) {
+        // An event needs a start; the rest gets sensible defaults instead of a question nobody sees
+        // (the bot chat and the iPhone command can't ask back): one hour, today — or tomorrow if
+        // that time has already passed.
+        if (isEvent && (!start || a.needsStart)) {
           unresolved.push(a);
           break;
+        }
+        if (isEvent && start && !date && !a.repeat) {
+          date = ctx.nowMinutes !== undefined && timeToMinutes(start) <= ctx.nowMinutes ? addDays(today, 1) : today;
         }
         if (isEvent && start) {
           const repeat = sanitizeRepeat(a.repeat);

@@ -1018,19 +1018,26 @@ async function runShortcut(env: Env, user: string, tz: number, text: string): Pr
     if (changed) await saveDoc(env, user, res.doc, stored.tz ?? tz);
     savedDoc = res.doc;
   }
-  if (!actions || unresolved?.length) {
+  // A plan without a time is asked about right in the reply below — not queued for the assistant too.
+  const noTime = unresolved?.find((u: any) => u?.intent === 'create' && !u.start && u.title);
+  if (!actions || (unresolved?.length && !(noTime && unresolved.length === 1))) {
     await env.DB.prepare('INSERT INTO queue (user_id, text, actions, created_at) VALUES (?1, ?2, ?3, ?4)')
       .bind(user, text, actions ? JSON.stringify(unresolved) : null, Date.now())
       .run();
   }
   const body = lines.join('; ');
-  const pending = !actions || unresolved?.length ? 'Нужно уточнение — вопрос ждёт в ассистенте.' : '';
+  // A plan without a time: ask right here, with a phrase to answer (the chat can't hold a question).
+  const pending = noTime
+    ? `Во сколько «${noTime.title}»? Напишите вместе со временем, например: «${String(noTime.title).toLowerCase()} в 15:00».`
+    : !actions || unresolved?.length
+      ? 'Нужно уточнение — вопрос ждёт в ассистенте.'
+      : '';
   // "Готово ✅" only when something changed; answers to questions (schedule, a note) come as they are.
   const answer = lines.length
     ? `${changed ? 'Готово ✅ ' : ''}${body.charAt(0).toUpperCase()}${body.slice(1)}${/[.:]$/.test(body) ? '' : '.'}${pending ? ` ${pending}` : ''}`
     : r.ok && r.data.reply && !unresolved?.length
       ? String(r.data.reply)
-      : `Нужно уточнение — вопрос ждёт в ассистенте.`;
+      : pending || `Нужно уточнение — вопрос ждёт в ассистенте.`;
   return { answer, doc: changed ? savedDoc : null };
 }
 
