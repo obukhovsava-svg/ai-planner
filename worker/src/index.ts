@@ -483,12 +483,26 @@ const mskDay = (ms = Date.now()) => new Date(ms + MSK).toISOString().slice(0, 10
 const mskDayStart = (daysAgo = 0) => Date.parse(`${mskDay(Date.now() - daysAgo * 86_400_000)}T00:00:00Z`) - MSK;
 
 /** Counts an event of the day (e.g. a Shortcut run) and/or marks the user as seen. Never fails the request. */
+/**
+ * The owner's own accounts (Telegram + iPhone, Mac, simulator, old test keys): left out of /stats
+ * and /users, and their actions don't count in the daily metrics.
+ */
+const OWN_ACCOUNTS = [
+  'dev:097b0b0be89c02469aea028f87ba14c873023ed2', // iPhone + Mac (shared key)
+  'dev:441841291c92bf1d6c75335b42c0a152b5a68847', // simulator
+  'dev:305fa0bee22ace1e1bf41972798c9783c39c4376', // Mac, before the shared key
+  'dev:c5700cbce53f21eb89b1c817f1382fbc67e0e234', // an early test install
+];
+const isOwn = (env: Env, user?: string | null) => Boolean(user) && (user === env.ADMIN_CHAT_ID || OWN_ACCOUNTS.includes(user!));
+/** SQL: "user_id NOT IN (…)" for the owner's accounts. */
+const notOwn = (env: Env, col = 'user_id') => `${col} NOT IN (${[env.ADMIN_CHAT_ID ?? '', ...OWN_ACCOUNTS].map((u) => `'${u.replace(/'/g, '')}'`).join(', ')})`;
+
 async function track(env: Env, key: string | null, user?: string | null) {
   try {
     await ensureStats(env);
     const now = Date.now();
     const stmts: D1Stmt[] = [];
-    if (key) stmts.push(env.DB.prepare('INSERT INTO metrics (day, key, n) VALUES (?1, ?2, 1) ON CONFLICT (day, key) DO UPDATE SET n = n + 1').bind(mskDay(now), key));
+    if (key && !isOwn(env, user)) stmts.push(env.DB.prepare('INSERT INTO metrics (day, key, n) VALUES (?1, ?2, 1) ON CONFLICT (day, key) DO UPDATE SET n = n + 1').bind(mskDay(now), key));
     if (user && user !== 'anon')
       stmts.push(env.DB.prepare('INSERT INTO seen (user_id, first_at, last_at) VALUES (?1, ?2, ?2) ON CONFLICT (user_id) DO UPDATE SET last_at = ?2').bind(user, now));
     if (stmts.length) await env.DB.batch(stmts);
@@ -501,7 +515,7 @@ async function track(env: Env, key: string | null, user?: string | null) {
 async function usersText(env: Env): Promise<string> {
   await ensureStats(env);
   const { results } = await env.DB.prepare(
-    "SELECT s.user_id, s.last_at, st.doc, (SELECT 1 FROM users u WHERE u.user_id = s.user_id) tok, (SELECT COUNT(*) FROM wallpaper_b64 w WHERE w.user_id = s.user_id) wp FROM seen s LEFT JOIN state st ON st.user_id = s.user_id",
+    `SELECT s.user_id, s.last_at, st.doc, (SELECT 1 FROM users u WHERE u.user_id = s.user_id) tok, (SELECT COUNT(*) FROM wallpaper_b64 w WHERE w.user_id = s.user_id) wp FROM seen s LEFT JOIN state st ON st.user_id = s.user_id WHERE ${notOwn(env, 's.user_id')}`,
   ).all<{ user_id: string; last_at: number; doc: string | null; tok: number | null; wp: number }>();
   const now = Date.now(), DAY = 86_400_000;
   const rows = results.map((r) => {
@@ -551,9 +565,9 @@ async function statsText(env: Env): Promise<string> {
   await ensureDigestTables(env);
   const today = mskDayStart(0), week = mskDayStart(6);
   const one = async <T,>(sql: string, ...args: unknown[]) => (await env.DB.prepare(sql).bind(...args).all<T>()).results[0];
-  const users = await one<{ total: number; app: number }>("SELECT COUNT(*) total, COALESCE(SUM(user_id LIKE 'dev:%'), 0) app FROM state");
+  const users = await one<{ total: number; app: number }>(`SELECT COUNT(*) total, COALESCE(SUM(user_id LIKE 'dev:%'), 0) app FROM state WHERE ${notOwn(env)}`);
   const seen = await one<{ newToday: number; newWeek: number; actToday: number; actWeek: number }>(
-    'SELECT COALESCE(SUM(first_at >= ?1), 0) newToday, COALESCE(SUM(first_at >= ?2), 0) newWeek, COALESCE(SUM(last_at >= ?1), 0) actToday, COALESCE(SUM(last_at >= ?2), 0) actWeek FROM seen',
+    'SELECT COALESCE(SUM(first_at >= ?1), 0) newToday, COALESCE(SUM(first_at >= ?2), 0) newWeek, COALESCE(SUM(last_at >= ?1), 0) actToday, COALESCE(SUM(last_at >= ?2), 0) actWeek FROM seen WHERE ' + notOwn(env),
     today,
     week,
   );
@@ -561,12 +575,12 @@ async function statsText(env: Env): Promise<string> {
     one<{ d: number; w: number }>('SELECT COALESCE(SUM(CASE WHEN day = ?2 THEN n END), 0) d, COALESCE(SUM(CASE WHEN day >= ?3 THEN n END), 0) w FROM metrics WHERE key = ?1', key, mskDay(), mskDay(week));
   const shortcut = await metric('shortcut');
   const ai = await metric('ai');
-  const linked = await one<{ n: number }>('SELECT COUNT(*) n FROM users');
-  const digest = await one<{ n: number }>('SELECT COUNT(*) n FROM digest WHERE morning = 1 OR evening = 1');
-  const feedback = await one<{ n: number }>('SELECT COUNT(*) n FROM feedback');
+  const linked = await one<{ n: number }>(`SELECT COUNT(*) n FROM users WHERE ${notOwn(env)}`);
+  const digest = await one<{ n: number }>(`SELECT COUNT(*) n FROM digest WHERE (morning = 1 OR evening = 1) AND ${notOwn(env)}`);
+  const feedback = await one<{ n: number }>(`SELECT COUNT(*) n FROM feedback WHERE ${notOwn(env)}`);
 
   // What people keep in the planner (items that still exist).
-  const { results } = await env.DB.prepare('SELECT doc FROM state').all<{ doc: string }>();
+  const { results } = await env.DB.prepare(`SELECT doc FROM state WHERE ${notOwn(env)}`).all<{ doc: string }>();
   let ev = 0, tk = 0, done = 0, evToday = 0, tkToday = 0, week7 = 0;
   for (const r of results) {
     try {
