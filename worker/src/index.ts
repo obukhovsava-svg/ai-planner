@@ -180,9 +180,22 @@ const RESPONSE_SCHEMA = {
   },
 } as const;
 
+/** The next 14 days with their weekdays: models get "в воскресенье" → date wrong when counting themselves. */
+function calendarAhead(today: string): string {
+  const wd = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+  const base = new Date(`${today}T00:00:00Z`);
+  if (Number.isNaN(base.getTime())) return '';
+  return Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(base.getTime() + i * 86_400_000);
+    const key = d.toISOString().slice(0, 10);
+    return `${i === 0 ? 'сегодня ' : i === 1 ? 'завтра ' : ''}${wd[d.getUTCDay()]} ${key}`;
+  }).join(', ');
+}
+
 function systemPrompt(today: string, weekday: string, time: string): string {
   return `Ты — разбор команд для русскоязычного планировщика (календарь + задачи) в Telegram.
 Сегодня ${today} (${weekday}), сейчас ${time}. Неделя начинается с понедельника.
+Календарь (бери даты отсюда, не считай сам): ${calendarAhead(today)}.
 
 Преврати сообщение пользователя в список действий (actions) строго по JSON-схеме. Одно сообщение может содержать несколько дел.
 Правила:
@@ -445,6 +458,8 @@ async function ensureWallpaper(env: Env) {
     env.DB.prepare('CREATE TABLE IF NOT EXISTS wallpaper_b64 (user_id TEXT NOT NULL, day TEXT NOT NULL, img TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (user_id, day))'),
     // "a fresh picture is on its way": set by the planner on every change, before it uploads
     env.DB.prepare('CREATE TABLE IF NOT EXISTS wallpaper_pending (user_id TEXT PRIMARY KEY, at INTEGER NOT NULL)'),
+    // last Shortcut download per user: which network it came through (relay or workers.dev directly) and how long it took
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS wallpaper_hits (user_id TEXT PRIMARY KEY, at INTEGER NOT NULL, via TEXT, ms INTEGER, n INTEGER NOT NULL DEFAULT 1)'),
   ]);
   wallpaperReady = true;
 }
@@ -843,8 +858,26 @@ async function llm(env: Env, text: string, today: string, weekday: string, time:
     { role: 'system', content: `Ближайшие дела пользователя:\n${items.slice(0, 4000) || '(пусто)'}` },
     { role: 'user', content: text },
   ]);
-  if (fast.ok || !env.OPENAI_API_KEY) return fast;
-  return providerLlm(env, text, today, weekday, time, items);
+  if (fast.ok || !env.OPENAI_API_KEY) return keepNamedDates(fast, text, today, time);
+  return keepNamedDates(await providerLlm(env, text, today, weekday, time, items), text, today, time);
+}
+
+/** A day the user named ("в воскресенье", "18 октября") is read by the rules exactly; the model
+ * sometimes counts it wrong (or drops it, and the item lands on today) — the rules' date wins. */
+function keepNamedDates(r: LlmResult, text: string, today: string, time: string): LlmResult {
+  if (!r.ok || !Array.isArray(r.data.actions)) return r;
+  const [y, m, d] = today.split('-').map(Number);
+  const [hh, mm] = time.split(':').map(Number);
+  if (![y, m, d].every(Number.isFinite)) return r;
+  const now = new Date(y, m - 1, d, Number.isFinite(hh) ? hh : 12, Number.isFinite(mm) ? mm : 0);
+  const parts = splitRequests(text);
+  const creates = r.data.actions.filter((a) => a?.intent === 'create');
+  if (creates.length !== parts.length) return r;
+  parts.forEach((part, i) => {
+    const a = analyze(part, now);
+    if (a.intent === 'create' && a.date && creates[i].date !== a.date && !creates[i].repeat) creates[i].date = a.date;
+  });
+  return r;
 }
 
 /** OpenAI-compatible provider (strict JSON schema, JSON-mode fallback). */
@@ -1277,17 +1310,19 @@ export default {
       const u = await shortcutUser(env, wp[1]);
       if (!u) return new Response('Неверная ссылка', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       await ensureWallpaper(env);
+      const t0 = Date.now();
       const today = localNow(u.tz ?? 0).today;
       // Closing Telegram right after a change starts the Shortcut while the planner is still
-      // uploading: wait for that upload (up to ~8 s) instead of handing out the old picture.
-      for (let i = 0; i < 20; i++) {
+      // uploading: wait briefly for that upload instead of handing out the old picture. Kept short:
+      // the automation's request times out on a slow mobile network, and an older picture is better than none.
+      for (let i = 0; i < 8; i++) {
         const { results: st } = await env.DB.prepare(
           'SELECT p.at AS pending, (SELECT updated_at FROM wallpaper_b64 WHERE user_id = ?1 AND day = ?2) AS done FROM wallpaper_pending p WHERE p.user_id = ?1',
         )
           .bind(u.user_id, today)
           .all<{ pending: number; done: number | null }>();
         const p = st[0];
-        if (!p || (p.done ?? 0) >= p.pending || Date.now() - p.pending > 20_000) break;
+        if (!p || (p.done ?? 0) >= p.pending || Date.now() - p.pending > 10_000) break;
         await new Promise((r) => setTimeout(r, 400));
       }
       // Today's image (drawn the day before as "tomorrow" if the planner wasn't opened since).
@@ -1295,6 +1330,13 @@ export default {
         .bind(u.user_id, today)
         .all<{ img: string }>();
       const raw = results[0]?.img;
+      const via = String((request as unknown as { cf?: { asOrganization?: string } }).cf?.asOrganization ?? '').slice(0, 60);
+      ctx.waitUntil(
+        env.DB.prepare('INSERT INTO wallpaper_hits (user_id, at, via, ms) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id) DO UPDATE SET at = ?2, via = ?3, ms = ?4, n = n + 1')
+          .bind(u.user_id, Date.now(), via, Date.now() - t0)
+          .run()
+          .catch(() => {}),
+      );
       if (!raw) return new Response('Откройте планер в Telegram, чтобы нарисовать обои', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       return new Response(fromBase64(raw) as unknown as BodyInit, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' } });
     }

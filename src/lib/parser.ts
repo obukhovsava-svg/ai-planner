@@ -281,6 +281,10 @@ function parseTime(ctx: Ctx, isEvent: boolean): { start?: TimeStr; end?: TimeStr
     return { start: hhmm(sh, Number(m1a ?? m1b ?? 0)), end: hhmm(eh, Number(m2a ?? m2b ?? 0)) };
   }
 
+  // "10:30-12:50", "в 10:30–12:50" — two clock times joined by a dash (colons only: "1.10-5.10" are dates)
+  const dash = take(ctx, rx(`${B}(?:(?:в|с|со)\\s+)?(\\d{1,2}):(\\d{2})\\s*[-–—]\\s*(\\d{1,2}):(\\d{2})(?!\\d)`));
+  if (dash && Number(dash[1]) < 24 && Number(dash[3]) < 24) return { start: hhmm(Number(dash[1]), Number(dash[2])), end: hhmm(Number(dash[3]), Number(dash[4])) };
+
   if (take(ctx, rx(`${B}(?:в|к)?\\s*полдень${E}`))) return { start: '12:00' };
   // "в обед", "к обеду", "в обеденный перерыв"
   if (take(ctx, rx(`${B}(?:в|к|во\\s+время)\\s+(?:обед|обеду|обеденный\\s+перерыв|обеда)${E}`))) return { start: '13:00' };
@@ -390,11 +394,13 @@ function parseDate(ctx: Ctx): DateKey | undefined {
   if (take(ctx, rx(`${B}(?:в\\s+течение|за)\\s+(?:этой\\s+)?недели${E}`))) return addDays(today, 6);
   if (take(ctx, rx(`${B}(?:до\\s+конца|к\\s+концу)\\s+(?:этой\\s+)?недели${E}`))) return addDays(startOfWeek(today), 6);
 
-  // "в пятницу", "в следующий вторник", "с понедельника", "начиная со среды"
-  const wd = take(
+  // "в пятницу", "в следующий вторник", "в это воскресенье", "с понедельника", "начиная со среды"
+  const wdFull = take(
     ctx,
-    rx(`${B}(?:(?:в|во|на|с|со|к|ко|до|начиная\\s+с|начиная\\s+со)\\s+)?(следующ\\p{L}*\\s+)?(понедельник|понедельника|понедельнику|вторник|вторника|вторнику|среду|среда|среды|среде|четверг|четверга|четвергу|пятниц[уаые]|суббот[уаые]|воскресенье|воскресенья|воскресенью)${E}`),
+    rx(`${B}(?:(?:в|во|на|с|со|к|ко|до|начиная\\s+с|начиная\\s+со)\\s+)?(?:(следующ\\p{L}*\\s+)|(?:эт[уоа]|этот|ближайш\\p{L}*)\\s+)?(понедельник|понедельника|понедельнику|вторник|вторника|вторнику|среду|среда|среды|среде|четверг|четверга|четвергу|пятниц[уаые]|суббот[уаые]|воскресенье|воскресенья|воскресенью)${E}`),
   );
+  // short forms only after a preposition: "в вс", "на пт", "во вт" ("с" alone could be anything)
+  const wd = wdFull ?? take(ctx, rx(`${B}(?:в|во|на|до|к|ко)\\s+()(пн|вт|ср|чт|пт|сб|вс)${E}`));
   if (wd) {
     const target = weekdayOf(wd[2])!;
     if (wd[1]) return addDays(startOfWeek(today), 7 + target);
