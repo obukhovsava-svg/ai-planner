@@ -41,6 +41,10 @@ interface Env {
   APP_URL: string;
   /** Optional: your Telegram chat id — feedback from the app is forwarded there (send /myid to the bot). */
   ADMIN_CHAT_ID?: string;
+  /** The bot's worker only: the app's own server («plan-app»), see wrangler.toml. */
+  APP?: { fetch(request: Request): Promise<Response> };
+  /** "1" on the app's server: no Telegram, no scheduled jobs. */
+  APP_ONLY?: string;
 }
 
 const MAX_TEXT = 600;
@@ -1269,6 +1273,7 @@ async function runShortcut(env: Env, user: string, tz: number, text: string): Pr
 
 export default {
   async scheduled(_controller: { cron?: string }, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
+    if (env.APP_ONLY) return; // the app keeps its reminders on the device: nothing to send
     // One run may make 50 database queries and 50 outgoing requests (free plan): the jobs take turns.
     ctx.waitUntil(
       (async () => {
@@ -1285,6 +1290,14 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
     const url = new URL(request.url);
+
+    // The iPhone / Mac app lives on its own server and database («plan-app»): everything it sends
+    // carries a device key and is handed over as is. Telegram requests never do.
+    if (env.APP && request.headers.has('X-Device-Key') && !request.headers.has('X-Telegram-Init-Data')) return env.APP.fetch(request);
+    // The app's server answers the app only.
+    if (env.APP_ONLY && (url.pathname.startsWith('/telegram/') || url.pathname.startsWith('/wallpaper') || url.pathname === '/shortcut')) {
+      return json({ error: 'not_here' }, 404, headers);
+    }
 
     // Telegram → bot updates.
     if (request.method === 'POST' && url.pathname === '/telegram/webhook') {
@@ -1363,6 +1376,8 @@ export default {
       await ensureFeedTable(env);
       const { results } = await env.DB.prepare('SELECT user_id, tasks FROM calendar_feed WHERE token = ?1').bind(cal[1]).all<{ user_id: string; tasks: number }>();
       const feed = results[0];
+      // app users' calendar links live in the app's database
+      if (!feed && env.APP) return env.APP.fetch(request);
       if (!feed) return new Response('Ссылка устарела — получите новую в планере: Настройки → Календарь iPhone.', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       if (!cal[2]) return new Response(subscribePage(feedLinks(PUBLIC_ORIGIN, cal[1])), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
       const { doc, tz } = await loadDoc(env, feed.user_id);

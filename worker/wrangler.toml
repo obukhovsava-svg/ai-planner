@@ -32,3 +32,34 @@ database_id = "c5e5e1a7-a4c1-4863-b885-7cc5eb17ab3d"
 # every minute: due reminders, summaries, nudges and (from 03:00 UTC, a few users a minute) rolling
 # the 35-day reminder window forward
 crons = ["* * * * *"]
+
+# The iPhone / Mac app has its own server: same code, its own database, no Telegram jobs.
+# Deploy: npx wrangler deploy --env app   (secrets for it are set separately: --env app)
+# The bot's worker hands app requests (signed with X-Device-Key) to it through the APP service
+# binding, so the Russian relay and the app's URLs stay the same.
+[[services]]
+binding = "APP"
+service = "plan-app"
+
+[env.app]
+name = "plan-app"
+workers_dev = true
+
+[env.app.vars]
+APP_ONLY = "1"
+MODEL = "openai/gpt-5.6-sol"
+API_BASE = "https://apiracloud.ru/v1"
+APP_URL = "https://obukhovsava-svg.github.io/ai-planner/"
+ADMIN_CHAT_ID = "6679917699"
+ALLOWED_ORIGIN = "https://obukhovsava-svg.github.io"
+
+[env.app.ai]
+binding = "AI"
+
+[[env.app.d1_databases]]
+binding = "DB"
+database_name = "plan-app"
+database_id = "1640ff71-a4ad-4bf0-8c83-c47ceedf97bf"
+
+[env.app.triggers]
+crons = []
