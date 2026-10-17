@@ -6,7 +6,8 @@
  */
 
 interface NativeInfo {
-  platform: 'ios';
+  /** 'mac' in the Mac app (Mac Catalyst), where iOS pickers aren't available. */
+  platform: 'ios' | 'mac';
   /** Random secret created on first launch and kept in the Keychain: the account, no sign-up. */
   deviceKey: string;
   version: string;
@@ -22,6 +23,8 @@ type NativeMessage =
   /** The chosen theme, so the app starts in it (no flash): null = follow the system. */
   | { type: 'theme'; mode: 'light' | 'dark' | null }
   | { type: 'widget'; snapshot: WidgetSnapshot }
+  /** Consent to AI processing, for Siri / Shortcuts «Добавить в ПЛАН» (they run without the page). */
+  | { type: 'aiConsent'; on: boolean }
   /** The accent colour, so the widgets match the app. */
   | { type: 'accent'; accent: string; tone: 'pastel' | 'dark' };
 
@@ -62,6 +65,9 @@ export type NativeSpeechEvent =
   | { type: 'end' };
 
 export const isNative = (): boolean => Boolean(window.PlannerNative && window.webkit?.messageHandlers?.native);
+
+/** The Mac app: native <input type=time|date> opens an iOS picker that crashes it there. */
+export const isMacApp = (): boolean => isNative() && window.PlannerNative?.platform === 'mac';
 
 export const nativeDeviceKey = (): string => window.PlannerNative?.deviceKey ?? '';
 

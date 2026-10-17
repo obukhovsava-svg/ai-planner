@@ -7,6 +7,7 @@ import type { Repeat } from '@/types';
 import type { Analysis, Intent } from './parser';
 import { AI_URL } from '@/config';
 import { authHeaders, hasServerAuth } from './auth';
+import { ensureAiConsent } from './aiConsent';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { addDays, fromKey, todayKey } from './date';
 import { occurrencesBetween, sanitizeRepeat } from './recurrence';
@@ -101,6 +102,11 @@ export function toAnalyses(raw: unknown): Analysis[] {
 export async function aiAnalyze(text: string): Promise<AiResult | null> {
   if (!aiAvailable()) {
     setStatus({ state: 'off', detail: AI_URL ? 'Откройте приложение внутри Telegram' : 'AI-сервер не настроен' });
+    return null;
+  }
+  // the app asks before the first request; without consent the planner's own rules answer
+  if (!(await ensureAiConsent())) {
+    setStatus({ state: 'off', detail: 'Ассистент выключен: Настройки → «AI-ассистент»' });
     return null;
   }
   const now = new Date();

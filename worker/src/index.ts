@@ -360,6 +360,54 @@ async function onTelegramUpdate(update: any, env: Env) {
     await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `Рассылка: доставлено ${sent} из ${results.length}.` });
     return;
   }
+  // "/wpfix" — admin only: a personal note to those whose wallpaper is drawn but never fetched by
+  // their Shortcut (no setup, or an old link); "/wpfix_send" sends it. Each person once.
+  if (text.startsWith('/wpfix')) {
+    if (!env.ADMIN_CHAT_ID || String(msg.chat.id) !== env.ADMIN_CHAT_ID) return;
+    await ensureWallpaper(env);
+    await env.DB.prepare('CREATE TABLE IF NOT EXISTS broadcast_sent (key TEXT NOT NULL, user_id TEXT NOT NULL, ok INTEGER NOT NULL, PRIMARY KEY (key, user_id))').run();
+    const key = 'wpfix-1';
+    const { results } = await env.DB.prepare(
+      `SELECT DISTINCT w.user_id, u.token FROM wallpaper_b64 w JOIN users u ON u.user_id = w.user_id
+       WHERE w.user_id GLOB '[0-9]*' AND ${notOwn(env, 'w.user_id')}
+         AND NOT EXISTS (SELECT 1 FROM wallpaper_hits h WHERE h.user_id = w.user_id)
+         AND NOT EXISTS (SELECT 1 FROM broadcast_sent b WHERE b.key = ?1 AND b.user_id = w.user_id)`,
+    )
+      .bind(key)
+      .all<{ user_id: string; token: string }>();
+    const note = (token: string) => ({
+      parse_mode: 'HTML',
+      text: `🖼 <b>Обои почти готовы</b>
+
+Планер уже рисует ваши обои, но iPhone их пока не забирает: скорее всего, в команде старая ссылка или она не до конца настроена. Чинится за минуту:
+
+1. Нажмите на ссылку, чтобы скопировать:
+<code>${PUBLIC_ORIGIN}/wallpaper/${token}.jpg</code>
+2. «Команды» → «Обои ПЛАН» → вставьте ссылку в «Получить содержимое URL» вместо старой. Нет команды — планер → ⚙️ Настройки → «Добавить обои».
+3. Запустите команду один раз, обои появятся.
+4. Чтобы обновлялись сами: «Команды» → «Автоматизация» → «+» → «Приложение» → Telegram → «Закрыто» → «Запускать сразу» → «Обои ПЛАН».
+
+Не получается или у вас Android? Просто ответьте на это сообщение 🙂 Ссылку никому не пересылайте.`,
+    });
+    if (!text.startsWith('/wpfix_send')) {
+      await tg(env, 'sendMessage', { chat_id: msg.chat.id, ...note('ВАШ_ЛИЧНЫЙ_КЛЮЧ') });
+      await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `☝️ Получат: ${results.length}, у каждого своя ссылка. Отправить — /wpfix_send` });
+      return;
+    }
+    let sent = 0;
+    for (const { user_id, token } of results) {
+      const claim = await env.DB.prepare('INSERT OR IGNORE INTO broadcast_sent (key, user_id, ok) VALUES (?1, ?2, 0)').bind(key, user_id).run();
+      if (!claim.meta.changes) continue;
+      const r = (await tg(env, 'sendMessage', { chat_id: user_id, ...note(token) }).catch(() => null)) as { ok?: boolean } | null;
+      if (r?.ok) {
+        await env.DB.prepare('UPDATE broadcast_sent SET ok = 1 WHERE key = ?1 AND user_id = ?2').bind(key, user_id).run();
+        sent++;
+      }
+      await new Promise((res) => setTimeout(res, 60));
+    }
+    await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `Обои: доставлено ${sent} из ${results.length}.` });
+    return;
+  }
   if (text.startsWith('/myid')) {
     await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `Ваш chat id: ${msg.chat.id}` });
     return;
@@ -737,22 +785,74 @@ const addDaysKey = (key: string, n: number) => {
 };
 
 /** Every minute: whoever's local time has reached their summary time and hasn't got it today. */
-async function sendDigests(env: Env) {
+/**
+ * When each Telegram user's next summary is due (UTC ms). The minute cron reads only the due rows
+ * through the index — scanning every user every minute was 94% of all database reads.
+ */
+let digestDueReady = false;
+async function ensureDigestDue(env: Env) {
+  if (digestDueReady) return;
   await ensureDigestTables(env);
+  await env.DB.batch([
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS digest_due (user_id TEXT PRIMARY KEY, at INTEGER NOT NULL)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_digest_due ON digest_due (at)'),
+  ]);
+  // first run: every Telegram user gets a row, due now (the cron then works out the real time)
+  const { results } = await env.DB.prepare('SELECT 1 FROM digest_due LIMIT 1').all();
+  if (!results.length) await env.DB.prepare(`INSERT OR IGNORE INTO digest_due (user_id, at) SELECT user_id, 0 FROM state WHERE user_id NOT LIKE 'dev:%'`).run();
+  digestDueReady = true;
+}
+
+/** The next moment (UTC ms) a summary is due, given what was already sent today. */
+function nextDigestAt(st: DigestSettings, tz: number, last: { morning: string | null; evening: string | null }): number {
+  const local = localNow(tz);
+  const nowMin = minutesOf(local.time);
+  let best = Infinity;
+  for (const kind of ['morning', 'evening'] as const) {
+    if (!st[kind]) continue;
+    const at = minutesOf(kind === 'morning' ? st.morningTime : st.eveningTime);
+    // today while it's still within the 3-hour delivery window and not sent yet, else tomorrow
+    const day = last[kind] !== local.today && nowMin < at + 180 ? local.today : addDaysKey(local.today, 1);
+    const [y, m, d] = day.split('-').map(Number);
+    best = Math.min(best, Date.UTC(y, m - 1, d, Math.floor(at / 60), at % 60) + tz * 60_000);
+  }
+  return Number.isFinite(best) ? best : Date.now() + 7 * 86_400_000; // both off: look again in a week
+}
+
+/** A new Telegram user, a new timezone or new settings: work out the time again on the next minute. */
+async function recheckDigest(env: Env, user: string) {
+  if (isDeviceUser(user)) return;
+  await ensureDigestDue(env);
+  await env.DB.prepare('INSERT INTO digest_due (user_id, at) VALUES (?1, 0) ON CONFLICT (user_id) DO UPDATE SET at = 0').bind(user).run();
+}
+
+/** Users per cron run: each costs ~5 database queries, and a run may make 50 on the free plan. */
+const DIGESTS_PER_RUN = 6;
+
+async function sendDigests(env: Env): Promise<number> {
+  await ensureDigestDue(env);
   const { results } = await env.DB.prepare(
-    `SELECT s.user_id AS user_id, s.tz AS tz, d.morning, d.morning_time, d.evening, d.evening_time, d.last_morning, d.last_evening
-     FROM state s LEFT JOIN digest d ON d.user_id = s.user_id WHERE s.user_id NOT LIKE 'dev:%'`,
-  ).all<DigestRow & { user_id: string; tz: number | null; morning: number | null }>();
+    `SELECT q.user_id AS user_id, s.user_id AS has_state, s.tz AS tz, d.morning, d.morning_time, d.evening, d.evening_time, d.last_morning, d.last_evening
+     FROM digest_due q LEFT JOIN state s ON s.user_id = q.user_id LEFT JOIN digest d ON d.user_id = q.user_id
+     WHERE q.at <= ?1 ORDER BY q.at LIMIT ${DIGESTS_PER_RUN}`,
+  )
+    .bind(Date.now())
+    .all<DigestRow & { user_id: string; has_state: string | null; tz: number | null; morning: number | null }>();
   for (const r of results) {
+    if (!r.has_state) {
+      await env.DB.prepare('DELETE FROM digest_due WHERE user_id = ?1').bind(r.user_id).run();
+      continue;
+    }
     const st = toSettings(r.morning === null ? null : r);
-    const now = localNow(r.tz ?? 0);
+    const tz = r.tz ?? 0;
+    const now = localNow(tz);
     const mins = minutesOf(now.time);
+    const last = { morning: r.last_morning, evening: r.last_evening };
     for (const kind of ['morning', 'evening'] as const) {
       const on = kind === 'morning' ? st.morning : st.evening;
       const at = minutesOf(kind === 'morning' ? st.morningTime : st.eveningTime);
-      const last = kind === 'morning' ? r.last_morning : r.last_evening;
       // Within 3 hours after the chosen time (a missed cron run still delivers), once a day.
-      if (!on || mins < at || mins >= at + 180 || last === now.today) continue;
+      if (!on || mins < at || mins >= at + 180 || last[kind] === now.today) continue;
       await env.DB.prepare(
         `INSERT INTO digest (user_id, morning, morning_time, evening, evening_time, ${kind === 'morning' ? 'last_morning' : 'last_evening'})
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -760,9 +860,12 @@ async function sendDigests(env: Env) {
       )
         .bind(r.user_id, st.morning ? 1 : 0, st.morningTime, st.evening ? 1 : 0, st.eveningTime, now.today)
         .run();
-      await sendDigest(env, r.user_id, r.tz ?? 0, kind, true);
+      last[kind] = now.today;
+      await sendDigest(env, r.user_id, tz, kind, true);
     }
+    await env.DB.prepare('UPDATE digest_due SET at = ?2 WHERE user_id = ?1').bind(r.user_id, nextDigestAt(st, tz, last)).run();
   }
+  return results.length;
 }
 
 /* ------------------------------------------------------------ First steps for empty planners */
@@ -778,7 +881,11 @@ const NUDGES = [
 /** Approved 13.10: on. */
 const NUDGES_ON = true;
 
+/** Nudges per run: each is a message and a database write. */
+const NUDGES_PER_RUN = 5;
+
 async function sendNudges(env: Env) {
+  let nudged = 0;
   if (!NUDGES_ON) return;
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS nudges (user_id TEXT PRIMARY KEY, step INTEGER NOT NULL, at INTEGER NOT NULL)').run();
   const { results } = await env.DB.prepare(
@@ -808,6 +915,7 @@ async function sendNudges(env: Env) {
       .bind(r.user_id, res?.ok ? step + 1 : NUDGES.length, now)
       .run();
     await new Promise((ok) => setTimeout(ok, 60));
+    if (++nudged >= NUDGES_PER_RUN) break; // the rest on the next run (every 30 min)
   }
 }
 
@@ -978,6 +1086,11 @@ async function saveDoc(env: Env, user: string, doc: PlannerDoc, tz: number) {
     .bind(user, JSON.stringify(doc), tz, Date.now())
     .run();
   await scheduleReminders(env, user, doc, tz);
+  // a Telegram user who only ever wrote to the bot still gets the summaries (no write if known)
+  if (!isDeviceUser(user)) {
+    await ensureDigestDue(env);
+    await env.DB.prepare('INSERT INTO digest_due (user_id, at) VALUES (?1, 0) ON CONFLICT (user_id) DO NOTHING').bind(user).run();
+  }
 }
 
 /** Recomputes the user's upcoming reminders from their data (35 days ahead). */
@@ -985,11 +1098,27 @@ async function scheduleReminders(env: Env, user: string, doc: PlannerDoc, tz: nu
   // The iOS app schedules its own notifications on the device; the bot can't write to it anyway.
   if (isDeviceUser(user)) return;
   const list = reminderInstances(doc.events, doc.tasks, { today: localNow(tz).today, tz });
-  await env.DB.batch([
-    // Anything not re-scheduled was removed or edited away.
-    env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND sent = 0').bind(user),
-    env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND sent = 1 AND fire_at < ?2').bind(user, Date.now() - 2 * 86_400_000),
-    ...list.map((r) =>
+  // Only what changed is written (a save used to rewrite every reminder 35 days ahead): writes are
+  // the scarcest database resource on the free plan.
+  const { results: have } = await env.DB.prepare('SELECT rid, fire_at, text, sent FROM reminders WHERE user_id = ?1')
+    .bind(user)
+    .all<{ rid: string; fire_at: number; text: string; sent: number }>();
+  const want = new Set(list.map((r) => r.rid));
+  const old = Date.now() - 2 * 86_400_000;
+  const gone = new Set<string>();
+  const stmts: Stmt[] = [];
+  for (const r of have) {
+    // removed or edited away (unsent), or delivered / failed long ago
+    if ((r.sent === 0 && !want.has(r.rid)) || (r.sent !== 0 && r.fire_at < old)) {
+      gone.add(r.rid);
+      stmts.push(env.DB.prepare('DELETE FROM reminders WHERE user_id = ?1 AND rid = ?2').bind(user, r.rid));
+    }
+  }
+  const byRid = new Map(have.map((r) => [r.rid, r]));
+  for (const r of list) {
+    const cur = byRid.get(r.rid);
+    if (cur && !gone.has(r.rid) && cur.fire_at === r.at && cur.text === r.text) continue;
+    stmts.push(
       env.DB.prepare(
         `INSERT INTO reminders (user_id, rid, fire_at, text, sent) VALUES (?1, ?2, ?3, ?4, 0)
          ON CONFLICT (user_id, rid) DO UPDATE SET
@@ -997,13 +1126,29 @@ async function scheduleReminders(env: Env, user: string, doc: PlannerDoc, tz: nu
            sent = CASE WHEN reminders.sent = 1 AND reminders.fire_at = excluded.fire_at THEN 1 ELSE 0 END,
            fire_at = excluded.fire_at`,
       ).bind(user, r.rid, r.at, r.text),
-    ),
-  ]);
+    );
+  }
+  if (stmts.length) await env.DB.batch(stmts);
 }
 
-/** Daily: roll every user's 35-day reminder window forward, even if the app is never opened. */
-async function rollAllReminders(env: Env) {
-  const { results } = await env.DB.prepare('SELECT user_id, doc, tz FROM state').all<{ user_id: string; doc: string; tz: number | null }>();
+/**
+ * Daily (from 03:00 UTC): roll every Telegram user's 35-day reminder window forward, even if the
+ * planner is never opened. A few users per minute — one run may make only 50 database queries on
+ * the free plan, so doing everyone at once stopped part-way.
+ */
+const ROLL_PER_RUN = 4;
+async function rollStep(env: Env) {
+  const nowUtc = new Date();
+  if (nowUtc.getUTCHours() < 3) return;
+  const day = nowUtc.toISOString().slice(0, 10);
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS jobs (name TEXT PRIMARY KEY, day TEXT NOT NULL, cursor TEXT NOT NULL)').run();
+  const { results: job } = await env.DB.prepare("SELECT day, cursor FROM jobs WHERE name = 'roll'").all<{ day: string; cursor: string }>();
+  const done = '\uffff';
+  if (job[0]?.day === day && job[0].cursor === done) return;
+  const cursor = job[0]?.day === day ? job[0].cursor : '';
+  const { results } = await env.DB.prepare(`SELECT user_id, doc, tz FROM state WHERE user_id > ?1 AND user_id NOT LIKE 'dev:%' ORDER BY user_id LIMIT ${ROLL_PER_RUN}`)
+    .bind(cursor)
+    .all<{ user_id: string; doc: string; tz: number | null }>();
   for (const r of results) {
     try {
       await scheduleReminders(env, r.user_id, JSON.parse(r.doc), r.tz ?? 0);
@@ -1011,6 +1156,8 @@ async function rollAllReminders(env: Env) {
       /* skip a broken row */
     }
   }
+  const next = results.length < ROLL_PER_RUN ? done : results[results.length - 1].user_id;
+  await env.DB.prepare("INSERT INTO jobs (name, day, cursor) VALUES ('roll', ?1, ?2) ON CONFLICT (name) DO UPDATE SET day = ?1, cursor = ?2").bind(day, next).run();
 }
 
 /** Light sanity check of a document coming from a client. */
@@ -1024,22 +1171,54 @@ function cleanDoc(raw: any): PlannerDoc | null {
   };
 }
 
+type Stmt = ReturnType<Env['DB']['prepare']>;
+
+/** Tables keyed by user_id. Some are created lazily, so a missing one is skipped. */
+const USER_TABLES = ['state', 'reminders', 'users', 'queue', 'digest', 'feedback', 'seen', 'nudges', 'tg_names', 'calendar_feed', 'broadcast_sent', 'wallpaper_b64', 'wallpaper_pending', 'wallpaper_hits', 'digest_due'];
+
+async function deleteAccount(env: Env, user: string) {
+  for (const table of USER_TABLES) {
+    await env.DB.prepare(`DELETE FROM ${table} WHERE user_id = ?1`).bind(user).run().catch(() => null);
+  }
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS wiped (user_id TEXT PRIMARY KEY, at INTEGER NOT NULL)').run();
+  await env.DB.prepare('INSERT INTO wiped (user_id, at) VALUES (?1, ?2) ON CONFLICT (user_id) DO UPDATE SET at = ?2').bind(user, Date.now()).run();
+}
+
+async function wipedSince(env: Env, user: string): Promise<number | null> {
+  const r = await env.DB.prepare('SELECT at FROM wiped WHERE user_id = ?1').bind(user).all<{ at: number }>().catch(() => null);
+  return r?.results[0]?.at ?? null;
+}
+
 /** Every minute: send what is due. Reminders more than 6 h late are dropped silently. */
+/** Reminders per cron run: each is one outgoing request (the free plan allows 50 per run). */
+const REMINDERS_PER_RUN = 25;
+
 async function sendDue(env: Env) {
   const now = Date.now();
   await env.DB.prepare('UPDATE reminders SET sent = 3 WHERE sent = 0 AND fire_at < ?1').bind(now - 6 * 3600_000).run();
-  const { results } = await env.DB.prepare('SELECT user_id, rid, text FROM reminders WHERE sent = 0 AND fire_at <= ?1 ORDER BY fire_at LIMIT 50')
+  const { results } = await env.DB.prepare(`SELECT user_id, rid, text FROM reminders WHERE sent = 0 AND fire_at <= ?1 ORDER BY fire_at LIMIT ${REMINDERS_PER_RUN}`)
     .bind(now + 20_000)
     .all<{ user_id: string; rid: string; text: string }>();
-  for (const r of results) {
-    const res = await tg(env, 'sendMessage', { chat_id: r.user_id, text: r.text, ...(r.rid.startsWith('diag:plain') ? {} : { reply_markup: openButton(env, r.rid) }) }).catch((e) => ({
-      ok: false,
-      description: String(e),
-    }));
-    // Keep Telegram's answer so delivery problems are visible (sent = 2 → failed).
-    await env.DB.prepare('UPDATE reminders SET sent = ?3, error = ?4 WHERE user_id = ?1 AND rid = ?2')
-      .bind(r.user_id, r.rid, res.ok ? 1 : 2, res.ok ? null : String(res.description ?? 'unknown').slice(0, 300))
-      .run();
+  const done: Stmt[] = [];
+  try {
+    for (const r of results) {
+      const res = await tg(env, 'sendMessage', { chat_id: r.user_id, text: r.text, ...(r.rid.startsWith('diag:plain') ? {} : { reply_markup: openButton(env, r.rid) }) }).catch((e) => ({
+        ok: false,
+        description: String(e),
+      }));
+      // Keep Telegram's answer so delivery problems are visible (sent = 2 → failed).
+      done.push(
+        env.DB.prepare('UPDATE reminders SET sent = ?3, error = ?4 WHERE user_id = ?1 AND rid = ?2').bind(
+          r.user_id,
+          r.rid,
+          res.ok ? 1 : 2,
+          res.ok ? null : String(res.description ?? 'unknown').slice(0, 300),
+        ),
+      );
+    }
+  } finally {
+    // one batch for the whole run, written even if the loop stopped: nothing is sent twice
+    if (done.length) await env.DB.batch(done);
   }
 }
 
@@ -1089,11 +1268,15 @@ async function runShortcut(env: Env, user: string, tz: number, text: string): Pr
 }
 
 export default {
-  async scheduled(controller: { cron?: string }, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
+  async scheduled(_controller: { cron?: string }, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
+    // One run may make 50 database queries and 50 outgoing requests (free plan): the jobs take turns.
     ctx.waitUntil(
-      controller.cron === '0 3 * * *'
-        ? rollAllReminders(env)
-        : Promise.all([sendDue(env), sendDigests(env), new Date().getUTCMinutes() % 30 === 0 ? sendNudges(env) : null]),
+      (async () => {
+        await sendDue(env);
+        const digests = await sendDigests(env);
+        if (new Date().getUTCMinutes() % 30 === 0) await sendNudges(env);
+        else if (digests < 3) await rollStep(env);
+      })().catch((e) => console.error('cron', String(e))),
     );
   },
 
@@ -1140,12 +1323,21 @@ export default {
       const body = (await request.json().catch(() => null)) as { doc?: unknown; tz?: number } | null;
       const incoming = cleanDoc(body?.doc);
       if (!incoming) return json({ error: 'bad_doc' }, 400, headers);
+      // After «Удалить мои данные» another device of the same account may still hold the old copy:
+      // anything created before the wipe is not taken back.
+      const wipedAt = await wipedSince(env, user);
+      if (wipedAt) {
+        incoming.tasks = incoming.tasks.filter((t) => t.createdAt >= wipedAt);
+        incoming.events = incoming.events.filter((e) => e.createdAt >= wipedAt);
+      }
       const stored = await loadDoc(env, user);
       const tz = Number.isFinite(body?.tz) ? Math.round(body!.tz!) : (stored.tz ?? 0);
       const merged = mergeDocs(stored.doc, incoming);
       if (JSON.stringify(merged).length > MAX_DOC) return json({ error: 'too_large' }, 413, headers);
       await saveDoc(env, user, merged, tz);
       await env.DB.prepare('UPDATE users SET tz = ?2 WHERE user_id = ?1').bind(user, tz).run();
+      // a new Telegram user or a new timezone: the summary time is worked out again
+      if (!isDeviceUser(user) && (stored.tz === null || stored.tz !== tz)) ctx.waitUntil(recheckDigest(env, user).catch(() => null));
       ctx.waitUntil(track(env, null, user));
       return json({ doc: merged }, 200, headers);
     }
@@ -1187,6 +1379,7 @@ export default {
       const body = (await request.json().catch(() => ({}))) as { digest?: Partial<DigestSettings>; kind?: string; text?: string; tz?: number };
       if (url.pathname === '/settings') {
         const digest = body.digest ? await setDigest(env, user, body.digest) : await getDigest(env, user);
+        if (body.digest) await recheckDigest(env, user);
         return json({ digest }, 200, headers);
       }
       if (url.pathname === '/digest/test') {
@@ -1385,6 +1578,13 @@ export default {
       return json({ items: results.map((r) => ({ text: r.text, actions: r.actions ? JSON.parse(r.actions) : null })) }, 200, headers);
     }
 
+    // «Удалить мои данные»: everything stored for this account, on every table, goes away.
+    if (request.method === 'POST' && url.pathname === '/account/delete') {
+      const user = await authUser(request, env);
+      if (!user || user === 'anon') return json({ error: 'unauthorized' }, 401, headers);
+      await deleteAccount(env, user);
+      return json({ ok: true }, 200, headers);
+    }
     if (request.method === 'GET' && url.pathname === '/health') {
       const me = (await tg(env, 'getMe', {}).catch(() => null)) as { result?: { username?: string } } | null;
       return json(

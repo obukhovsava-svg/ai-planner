@@ -60,6 +60,8 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
         if let last = defaults?.string(forKey: "icon"), last != icon { setAppIcon(accent: accent, dark: tone == "dark") }
         defaults?.set(icon, forKey: "icon")
       }
+    case "aiConsent":
+      WidgetStore.saveAiConsent(body["on"] as? Bool ?? false)
     case "theme":
       // Read by PlannerApp (@AppStorage) → the window starts in this theme next time, no flash.
       UserDefaults.standard.set(body["mode"] as? String ?? "", forKey: "theme")
@@ -177,7 +179,13 @@ struct PlannerWebView: UIViewRepresentable {
     config.setURLSchemeHandler(BundleSchemeHandler(), forURLScheme: "planner")
     config.allowsInlineMediaPlayback = true
     let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-    let boot = "window.PlannerNative = { platform: 'ios', deviceKey: '\(DeviceKey.value)', version: '\(version)' };"
+    #if targetEnvironment(macCatalyst)
+    // the Mac can't show iOS pickers (a native time / date field crashes the app): the page swaps them
+    let platform = "mac"
+    #else
+    let platform = "ios"
+    #endif
+    let boot = "window.PlannerNative = { platform: '\(platform)', deviceKey: '\(DeviceKey.value)', version: '\(version)' };"
     config.userContentController.addUserScript(WKUserScript(source: boot, injectionTime: .atDocumentStart, forMainFrameOnly: true))
     config.userContentController.add(WeakHandler(bridge), name: "native")
 

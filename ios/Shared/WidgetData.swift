@@ -121,6 +121,11 @@ nonisolated enum WidgetStore {
     WidgetCenter.shared.reloadAllTimelines()
   }
 
+  /// Consent to send what the user writes or says to the AI (asked in the app before the first request).
+  /// Siri / Shortcuts «Добавить в ПЛАН» only sends text to the server once it's given.
+  static var aiConsent: Bool { UserDefaults(suiteName: group)?.bool(forKey: "aiConsent") ?? false }
+  static func saveAiConsent(_ on: Bool) { UserDefaults(suiteName: group)?.set(on, forKey: "aiConsent") }
+
   /// The app's account key, for the widget's own requests (a tap on a task). The App Group is
   /// private to this app and its widget.
   static var deviceKey: String? { UserDefaults(suiteName: group)?.string(forKey: "deviceKey") }

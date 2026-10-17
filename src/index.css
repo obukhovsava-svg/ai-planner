@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
+/* The wide (desktop / Mac) layout, see hooks/useWide.ts */
+@custom-variant wide (&:where(.wide, .wide *));
 
 /* ---------- Design tokens (iOS system colours) ---------- */
 :root {
@@ -518,6 +520,10 @@ select {
 }
 .kb-open {
   /* Content that pads for the tab bar (e.g. the assistant composer) drops down to the keyboard. */
+  --tabbar-h: 0px;
+}
+.wide {
+  /* three columns, no tab bar to leave room for */
   --tabbar-h: 0px;
 }
 .kb-open .tabbar {

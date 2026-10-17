@@ -33,6 +33,10 @@ struct AddToPlanIntent: AppIntent {
 
   @MainActor
   func perform() async throws -> some IntentResult & ProvidesDialog {
+    // nothing leaves the phone until the user has agreed in the app (App Review 5.1.2)
+    guard WidgetStore.aiConsent else {
+      return .result(dialog: "Откройте ПЛАН и разрешите ассистенту разбирать фразы: Настройки → «AI-ассистент».")
+    }
     let tz = -TimeZone.current.secondsFromGMT() / 60 // same sign as JS getTimezoneOffset()
     // «Команды» give an action about 30 s; the model usually answers in a few
     guard let reply = await Server.post("/shortcut/device", ["text": text, "tz": tz], timeout: 24), let answer = reply["answer"] as? String else {

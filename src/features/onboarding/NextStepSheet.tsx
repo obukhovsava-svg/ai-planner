@@ -48,7 +48,7 @@ export function NextStepSheet() {
   return (
     <Sheet open={open} title="Первая запись есть 🎉" onClose={() => setOpen(false)}>
       <div className="flex flex-col gap-4 pb-2">
-        <p className="px-1 text-[15px] leading-snug text-muted">Ещё два шага, и планер будет под рукой, даже когда Telegram закрыт.</p>
+        <p className="px-1 text-[15px] leading-snug text-muted">{isNative() ? 'Ещё два шага, и планер будет под рукой, даже когда приложение закрыто.' : 'Ещё два шага, и планер будет под рукой, даже когда Telegram закрыт.'}</p>
         <div className="overflow-hidden rounded-[16px] bg-surface [&>*+*]:border-t-[0.5px] [&>*+*]:border-line">
           <Option
             icon={<Mic className="size-[18px]" />}

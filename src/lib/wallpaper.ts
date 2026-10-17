@@ -109,7 +109,7 @@ export function markWallpaperPending() {
 }
 
 /** How many days ahead are drawn in advance: the Shortcut still finds the right day if the planner isn't opened. */
-const AHEAD = 3;
+const AHEAD = 2;
 
 function sentMap(): Record<string, string> {
   try {

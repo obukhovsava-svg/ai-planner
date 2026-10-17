@@ -4,8 +4,12 @@ import { usePlannerStore } from '@/store/usePlannerStore';
 import { addDays, addMonths, fromKey, monthGrid, monthRows, todayKey, weekdayMon } from '@/lib/date';
 import { occurrencesBetween } from '@/lib/recurrence';
 import { EVENT_COLORS } from '@/lib/meta';
+import { useWide } from '@/hooks/useWide';
 
 const ROW_H = 92;
+/** Mac / desktop: taller days with room for more of the schedule. */
+const ROW_H_WIDE = 128;
+const MAX_LINES_WIDE = 5;
 /** Month title row — fixed, so a month's height is exactly HEAD_H + rows × ROW_H. */
 const HEAD_H = 46;
 const MAX_LINES = 3;
@@ -37,6 +41,7 @@ export function MonthView({ initial, todaySignal, onVisibleMonth, onOpenDay }: M
   const tasks = usePlannerStore((s) => s.tasks);
   const scroller = useRef<HTMLDivElement>(null);
   const today = todayKey();
+  const wide = useWide();
 
   const months = useMemo(() => {
     const base = `${today.slice(0, 7)}-01`;
@@ -124,7 +129,7 @@ export function MonthView({ initial, todaySignal, onVisibleMonth, onOpenDay }: M
         {months.map((m, i) => (
           // Months above the current one are always fully laid out, so their height never
           // changes under the user (that is what used to scroll the list back to last year).
-          <Month key={m} month={m} today={today} byDay={byDay} onOpenDay={onOpenDay} lazy={i > RANGE_BACK + 1} />
+          <Month key={m} month={m} today={today} byDay={byDay} onOpenDay={onOpenDay} lazy={i > RANGE_BACK + 1} wide={wide} />
         ))}
       </div>
     </div>
@@ -137,13 +142,16 @@ const Month = memo(function Month({
   byDay,
   onOpenDay,
   lazy,
+  wide,
 }: {
   month: DateKey;
   today: DateKey;
   byDay: Map<DateKey, DayItems>;
   onOpenDay(d: DateKey): void;
   lazy: boolean;
+  wide: boolean;
 }) {
+  const rowH = wide ? ROW_H_WIDE : ROW_H;
   const rows = monthRows(month);
   const first = fromKey(month);
   const offset = weekdayMon(first);
@@ -154,7 +162,7 @@ const Month = memo(function Month({
     <section
       data-month={month.slice(0, 7)}
       // Months below the visible one skip layout/paint until scrolled near — keeps the list cheap.
-      style={lazy ? { contentVisibility: 'auto', containIntrinsicSize: `auto ${rows * ROW_H + HEAD_H}px` } : undefined}
+      style={lazy ? { contentVisibility: 'auto', containIntrinsicSize: `auto ${rows * rowH + HEAD_H}px` } : undefined}
     >
       <div className="grid grid-cols-7 pt-3" style={{ height: HEAD_H }}>
         <h2
@@ -174,6 +182,7 @@ const Month = memo(function Month({
             isToday={d === today}
             items={byDay.get(d)}
             onOpen={onOpenDay}
+            wide={wide}
           />
         ))}
       </div>
@@ -187,20 +196,23 @@ function DayCell({
   isToday,
   items,
   onOpen,
+  wide,
 }: {
   date: DateKey;
   col?: number;
   isToday: boolean;
   items?: DayItems;
   onOpen(d: DateKey): void;
+  wide: boolean;
 }) {
   const d = fromKey(date);
+  const maxLines = wide ? MAX_LINES_WIDE : MAX_LINES;
   const weekend = weekdayMon(d) >= 5;
   const lines = [
     ...(items?.events ?? []).map((e) => ({ id: e.id, title: e.title, kind: 'event' as const, color: e.color })),
     ...(items?.tasks ?? []).map((t) => ({ id: t.id, title: t.title, kind: 'task' as const, color: undefined })),
   ];
-  const shown = lines.length > MAX_LINES ? lines.slice(0, MAX_LINES - 1) : lines;
+  const shown = lines.length > maxLines ? lines.slice(0, maxLines - 1) : lines;
   const more = lines.length - shown.length;
 
   return (
@@ -208,8 +220,8 @@ function DayCell({
       type="button"
       onClick={() => onOpen(date)}
       aria-label={date}
-      className="flex min-w-0 flex-col items-stretch gap-[3px] border-t-[0.5px] border-line px-[2px] pt-1 text-left transition-colors duration-200 active:bg-surface-2"
-      style={{ height: ROW_H, gridColumnStart: col }}
+      className="flex min-w-0 flex-col items-stretch gap-[3px] border-t-[0.5px] border-line px-[2px] pt-1 text-left transition-colors duration-200 active:bg-surface-2 wide:px-1 wide:hover:bg-surface-2/60"
+      style={{ height: wide ? ROW_H_WIDE : ROW_H, gridColumnStart: col }}
     >
       <span
         className={`mx-auto flex size-[26px] shrink-0 items-center justify-center rounded-full text-[16px] leading-none ${
@@ -222,18 +234,18 @@ function DayCell({
         l.kind === 'event' ? (
           <span
             key={l.id}
-            className={`truncate rounded-[4px] px-[3px] text-[10px] font-medium leading-[15px] ${EVENT_COLORS[l.color!].bg} ${EVENT_COLORS[l.color!].text}`}
+            className={`truncate rounded-[4px] px-[3px] text-[10px] font-medium leading-[15px] wide:text-[12px] wide:leading-[19px] ${EVENT_COLORS[l.color!].bg} ${EVENT_COLORS[l.color!].text}`}
           >
             {l.title}
           </span>
         ) : (
-          <span key={l.id} className="flex min-w-0 items-center gap-[3px] px-[2px] text-[10px] leading-[15px] text-muted">
+          <span key={l.id} className="flex min-w-0 items-center gap-[3px] px-[2px] text-[10px] leading-[15px] text-muted wide:text-[12px] wide:leading-[19px]">
             <span className="size-[6px] shrink-0 rounded-full border border-current" />
             <span className="truncate">{l.title}</span>
           </span>
         ),
       )}
-      {more > 0 && <span className="px-[3px] text-[10px] leading-[13px] text-muted">+{more}</span>}
+      {more > 0 && <span className="px-[3px] text-[10px] leading-[13px] text-muted wide:text-[11px]">+{more}</span>}
     </button>
   );
 }

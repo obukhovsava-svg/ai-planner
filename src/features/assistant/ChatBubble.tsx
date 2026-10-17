@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { TimeField } from '@/components/TimeField';
 import { CalendarClock, CalendarDays, CheckSquare, Clock, Repeat, Undo2 } from 'lucide-react';
 import type { CalendarEvent, DateKey, Task } from '@/types';
 import { useChatStore, type ChatAttachment, type ChatMessage, type Draft } from '@/store/useChatStore';
@@ -162,10 +163,9 @@ function ClarifyCard({ id, draft, ask }: { id: string; draft: Draft; ask: 'kind'
             }}
           >
             <span className="text-[15px] text-muted">{ask === 'time' ? 'Своё' : 'До'}</span>
-            <input
-              type="time"
+            <TimeField
               value={custom}
-              onChange={(e) => setCustom(e.target.value)}
+              onChange={setCustom}
               className="bg-transparent text-[15px] text-fg outline-none"
             />
             <button type="submit" disabled={!custom} className="rounded-full bg-blue px-3 py-1 text-[13px] font-semibold text-white disabled:opacity-30">
@@ -280,7 +280,7 @@ function MoveAskCard({ id, a }: { id: string; a: Extract<ChatAttachment, { type:
               }}
             >
               <span className="text-[15px] text-muted">Своё</span>
-              <input type="time" value={custom} onChange={(e) => setCustom(e.target.value)} className="bg-transparent text-[15px] text-fg outline-none" />
+              <TimeField value={custom} onChange={setCustom} className="bg-transparent text-[15px] text-fg outline-none" />
               <button type="submit" disabled={!custom} className="rounded-full bg-blue px-3 py-1 text-[13px] font-semibold text-white disabled:opacity-30">
                 OK
               </button>
@@ -355,7 +355,7 @@ function RemindAskCard({ id, a }: { id: string; a: Extract<ChatAttachment, { typ
               }}
             >
               <span className="text-[15px] text-muted">Своё</span>
-              <input type="time" value={custom} onChange={(e) => setCustom(e.target.value)} className="bg-transparent text-[15px] text-fg outline-none" />
+              <TimeField value={custom} onChange={setCustom} className="bg-transparent text-[15px] text-fg outline-none" />
               <button type="submit" disabled={!custom} className="rounded-full bg-blue px-3 py-1 text-[13px] font-semibold text-white disabled:opacity-30">
                 OK
               </button>

@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Guide: shortcuts — ПЛАН</title>
+<link rel="stylesheet" href="../voice-reel/fonts/fonts.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #222; font-family: 'Montserrat', sans-serif; -webkit-font-smoothing: antialiased; display: flex; flex-wrap: wrap; gap: 40px; padding: 40px; width: 2400px; }
+  .slide { position: relative; width: 1080px; height: 1920px; overflow: hidden; background: #060913; color: #fff; flex-shrink: 0; }
+  .glow { position: absolute; border-radius: 50%; pointer-events: none; }
+  .g1 { width: 1300px; height: 1300px; left: -300px; top: 700px; background: radial-gradient(circle, rgba(70,100,230,.38), rgba(40,60,160,.08) 45%, transparent 68%); }
+  .g2 { width: 900px; height: 900px; right: -420px; top: -340px; background: radial-gradient(circle, rgba(164,139,250,.3), transparent 65%); }
+  .g3 { width: 900px; height: 900px; left: -480px; bottom: -380px; background: radial-gradient(circle, rgba(244,142,174,.2), transparent 65%); }
+  .head { position: absolute; left: 72px; right: 72px; top: 96px; }
+  .chip { display: inline-flex; align-items: center; gap: 14px; font-weight: 800; font-size: 26px; letter-spacing: .14em; border-radius: 999px; padding: 12px 26px; border: 2px solid rgba(164,139,250,.6); color: #c9bdff; }
+  .num { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; font-family: 'Oswald'; font-weight: 600; font-size: 54px; background: linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae); margin-bottom: 30px; }
+  .H { font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase; line-height: 1.02; font-size: 92px; }
+  .grad { background: linear-gradient(100deg, #7a9dfe, #a48bfa 50%, #f48eae); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { margin-top: 26px; font-weight: 600; font-size: 38px; line-height: 1.32; color: rgba(255,255,255,.78); }
+  .sub b { color: #fff; }
+  .foot { position: absolute; left: 0; right: 0; bottom: 56px; padding: 0 72px; display: flex; justify-content: space-between; font-weight: 700; font-size: 28px; color: rgba(255,255,255,.5); }
+
+  /* phone */
+  .phone { position: absolute; left: 50%; transform: translateX(-50%); width: 640px; height: 1250px; bottom: 120px; border-radius: 92px; background: #15171f; padding: 14px; box-shadow: 0 0 0 2px #2f3240, 0 50px 120px rgba(0,0,0,.6), 0 0 120px rgba(122,157,254,.25); }
+  .scr { position: relative; width: 100%; height: 100%; border-radius: 80px; overflow: hidden; background: #000; font-family: -apple-system, 'SF Pro Text', 'Montserrat', sans-serif; color: #fff; }
+  .island { position: absolute; left: 50%; top: 18px; width: 190px; height: 54px; transform: translateX(-50%); border-radius: 999px; background: #000; z-index: 5; }
+  .sb { height: 96px; display: flex; justify-content: space-between; align-items: center; padding: 18px 56px 0; font-weight: 600; font-size: 28px; }
+  .sb i { font-style: normal; letter-spacing: 2px; font-size: 24px; }
+
+  /* iOS look */
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 6px 30px 14px; font-size: 28px; color: #0a84ff; }
+  .nav b { color: #fff; font-size: 30px; }
+  .big { font-size: 58px; font-weight: 700; padding: 6px 34px 22px; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; top: 110px; background: #1c1c1e; border-radius: 40px 40px 0 0; padding-top: 14px; }
+  .grab { width: 72px; height: 9px; border-radius: 9px; background: #48484a; margin: 0 auto 18px; }
+  .stitle { display: flex; justify-content: space-between; align-items: center; padding: 0 32px 20px; font-size: 34px; font-weight: 600; }
+  .x { width: 54px; height: 54px; border-radius: 50%; background: #2c2c2e; display: grid; place-items: center; color: #98989d; font-size: 28px; }
+  .gt { padding: 22px 52px 10px; font-size: 22px; color: #8e8e93; text-transform: uppercase; }
+  .group { margin: 0 28px; border-radius: 26px; background: #2c2c2e; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 22px; min-height: 92px; padding: 0 26px; font-size: 30px; position: relative; }
+  .row + .row::before { content: ''; position: absolute; top: 0; left: 100px; right: 0; height: 1px; background: #3a3a3c; }
+  .ic { width: 52px; height: 52px; border-radius: 13px; display: grid; place-items: center; font-size: 28px; flex-shrink: 0; }
+  .row .v { margin-left: auto; color: #8e8e93; font-size: 28px; }
+  .tog { margin-left: auto; width: 92px; height: 56px; border-radius: 99px; background: #34c759; position: relative; }
+  .tog::after { content: ''; position: absolute; right: 4px; top: 4px; width: 48px; height: 48px; border-radius: 50%; background: #fff; }
+  .tog.off { background: #39393d; } .tog.off::after { right: auto; left: 4px; }
+  .chev { margin-left: auto; color: #5a5a5e; font-size: 34px; }
+  .card { margin: 16px 28px 0; border-radius: 26px; background: #2c2c2e; overflow: hidden; }
+  .card .t { display: flex; gap: 20px; padding: 24px 26px 6px; }
+  .card .n { width: 46px; height: 46px; border-radius: 50%; background: #0a84ff; display: grid; place-items: center; font-weight: 700; font-size: 24px; flex-shrink: 0; }
+  .card .tt { font-size: 30px; font-weight: 600; }
+  .card .hh { font-size: 24px; color: #8e8e93; margin-top: 6px; line-height: 1.3; }
+  .card .link { padding: 8px 26px 18px 92px; font-family: ui-monospace, Menlo, monospace; font-size: 21px; color: #8e8e93; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .btn { border-top: 1px solid #3a3a3c; text-align: center; padding: 24px; font-size: 30px; font-weight: 600; color: #0a84ff; }
+  .blue { display: block; margin: 0 28px; border-radius: 22px; background: #0a84ff; text-align: center; padding: 28px; font-size: 32px; font-weight: 600; }
+  .field { margin: 0 28px; border-radius: 18px; background: #1c1c1e; border: 1px solid #3a3a3c; padding: 22px 24px; font-size: 24px; font-family: ui-monospace, Menlo, monospace; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .check { margin-left: auto; color: #0a84ff; font-size: 34px; font-weight: 700; }
+  .radio { width: 40px; height: 40px; border-radius: 50%; border: 3px solid #5a5a5e; flex-shrink: 0; }
+  .radio.on { border: 12px solid #0a84ff; }
+
+  /* where to tap */
+  .row.hl { box-shadow: inset 0 0 0 5px #f48eae; }
+  .hl { position: relative; z-index: 3; box-shadow: 0 0 0 5px #f48eae, 0 0 50px 8px rgba(244,142,174,.55); border-radius: 22px; }
+  .tap { position: absolute; z-index: 4; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; background: rgba(255,255,255,.28); box-shadow: 0 0 0 10px rgba(255,255,255,.14), 0 0 0 22px rgba(255,255,255,.07); }
+
+  /* shortcuts app */
+  .sc-tabs { position: absolute; left: 0; right: 0; bottom: 0; height: 150px; background: rgba(28,28,30,.96); border-top: 1px solid #2c2c2e; display: flex; justify-content: space-around; padding-top: 22px; font-size: 22px; color: #8e8e93; }
+  .sc-tabs span { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .sc-tabs .on { color: #0a84ff; }
+  .tile { border-radius: 28px; padding: 22px; height: 180px; display: flex; flex-direction: column; justify-content: space-between; font-size: 28px; font-weight: 600; }
+  .home { position: absolute; inset: 0; background: url('../post-wallpaper/wp-photo.jpg') center/cover; }
+  .lock { position: absolute; inset: 0; background: url('../post-wallpaper/wp-default.jpg') center/cover; }
+  .lockdate { position: absolute; left: 0; right: 0; top: 150px; text-align: center; font-size: 30px; font-weight: 600; }
+  .locktime { position: absolute; left: 0; right: 0; top: 180px; text-align: center; font-size: 190px; font-weight: 700; letter-spacing: -4px; }
+  .bubble { position: absolute; z-index: 6; border-radius: 30px; padding: 22px 30px; font-size: 30px; font-weight: 600; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+</style>
+</head>
+<body>
+
+<!-- ===================== ОБОИ ===================== -->
+
+<section class="slide" id="w0">
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="head">
+    <span class="chip">ИНСТРУКЦИЯ · iPhone</span>
+    <div class="H" style="margin-top:44px;font-size:118px">Обои<br><span class="grad">с планом дня</span></div>
+    <div class="sub">Подключение за 2 минуты. Потом обои <b>обновляются сами</b>, когда вы выходите из Telegram.</div>
+  </div>
+  <div class="phone" style="bottom:130px;height:1180px;width:580px"><div class="scr"><div class="island"></div>
+    <div class="lock"></div><div class="lockdate" data-date></div><div class="locktime" style="font-size:170px">9:41</div>
+  </div></div>
+  <div class="foot"><span>@myliveplaners_bot</span><span>1/7</span></div>
+</section>
+
+<section class="slide" id="w1">
+  <div class="glow g1"></div><div class="glow g2"></div>
+  <div class="head"><div class="num">1</div>
+    <div class="H">Откройте <span class="grad">настройки</span></div>
+    <div class="sub">Планер в Telegram → <b>⚙️</b> вверху справа → <b>«Добавить обои»</b></div>
+  </div>
+  <div class="phone"><div class="scr"><div class="island"></div>
+    <div class="sb"><span>9:41</span><i>●●● ▲ ▮</i></div>
+    <div class="sheet"><div class="grab"></div>
+      <div class="stitle"><span>Настройки</span><span class="x">✕</span></div>
+      <div class="gt">Сводка от бота</div>
+      <div class="group">
+        <div class="row"><span class="ic" style="background:#ff9f0a">☀︎</span>Утренняя сводка<span class="tog"></span></div>
+        <div class="row"><span class="ic" style="background:#5e5ce6">☾</span>Вечерняя сводка<span class="tog off"></span></div>
+      </div>
+      <div class="gt">Обои</div>
+      <div class="group hl" style="margin:0 28px">
+        <div class="row"><span class="ic" style="background:#0a84ff">🖼</span><b style="font-weight:500">Добавить обои</b><span class="chev">›</span></div>
+      </div>
+      <div class="gt">Ещё</div>
+      <div class="group">
+        <div class="row"><span class="ic" style="background:#30d158">🎙</span>Кнопка на iPhone<span class="chev">›</span></div>
+        <div class="row"><span class="ic" style="background:#bf5af2">🎨</span>Тема<span class="v">Авто</span></div>
+      </div>
+    </div>
+    <span class="tap"></span>
+  </div></div>
+  <div class="foot"><span>Обои с планом дня</span><span>2/7</span></div>
+</section>
+
+<section class="slide" id="w2">
+  <div class="glow g1"></div><div class="glow g3"></div>
+  <div class="head"><div class="num">2</div>
+    <div class="H">Скопируйте <span class="grad">ссылку</span></div>
+    <div class="sub">Шаг 1 → <b>«Скопировать ссылку»</b>. Ссылка личная, никому её не пересылайте.</div>
+  </div>
+  <div class="phone"><div class="scr"><div class="island"></div>
+    <div class="sb"><span>9:41</span><i>●●● ▲ ▮</i></div>
+    <div class="sheet"><div class="grab"></div>
+      <div class="stitle"><span>Обои</span><span class="x">✕</span></div>
+      <div class="gt">Обои экрана блокировки</div>
+      <div class="group" style="display:flex;gap:24px;padding:20px">
+        <div style="width:118px;height:250px;border-radius:18px;background:url('../post-wallpaper/wp-default.jpg') center/cover;flex-shrink:0"></div>
+        <div style="font-size:25px;color:#8e8e93;line-height:1.35">Слева планы на день, справа задачи — поверх вашего фото. Обновляются сами.<div style="margin-top:20px;border-radius:16px;background:#3a3a3c;padding:16px;color:#0a84ff;font-weight:600">Выбрать фото</div></div>
+      </div>
+      <div class="card hl">
+        <div class="t"><span class="n">1</span><div><div class="tt">Скопируйте ссылку на обои</div><div class="hh">Это ваша личная ссылка, никому её не пересылайте.</div></div></div>
+        <div class="link">https://plan-relay…/wallpaper/••••••••.jpg</div>
+        <div class="btn">Скопировать ссылку</div>
+      </div>
+      <div class="card">
+        <div class="t"><span class="n">2</span><div><div class="tt">Установите команду «Обои ПЛАН»</div></div></div>
+        <div class="btn">Установить команду</div>
+      </div>
+    </div>
+    <span class="tap"></span>
+  </div></div>
+  <div class="foot"><span>Обои с планом дня</span><span>3/7</span></div>
+</section>
+
+<section class="slide" id="w3">
+  <div class="glow g1"></div><div class="glow g2"></div>
+  <div class="head"><div class="num">3</div>
+    <div class="H">Установите <span class="grad">команду</span></div>
+    <div class="sub">Шаг 2 → <b>«Установить команду»</b>. В «Командах» вставьте ссылку → <b>«Добавить команду»</b></div>
+  </div>
+  <div class="phone"><div class="scr" style="background:#000"><div class="island"></div>
+    <div class="sb"><span>9:41</span><i>●●● ▲ ▮</i></div>
+    <div class="sheet" style="top:120px">
+      <div class="grab"></div>
+      <div style="text-align:center;padding:18px 40px 0">
+        <div style="width:150px;height:150px;border-radius:36px;margin:0 auto;background:linear-gradient(135deg,#5e5ce6,#bf5af2);display:grid;place-items:center;font-size:74px">🖼</div>
+        <div style="font-size:44px;font-weight:700;margin-top:26px">Обои ПЛАН</div>
+        <div style="font-size:26px;color:#8e8e93;margin-top:10px">Настройка этой команды</div>
+      </div>
+      <div style="padding:46px 52px 14px;font-size:27px;color:#ebebf5">Вставьте ссылку на обои из планера</div>
+      <div class="field hl">https://plan-relay…/wallpaper/••••••••.jpg</div>
+      <div style="padding:22px 52px 0;font-size:23px;color:#8e8e93">Нажмите на поле → «Вставить»</div>
+      <div style="position:absolute;left:0;right:0;bottom:70px"><span class="blue hl" data-tap>Добавить команду</span></div>
+    </div>
+    <span class="tap"></span>
+  </div></div>
+  <div class="foot"><span>Обои с планом дня</span><span>4/7</span></div>
+</section>
+
+<section class="slide" id="w4">
+  <div class="glow g1"></div><div class="glow g3"></div>
+  <div class="head"><div class="num">4</div>
+    <div class="H">Новая <span class="grad">автоматизация</span></div>
+    <div class="sub">Приложение «Команды» → вкладка <b>«Автоматизация»</b> → <b>«+»</b> → <b>«Приложение»</b></div>
+  </div>
+  <div class="phone"><div class="scr" style="background:#000"><div class="island"></div>
+    <div class="sb"><span>9:41</span><i>●●● ▲ ▮</i></div>
+    <div class="nav"><span></span><b>Новая автоматизация</b><span>Отмена</span></div>
+    <div class="gt">Когда</div>
+    <div class="group">
+      <div class="row"><span class="ic" style="background:#ff9f0a">☀︎</span>Время суток<span class="chev">›</span></div>
+      <div class="row"><span class="ic" style="background:#ff9f0a">⏰</span>Будильник<span class="chev">›</span></div>
+      <div class="row"><span class="ic" style="background:#5e5ce6">🛏</span>Сон<span class="chev">›</span></div>
+      <div class="row"><span class="ic" style="background:#30d158">📍</span>Прибытие<span class="chev">›</span></div>
+    </div>
+    <div class="gt">&nbsp;</div>
+    <div class="group hl" style="margin:0 28px">
+      <div class="row"><span class="ic" style="background:#0a84ff">▦</span><b style="font-weight:500">Приложение</b><span class="chev">›</span></div>
+    </div>
+    <div class="group" style="margin-top:22px">
+      <div class="row"><span class="ic" style="background:#30d158">🔋</span>Уровень заряда<span class="chev">›</span></div>
+      <div class="row"><span class="ic" style="background:#8e8e93">✈︎</span>Авиарежим<span class="chev">›</span></div>
+    </div>
+    <div class="sc-tabs"><span>▦<br>Команды</span><span class="on">◷<br>Автоматизация</span><span>✧<br>Галерея</span></div>
+    <span class="tap"></span>
+  </div></div>
+  <div class="foot"><span>Обои с планом дня</span><span>5/7</span></div>
+</section>
+
+<section class="slide" id="w5">
+  <div class="glow g1"></div><div class="glow g2"></div>
+  <div class="head"><div class="num">5</div>
+    <div class="H">Telegram <span class="grad">«Закрыто»</span></div>
+    <div class="sub">«Выбрать» → <b>Telegram</b> → отметьте <b>«Закрыто»</b> → <b>«Запускать сразу»</b> → «Далее»</div>
+  </div>
+  <div class="phone"><div class="scr" style="background:#000"><div class="island"></div>
+    <div class="sb"><span>9:41</span><i>●●● ▲ ▮</i></div>
+    <div class="nav"><span>‹ Назад</span><b>Когда</b><span style="font-weight:600">Далее</span></div>
+    <div class="group" style="margin-top:20px">
+      <div class="row">Приложение<span class="v" style="color:#0a84ff">Telegram</span></div>
+    </div>
+    <div class="gt">&nbsp;</div>
+    <div class="group">
+      <div class="row">Открыто<span class="check" style="color:transparent">✓</span></div>
+    </div>
+    <div class="group hl" style="margin:0 28px;border-radius:0 0 26px 26px">
+      <div class="row" data-tap>Закрыто<span class="check">✓</span></div>
+    </div>
+    <div class="gt">&nbsp;</div>
+    <div class="group">
+      <div class="row"><span class="radio"></span>После подтверждения</div>
+    </div>
+    <div class="group hl" style="margin:0 28px">
+      <div class="row"><span class="radio on"></span>Запускать сразу</div>
+    </div>
+    <div class="group" style="margin-top:22px">
+      <div class="row">Уведомлять при запуске<span class="tog off"></span></div>
+    </div>
+    <span class="tap"></span>
+  </div></div>
+  <div class="foot"><span>Обои с планом дня</span><span>6/7</span></div>
+</section>
+
+<section class="slide" id="w6">
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="head"><div class="num">6</div>
+    <div class="H">Выберите <span class="grad">команду</span></div>
+    <div class="sub">«Обои ПЛАН» → готово! Вышли из Telegram — <b>обои обновились сами</b>.</div>
+  </div>
+  <div class="phone"><div class="scr"><div class="island"></div>
+    <div class="lock"></div><div class="lockdate" data-date></div><div class="locktime">9:41</div>
+  </div></div>
+  <div class="bubble" style="left:90px;bottom:170px;background:#1c1c1e;width:520px">
+    <div style="font-size:22px;color:#8e8e93;margin-bottom:12px">Мои команды</div>
+    <div class="tile hl" style="background:linear-gradient(135deg,#5e5ce6,#bf5af2);height:150px">🖼<span>Обои ПЛАН</span></div>
+  </div>
+  <div class="foot"><span>Обои с планом дня</span><span>7/7</span></div>
+</section>
+
+<!-- ===================== ГОЛОСОВАЯ КНОПКА ===================== -->
+
+<section class="slide" id="v0">
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="head">
+    <span class="chip">ИНСТРУКЦИЯ · iPhone</span>
+    <div class="H" style="margin-top:44px;font-size:112px">Кнопка<br><span class="grad">«Планер»</span></div>
+    <div class="sub">Нажали на экране «Домой» → продиктовали → <b>всё записано</b>, а бот ответил «Готово ✅». Работает, даже когда планер закрыт.</div>
+  </div>
+  <div class="phone" style="bottom:130px;height:1120px;width:580px"><div class="scr"><div class="island"></div>
+    <div class="home"></div>
+    <div style="position:absolute;left:60px;top:150px;display:grid;grid-template-columns:repeat(3,112px);gap:60px 52px;text-align:center;font-size:21px">
+      <div><div style="width:112px;height:112px;border-radius:26px;background:linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae);display:grid;place-items:center;font-size:56px;box-shadow:0 0 0 5px #fff,0 0 50px rgba(255,255,255,.5)">🎙</div><div style="margin-top:10px">Планер</div></div>
+    </div>
+  </div></div>
+  <div class="bubble" style="right:90px;bottom:640px;background:#0a84ff">завтра в 10 созвон, напомни за час</div>
+  <div class="bubble" style="left:90px;bottom:500px;background:#1c1c1e">Готово ✅ Созвон, завтра 10:00–11:00</div>
+  <div class="foot"><span>@myliveplaners_bot</span><span>1/5</span></div>
+</section>
+
+<section class="slide" id="v1">
+  <div class="glow g1"></div><div class="glow g2"></div>
+  <div class="head"><div class="num">1</div>
+    <div class="H">Откройте <span class="grad">настройки</span></div>
+    <div class="sub">Планер в Telegram → <b>⚙️</b> вверху справа → <b>«Кнопка на iPhone»</b></div>
+  </div>
+  <div class="phone"><div class="scr"><div class="island"></div>
+    <div class="sb"><span>9:41</span><i>●●● ▲ ▮</i></div>
+    <div class="sheet"><div class="grab"></div>
+      <div class="stitle"><span>Настройки</span><span class="x">✕</span></div>
+      <div class="gt">Сводка от бота</div>
+      <div class="group">
+        <div class="row"><span class="ic" style="background:#ff9f0a">☀︎</span>Утренняя сводка<span class="tog"></span></div>
+        <div class="row"><span class="ic" style="background:#5e5ce6">☾</span>Вечерняя сводка<span class="tog off"></span></div>
+      </div>
+      <div class="gt">Обои</div>
+      <div class="group"><div class="row"><span class="ic" style="background:#0a84ff">🖼</span>Добавить обои<span class="chev">›</span></div></div>
+      <div class="gt">Ещё</div>
+      <div class="group hl" style="margin:0 28px">
+        <div class="row"><span class="ic" style="background:#30d158">🎙</span><b style="font-weight:500">Кнопка на iPhone</b><span class="chev">›</span></div>
+      </div>
+      <div class="group" style="margin-top:16px"><div class="row"><span class="ic" style="background:#bf5af2">🎨</span>Тема<span class="v">Авто</span></div></div>
+    </div>
+    <span class="tap"></span>
+  </div></div>
+  <div class="foot"><span>Кнопка «Планер»</span><span>2/5</span></div>
+</section>
+
+<section class="slide" id="v2">
+  <div class="glow g1"></div><div class="glow g3"></div>
+  <div class="head"><div class="num">2</div>
+    <div class="H">Скопируйте <span class="grad">ссылку</span></div>
+    <div class="sub"><b>«Скопировать ссылку»</b>. Ссылка личная: по ней бот понимает, что записывать нужно именно вам.</div>
+  </div>
+  <div class="phone"><div class="scr"><div class="island"></div>
+    <div class="sb"><span>9:41</span><i>●●● ▲ ▮</i></div>
+    <div class="sheet"><div class="grab"></div>
+      <div class="stitle"><span>Кнопка на iPhone</span><span class="x">✕</span></div>
+      <div style="padding:0 34px 10px;font-size:25px;line-height:1.35;color:#8e8e93">Нажали кнопку на экране «Домой» → продиктовали → ассистент всё записал, а бот прислал «Готово ✅».</div>
+      <div class="card hl">
+        <div class="t"><span class="n">1</span><div><div class="tt">Скопируйте вашу ссылку</div></div></div>
+        <div class="link">https://plan-relay…/shortcut?key=••••••••</div>
+        <div class="btn">Скопировать ссылку</div>
+      </div>
+      <div class="card">
+        <div class="t"><span class="n">2</span><div><div class="tt">Установите команду</div><div class="hh">Откроются «Команды» → вставьте ссылку → «Добавить команду».</div></div></div>
+        <div class="btn">Установить команду</div>
+      </div>
+    </div>
+    <span class="tap"></span>
+  </div></div>
+  <div class="foot"><span>Кнопка «Планер»</span><span>3/5</span></div>
+</section>
+
+<section class="slide" id="v3">
+  <div class="glow g1"></div><div class="glow g2"></div>
+  <div class="head"><div class="num">3</div>
+    <div class="H">Установите <span class="grad">команду</span></div>
+    <div class="sub"><b>«Установить команду»</b> → вставьте ссылку в поле → <b>«Добавить команду»</b></div>
+  </div>
+  <div class="phone"><div class="scr" style="background:#000"><div class="island"></div>
+    <div class="sb"><span>9:41</span><i>●●● ▲ ▮</i></div>
+    <div class="sheet" style="top:120px">
+      <div class="grab"></div>
+      <div style="text-align:center;padding:18px 40px 0">
+        <div style="width:150px;height:150px;border-radius:36px;margin:0 auto;background:linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae);display:grid;place-items:center;font-size:74px">🎙</div>
+        <div style="font-size:44px;font-weight:700;margin-top:26px">Планер</div>
+        <div style="font-size:26px;color:#8e8e93;margin-top:10px">Настройка этой команды</div>
+      </div>
+      <div style="padding:46px 52px 14px;font-size:27px;color:#ebebf5">Вставьте вашу ссылку из планера</div>
+      <div class="field hl">https://plan-relay…/shortcut?key=••••••••</div>
+      <div style="padding:22px 52px 0;font-size:23px;color:#8e8e93">Нажмите на поле → «Вставить»</div>
+      <div style="position:absolute;left:0;right:0;bottom:70px"><span class="blue hl" data-tap>Добавить команду</span></div>
+    </div>
+    <span class="tap"></span>
+  </div></div>
+  <div class="foot"><span>Кнопка «Планер»</span><span>4/5</span></div>
+</section>
+
+<section class="slide" id="v4">
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="head"><div class="num">4</div>
+    <div class="H">На экран <span class="grad">«Домой»</span></div>
+    <div class="sub">В «Командах» удерживайте «Планер» → <b>«Поделиться»</b> → <b>«На экран „Домой“»</b>. Или назначьте её Кнопке действия.</div>
+  </div>
+  <div class="phone"><div class="scr" style="background:#000"><div class="island"></div>
+    <div class="sb"><span>9:41</span><i>●●● ▲ ▮</i></div>
+    <div class="big">Все команды</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:0 28px">
+      <div class="tile" style="background:linear-gradient(135deg,#7a9dfe,#a48bfa 52%,#f48eae)">🎙<span>Планер</span></div>
+      <div class="tile" style="background:linear-gradient(135deg,#5e5ce6,#bf5af2)">🖼<span>Обои ПЛАН</span></div>
+    </div>
+    <div class="sheet" style="top:620px;background:#1c1c1e">
+      <div class="grab"></div>
+      <div class="group" style="background:#2c2c2e">
+        <div class="row">Скопировать ссылку iCloud<span class="v">⧉</span></div>
+        <div class="row hl" style="border-radius:0">На экран «Домой»<span class="v">⊞</span></div>
+        <div class="row">Добавить в Избранное<span class="v">♡</span></div>
+      </div>
+    </div>
+    <span class="tap"></span>
+  </div></div>
+  <div class="foot"><span>Кнопка «Планер»</span><span>5/5</span></div>
+</section>
+
+<script>
+  const d = new Date();
+  const date = d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, (c) => c.toUpperCase());
+  document.querySelectorAll('[data-date]').forEach((e) => (e.textContent = date));
+  // the "tap here" circle sits on the target: [data-tap] or the screen's first highlight (right part)
+  document.querySelectorAll('.scr').forEach((scr) => {
+    const tap = scr.querySelector('.tap');
+    const el = scr.querySelector('[data-tap]') || scr.querySelector('.hl');
+    if (!tap || !el) return;
+    const a = scr.getBoundingClientRect(), r = el.getBoundingClientRect();
+    tap.style.left = `${r.left - a.left + r.width * 0.72}px`;
+    tap.style.top = `${r.top - a.top + r.height / 2}px`;
+  });
+</script>
+</body>
+</html>

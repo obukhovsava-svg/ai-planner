@@ -73,7 +73,7 @@ export function Sheet({ open, title, onClose, children, done }: SheetProps) {
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && onCloseRef.current();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
@@ -202,7 +202,7 @@ export function Sheet({ open, title, onClose, children, done }: SheetProps) {
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-end justify-center overscroll-none ${open ? '' : 'pointer-events-none'}`}
+      className={`fixed inset-0 z-50 flex items-end justify-center overscroll-none wide:items-center wide:p-6 ${open ? '' : 'pointer-events-none'}`}
       role="dialog"
       aria-modal
       aria-label={title}
@@ -216,10 +216,10 @@ export function Sheet({ open, title, onClose, children, done }: SheetProps) {
       />
       <div
         ref={panel}
-        className="animate-sheet-up pb-safe relative max-h-[92dvh] w-full max-w-md overflow-y-auto overflow-x-hidden overscroll-contain rounded-t-[28px] bg-bg shadow-[0_-10px_40px_rgb(0_0_0/0.18)]"
+        className="animate-sheet-up pb-safe relative max-h-[92dvh] w-full max-w-md overflow-y-auto overflow-x-hidden overscroll-contain rounded-t-[28px] bg-bg shadow-[0_-10px_40px_rgb(0_0_0/0.18)] wide:max-h-[86dvh] wide:max-w-[480px] wide:rounded-[22px] wide:shadow-[0_24px_80px_rgb(0_0_0/0.3)]"
       >
         <div data-drag-handle className="sticky top-0 z-10 cursor-grab touch-none bg-bg/90 px-4 pb-2 pt-2 backdrop-blur-xl">
-          <div className="mx-auto mb-2 h-[5px] w-9 rounded-full bg-faint/60" />
+          <div className="mx-auto mb-2 h-[5px] w-9 rounded-full bg-faint/60 wide:invisible wide:mb-0 wide:h-1" />
           <div className="flex items-center justify-between">
             <h2 className="text-[17px] font-semibold">{title}</h2>
             {done ? (

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Settings } from 'lucide-react';
 import { useUIStore } from '@/store/useUIStore';
 import { haptic } from '@/lib/telegram';
+import { useSidePane } from '@/hooks/useWide';
 
 interface HeaderProps {
   title: ReactNode;
@@ -15,6 +16,7 @@ interface HeaderProps {
 /** iOS-style large-title navigation bar. */
 export function Header({ title, subtitle, actions, plain }: HeaderProps) {
   const openSettings = useUIStore((s) => s.setSettingsOpen);
+  const side = useSidePane();
   return (
     <header
       className={`pt-safe sticky top-0 z-20 backdrop-blur-xl backdrop-saturate-200 ${plain ? 'bg-[var(--navbar-plain)]' : 'bg-[var(--navbar)]'}`}
@@ -26,15 +28,17 @@ export function Header({ title, subtitle, actions, plain }: HeaderProps) {
         </div>
         <div className="flex shrink-0 items-center gap-2 pb-1.5">
           {actions}
-          <IconButton
-            label="Настройки"
-            onClick={() => {
-              haptic.impact('light');
-              openSettings(true);
-            }}
-          >
-            <Settings className="size-[18px]" strokeWidth={2.2} />
-          </IconButton>
+          {!side && (
+            <IconButton
+              label="Настройки"
+              onClick={() => {
+                haptic.impact('light');
+                openSettings(true);
+              }}
+            >
+              <Settings className="size-[18px]" strokeWidth={2.2} />
+            </IconButton>
+          )}
         </div>
       </div>
     </header>

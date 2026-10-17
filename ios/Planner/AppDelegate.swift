@@ -3,6 +3,14 @@ import UserNotifications
 
 /// Shows reminders while the app is open and opens the right screen when one is tapped.
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+  #if targetEnvironment(macCatalyst)
+  /// The iPhone build is portrait-only, and a Mac window of a single-orientation app can't be resized.
+  /// On the Mac every orientation is allowed: the window stretches freely and the page adapts.
+  func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+    .all
+  }
+  #endif
+
   func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
     UNUserNotificationCenter.current().delegate = self
     // the widget sends a tapped task to the server with the same account

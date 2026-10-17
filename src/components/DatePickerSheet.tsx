@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TimeField } from '@/components/TimeField';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { DateKey, TimeStr } from '@/types';
 import { Sheet } from './Sheet';
@@ -160,10 +161,9 @@ export function DatePickerSheet({ open, title = 'Дата и время', withTi
             {time && (
               <div className="animate-fade-in flex items-center justify-between border-t-[0.5px] border-line px-4 py-2">
                 <span className="text-[15px] text-muted">{date ? humanDate(date) : ''}</span>
-                <input
-                  type="time"
+                <TimeField
                   value={time}
-                  onChange={(e) => e.target.value && setTime(e.target.value)}
+                  onChange={setTime}
                   className="rounded-[8px] bg-surface-2 px-3 py-1.5 text-[17px] text-fg outline-none"
                 />
               </div>

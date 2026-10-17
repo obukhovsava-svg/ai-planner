@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, PaintBucket, Palette, Smartphone, Sparkles, Sun } from 'lucide-react';
+import { TimeField } from '@/components/TimeField';
+import { CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, PaintBucket, Palette, Shield, Smartphone, Sparkles, Sun, Trash2 } from 'lucide-react';
 import { ACCENTS } from '@/lib/accent';
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
@@ -10,6 +11,10 @@ import { digestAvailable, loadDigest, saveDigest, sendDigestSample, sendFeedback
 import type { ThemeMode } from '@/types';
 import { isNative } from '@/lib/native';
 import { TelegramWallpaperSettings, WallpaperSettings } from './WallpaperSettings';
+import { AI_DISCLOSURE, DeleteDataSheet, PRIVACY_URL } from './Privacy';
+import { useAiConsent } from '@/lib/aiConsent';
+import { hasServerAuth } from '@/lib/auth';
+import { openExternal } from '@/lib/telegram';
 
 const fieldClass = 'block w-full appearance-none rounded-[14px] bg-surface px-4 py-[11px] text-[17px] text-fg outline-none placeholder:text-faint';
 
@@ -42,11 +47,10 @@ function Row({ icon, iconBg, label, children, onClick }: { icon: ReactNode; icon
 
 function TimeInput({ value, disabled, onChange }: { value: string; disabled?: boolean; onChange(v: string): void }) {
   return (
-    <input
-      type="time"
+    <TimeField
       value={value}
       disabled={disabled}
-      onChange={(e) => e.target.value && onChange(e.target.value)}
+      onChange={onChange}
       className="rounded-[8px] bg-surface-2 px-2.5 py-1 text-[17px] text-blue outline-none disabled:opacity-40"
     />
   );
@@ -54,6 +58,9 @@ function TimeInput({ value, disabled, onChange }: { value: string; disabled?: bo
 
 /** One place for preferences: the bot's daily summary, completed tasks, the iPhone button, theme, feedback. */
 export function SettingsSheet() {
+  const aiConsent = useAiConsent((st) => st.consent);
+  const setAiConsent = useAiConsent((st) => st.set);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const open = useUIStore((s) => s.settingsOpen);
   const setOpen = useUIStore((s) => s.setSettingsOpen);
   const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
@@ -314,8 +321,25 @@ export function SettingsSheet() {
               </button>
             </div>
           )}
+
+          <Group title="Конфиденциальность" footer={isNative() ? AI_DISCLOSURE : undefined}>
+            {isNative() && (
+              <Row icon={<Sparkles className="size-[18px]" />} iconBg="bg-[#5e5ce6]" label="AI-ассистент">
+                <Switch checked={aiConsent === true} onChange={(v) => setAiConsent(v)} />
+              </Row>
+            )}
+            <Row icon={<Shield className="size-[18px]" />} iconBg="bg-[#8e8e93]" label="Политика конфиденциальности" onClick={() => openExternal(PRIVACY_URL)}>
+              <ChevronRight className="size-5 text-faint" />
+            </Row>
+            {(hasServerAuth() || isNative()) && (
+              <Row icon={<Trash2 className="size-[18px]" />} iconBg="bg-red" label="Удалить мои данные" onClick={() => setDeleteOpen(true)}>
+                <ChevronRight className="size-5 text-faint" />
+              </Row>
+            )}
+          </Group>
         </div>
       </Sheet>
+      <DeleteDataSheet open={deleteOpen} onClose={() => setDeleteOpen(false)} />
       {wallpaperAvailable && (
         <Sheet
           open={wallpaperOpen}

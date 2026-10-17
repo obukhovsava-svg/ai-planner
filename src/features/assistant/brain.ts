@@ -10,6 +10,7 @@
  * Understanding comes from the AI worker (lib/ai.ts → /worker) when it is configured and
  * reachable, otherwise from the offline rules in lib/parser.ts — both produce `Analysis`.
  */
+import { isNative } from '@/lib/native';
 import type { CalendarEvent, DateKey, Task } from '@/types';
 import { analyze, guardNoteMode, isConfident, normalizeAnswer, parseDurationText, parseOffsetText, splitRequests, type Analysis } from '@/lib/parser';
 import { aiAnalyze } from '@/lib/ai';
@@ -765,7 +766,7 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
       };
     }
     case 'digest': {
-      if (!serverSettingsAvailable()) return { text: 'Сводку присылает бот — откройте планер в Telegram.' };
+      if (!serverSettingsAvailable()) return { text: isNative() ? 'Утренней сводки в приложении пока нет — зато напоминания приходят уведомлениями.' : 'Сводку присылает бот — откройте планер в Telegram.' };
       const evening = a.digestKind === 'evening';
       const patch = evening ? { evening: a.digestOn !== false, ...(a.start ? { eveningTime: a.start } : {}) } : { morning: a.digestOn !== false, ...(a.start ? { morningTime: a.start } : {}) };
       void saveDigest(patch).then((saved) => {

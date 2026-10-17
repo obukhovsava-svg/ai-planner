@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TimeField } from '@/components/TimeField';
 import { Bell, ChevronRight } from 'lucide-react';
 import type { Reminder } from '@/types';
 import { REMIND_PRESETS, atLabel, offsetLabel } from '@/lib/reminders';
@@ -93,10 +94,9 @@ export function RemindRow({ value, onChange, hasDate, timeMissing, date }: Remin
             </div>
             <label className="mt-2.5 flex items-center gap-3">
               <span className="flex-1 text-[17px]">Во сколько</span>
-              <input
-                type="time"
+              <TimeField
                 value={atTime}
-                onChange={(e) => e.target.value && onChange({ at: `${atDate}T${e.target.value}` })}
+                onChange={(t) => onChange({ at: `${atDate}T${t}` })}
                 className="rounded-[8px] bg-surface-2 px-2.5 py-1 text-[17px] text-blue outline-none"
               />
             </label>

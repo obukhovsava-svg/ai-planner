@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { TimeField } from '@/components/TimeField';
+import { DateField } from '@/components/DateField';
 import { Check, ChevronRight, Repeat as RepeatIcon, Trash2 } from 'lucide-react';
 import type { CalendarEvent, DateKey, EventColor, Repeat } from '@/types';
 import { Sheet } from '@/components/Sheet';
@@ -110,19 +112,16 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
 
         <label className="flex min-w-0 flex-col gap-1.5">
           <span className="px-4 text-[13px] uppercase text-muted">Дата</span>
-          <input type="date" className={fieldClass} value={form.date} onChange={(e) => e.target.value && set('date', e.target.value)} />
+          <DateField className={fieldClass} value={form.date} onChange={(d) => set('date', d)} />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="flex min-w-0 flex-col gap-1.5">
             <span className="px-4 text-[13px] uppercase text-muted">Начало</span>
-            <input
-              type="time"
+            <TimeField
               className={fieldClass}
               value={form.start}
-              onChange={(e) => {
-                const start = e.target.value;
-                if (!start) return;
+              onChange={(start) => {
                 // Keep the duration when moving the start time.
                 const dur = timeToMinutes(form.end) - timeToMinutes(form.start);
                 setForm({ ...form, start, end: minutesToTime(timeToMinutes(start) + Math.max(dur, 15)) });
@@ -131,7 +130,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
           </label>
           <label className="flex min-w-0 flex-col gap-1.5">
             <span className="px-4 text-[13px] uppercase text-muted">Конец</span>
-            <input type="time" className={fieldClass} value={form.end} onChange={(e) => e.target.value && set('end', e.target.value)} />
+            <TimeField className={fieldClass} value={form.end} onChange={(end) => set('end', end)} />
           </label>
         </div>
         {timeToMinutes(form.end) <= timeToMinutes(form.start) && (
