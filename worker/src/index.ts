@@ -412,6 +412,16 @@ async function onTelegramUpdate(update: any, env: Env) {
     await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `Обои: доставлено ${sent} из ${results.length}.` });
     return;
   }
+  if (/^\/(transfer|перенос)\b/iu.test(text)) {
+    const user = String(msg.from?.id ?? msg.chat.id);
+    const { results } = await env.DB.prepare('SELECT 1 FROM state WHERE user_id = ?1').bind(user).all();
+    if (!results.length) {
+      await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: 'Сначала откройте планер здесь хотя бы раз — переносить пока нечего 👇', reply_markup: openButton(env) });
+      return;
+    }
+    await tg(env, 'sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', text: transferText(await transferCode(env, user)) });
+    return;
+  }
   if (text.startsWith('/myid')) {
     await tg(env, 'sendMessage', { chat_id: msg.chat.id, text: `Ваш chat id: ${msg.chat.id}` });
     return;
@@ -1177,8 +1187,23 @@ function cleanDoc(raw: any): PlannerDoc | null {
 
 type Stmt = ReturnType<Env['DB']['prepare']>;
 
+/* ------------------------------------------------------------ Telegram → app transfer
+ * The bot (or the planner in Telegram) gives a one-time 6-digit code; the iPhone/Mac app sends it
+ * with its device key, and the Telegram planner is merged into the app's own account. */
+const TRANSFER_TTL = 10 * 60_000;
+async function transferCode(env: Env, user: string): Promise<string> {
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS transfer_codes (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires INTEGER NOT NULL)').run();
+  await env.DB.prepare('DELETE FROM transfer_codes WHERE user_id = ?1 OR expires < ?2').bind(user, Date.now()).run();
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
+  const code = String(n).padStart(6, '0');
+  await env.DB.prepare('INSERT OR REPLACE INTO transfer_codes (code, user_id, expires) VALUES (?1, ?2, ?3)').bind(code, user, Date.now() + TRANSFER_TTL).run();
+  return code;
+}
+const transferText = (code: string) =>
+  `📲 Код для приложения ПЛАН: <code>${code}</code>\n\nВ приложении на iPhone или Mac: Настройки → «Перенести из бота» → введите код. Ваши события и задачи добавятся туда, здесь всё останется как было.\n\nКод действует 10 минут, никому его не пересылайте.`;
+
 /** Tables keyed by user_id. Some are created lazily, so a missing one is skipped. */
-const USER_TABLES = ['state', 'reminders', 'users', 'queue', 'digest', 'feedback', 'seen', 'nudges', 'tg_names', 'calendar_feed', 'broadcast_sent', 'wallpaper_b64', 'wallpaper_pending', 'wallpaper_hits', 'digest_due'];
+const USER_TABLES = ['transfer_codes', 'state', 'reminders', 'users', 'queue', 'digest', 'feedback', 'seen', 'nudges', 'tg_names', 'calendar_feed', 'broadcast_sent', 'wallpaper_b64', 'wallpaper_pending', 'wallpaper_hits', 'digest_due'];
 
 async function deleteAccount(env: Env, user: string) {
   for (const table of USER_TABLES) {
@@ -1290,6 +1315,35 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
     const url = new URL(request.url);
+
+    // The app imports the Telegram planner by a one-time code: read here (the bot's database), merged there.
+    if (env.APP && request.method === 'POST' && url.pathname === '/transfer/import') {
+      const key = request.headers.get('X-Device-Key') ?? '';
+      if (!/^[0-9a-f]{64}$/.test(key)) return json({ error: 'unauthorized' }, 401, headers);
+      if (rateLimited(`t:${key.slice(0, 16)}`)) return json({ error: 'rate_limited' }, 429, headers);
+      const body = (await request.json().catch(() => ({}))) as { code?: string; tz?: number };
+      const code = String(body.code ?? '').replace(/\D/g, '');
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS transfer_codes (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires INTEGER NOT NULL)').run();
+      const { results } = await env.DB.prepare('SELECT user_id, expires FROM transfer_codes WHERE code = ?1').bind(code).all<{ user_id: string; expires: number }>();
+      const row = results[0];
+      if (!row || row.expires < Date.now()) return json({ error: 'bad_code' }, 404, headers);
+      await env.DB.prepare('DELETE FROM transfer_codes WHERE code = ?1').bind(code).run();
+      const { doc, tz } = await loadDoc(env, row.user_id);
+      const res = await env.APP.fetch(
+        new Request(new URL('/state/sync', request.url), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Device-Key': key },
+          body: JSON.stringify({ doc, tz: Number.isFinite(body.tz) ? Math.round(body.tz!) : (tz ?? 0) }),
+        }),
+      );
+      if (!res.ok) return json({ error: 'merge_failed' }, 502, headers);
+      return json({ ok: true, events: doc.events.length, tasks: doc.tasks.length }, 200, headers);
+    }
+    if (request.method === 'POST' && url.pathname === '/transfer/code') {
+      const user = await authUser(request, env);
+      if (!user || user === 'anon' || isDeviceUser(user)) return json({ error: 'unauthorized' }, 401, headers);
+      return json({ code: await transferCode(env, user), ttl: TRANSFER_TTL }, 200, headers);
+    }
 
     // The iPhone / Mac app lives on its own server and database («plan-app»): everything it sends
     // carries a device key and is handed over as is. Telegram requests never do.

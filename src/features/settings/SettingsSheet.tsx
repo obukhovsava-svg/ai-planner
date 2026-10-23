@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { TimeField } from '@/components/TimeField';
-import { CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, PaintBucket, Palette, Shield, Smartphone, Sparkles, Sun, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, PaintBucket, Palette, Shield, Smartphone, Sparkles, Sun, Trash2 } from 'lucide-react';
 import { ACCENTS } from '@/lib/accent';
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
@@ -12,6 +12,7 @@ import type { ThemeMode } from '@/types';
 import { isNative } from '@/lib/native';
 import { TelegramWallpaperSettings, WallpaperSettings } from './WallpaperSettings';
 import { AI_DISCLOSURE, DeleteDataSheet, PRIVACY_URL } from './Privacy';
+import { TransferCodeSheet, TransferImportSheet } from './Transfer';
 import { useAiConsent } from '@/lib/aiConsent';
 import { hasServerAuth } from '@/lib/auth';
 import { openExternal } from '@/lib/telegram';
@@ -61,6 +62,7 @@ export function SettingsSheet() {
   const aiConsent = useAiConsent((st) => st.consent);
   const setAiConsent = useAiConsent((st) => st.set);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const open = useUIStore((s) => s.settingsOpen);
   const setOpen = useUIStore((s) => s.setSettingsOpen);
   const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
@@ -322,6 +324,14 @@ export function SettingsSheet() {
             </div>
           )}
 
+          {hasServerAuth() && (
+            <Group>
+              <Row icon={<ArrowLeftRight className="size-[18px]" />} iconBg="bg-[#30b0c7]" label={isNative() ? 'Перенести из бота' : 'Перенести в приложение'} onClick={() => setTransferOpen(true)}>
+                <ChevronRight className="size-5 text-faint" />
+              </Row>
+            </Group>
+          )}
+
           <Group title="Конфиденциальность" footer={isNative() ? AI_DISCLOSURE : undefined}>
             {isNative() && (
               <Row icon={<Sparkles className="size-[18px]" />} iconBg="bg-[#5e5ce6]" label="AI-ассистент">
@@ -340,6 +350,7 @@ export function SettingsSheet() {
         </div>
       </Sheet>
       <DeleteDataSheet open={deleteOpen} onClose={() => setDeleteOpen(false)} />
+      {isNative() ? <TransferImportSheet open={transferOpen} onClose={() => setTransferOpen(false)} /> : <TransferCodeSheet open={transferOpen} onClose={() => setTransferOpen(false)} />}
       {wallpaperAvailable && (
         <Sheet
           open={wallpaperOpen}
