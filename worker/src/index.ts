@@ -509,9 +509,8 @@ function nativeReminders(doc: PlannerDoc, tz: number) {
 // The Mini App draws the wallpaper (today + tomorrow) and uploads it; the user's Shortcut fetches
 // today's image by the personal link and sets it with «Установить обои».
 
-// Links people put into Shortcuts and calendars go through the Russian relay (Cloud.ru
-// Container Apps, relay/cloudru-proxy.js): mobile networks in Russia throttle Cloudflare.
-const PUBLIC_ORIGIN = 'https://plan-relay.containerapps.ru';
+// Links people put into Shortcuts and calendars: the Worker itself (the Cloud.ru relay is gone).
+const PUBLIC_ORIGIN = 'https://ai-planner-brain.savelyobuhov.workers.dev';
 let wallpaperReady = false;
 async function ensureWallpaper(env: Env) {
   if (wallpaperReady) return;

@@ -16,8 +16,7 @@ struct CompleteTaskIntent: AppIntent {
     WidgetStore.markDone(id)
     guard let key = WidgetStore.deviceKey else { return .result() }
     let body = try? JSONSerialization.data(withJSONObject: ["id": id, "tz": -TimeZone.current.secondsFromGMT() / 60])
-    // the Russian relay first (mobile networks throttle Cloudflare), the Worker as a fallback
-    for base in ["https://plan-relay.containerapps.ru", "https://ai-planner-brain.savelyobuhov.workers.dev"] {
+    for base in ["https://ai-planner-brain.savelyobuhov.workers.dev"] {
       guard let url = URL(string: base + "/task/done") else { continue }
       var request = URLRequest(url: url)
       request.httpMethod = "POST"

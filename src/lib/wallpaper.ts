@@ -9,9 +9,9 @@ import { addDays, todayKey } from './date';
 import { authHeaders, hasServerAuth } from './auth';
 import { isNative } from './native';
 import { drawWallpaper } from './wallpaperRender';
-import { RELAY_URL } from '@/config';
+import { AI_URL } from '@/config';
 
-const API = RELAY_URL;
+const API = AI_URL;
 const ON_KEY = 'planner:wallpaper-on';
 const SENT_KEY = 'planner:wallpaper-sent';
 
