@@ -13,6 +13,7 @@ import { isNative } from '@/lib/native';
 import { TelegramWallpaperSettings, WallpaperSettings } from './WallpaperSettings';
 import { AI_DISCLOSURE, DeleteDataSheet, PRIVACY_URL } from './Privacy';
 import { TransferCodeSheet, TransferImportSheet } from './Transfer';
+import { WALLPAPER_IN_TELEGRAM } from '@/lib/wallpaper';
 import { useAiConsent } from '@/lib/aiConsent';
 import { hasServerAuth } from '@/lib/auth';
 import { openExternal } from '@/lib/telegram';
@@ -76,7 +77,7 @@ export function SettingsSheet() {
   const setWallpaperOpen = useUIStore((s) => s.setWallpaperOpen);
   // opened from here → closing it comes back here (it can also be opened from the next-step offer)
   const wallpaperFromSettings = useRef(false);
-  const wallpaperAvailable = isNative() || digestAvailable();
+  const wallpaperAvailable = isNative() || (WALLPAPER_IN_TELEGRAM && digestAvailable());
   const hideDone = useUIStore((s) => s.hideDoneNextDay);
   const setHideDone = useUIStore((s) => s.setHideDoneNextDay);
   const themeOverride = useUIStore((s) => s.themeOverride);

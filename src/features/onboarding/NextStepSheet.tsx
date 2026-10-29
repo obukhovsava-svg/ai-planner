@@ -5,6 +5,7 @@ import { useUIStore } from '@/store/useUIStore';
 import { usePlannerStore } from '@/store/usePlannerStore';
 import { hasServerAuth } from '@/lib/auth';
 import { isNative } from '@/lib/native';
+import { WALLPAPER_IN_TELEGRAM } from '@/lib/wallpaper';
 import { haptic } from '@/lib/telegram';
 
 const SHOWN_KEY = 'planner:next-step';
@@ -57,13 +58,15 @@ export function NextStepSheet() {
             text="Нажали на экране «Домой», сказали дело, и оно в плане"
             onClick={() => go(() => setShortcutOpen(true))}
           />
-          <Option
-            icon={<ImagePlus className="size-[18px]" />}
-            bg="bg-[#30b0c7]"
-            title="План на экране блокировки"
-            text="Обои с планами и задачами на сегодня, обновляются сами"
-            onClick={() => go(() => setWallpaperOpen(true))}
-          />
+          {(isNative() || WALLPAPER_IN_TELEGRAM) && (
+            <Option
+              icon={<ImagePlus className="size-[18px]" />}
+              bg="bg-[#30b0c7]"
+              title="План на экране блокировки"
+              text="Обои с планами и задачами на сегодня, обновляются сами"
+              onClick={() => go(() => setWallpaperOpen(true))}
+            />
+          )}
         </div>
         <button type="button" onClick={() => setOpen(false)} className="h-[44px] rounded-full text-[17px] text-blue active:opacity-60">
           Позже

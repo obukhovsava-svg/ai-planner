@@ -156,9 +156,12 @@ export async function uploadWallpapers(force = false, ahead = true) {
 }
 
 /** Telegram: keep the server's wallpaper fresh after changes and on every open. */
+/** Lock-screen wallpaper in the Telegram planner: switched off for now (the iPhone app keeps its own). */
+export const WALLPAPER_IN_TELEGRAM = false;
+
 export function useWallpaperSync() {
   useEffect(() => {
-    if (isNative() || !hasServerAuth()) return;
+    if (isNative() || !hasServerAuth() || !WALLPAPER_IN_TELEGRAM) return;
     let t = 0;
     let later = 0;
     const kick = () => {
