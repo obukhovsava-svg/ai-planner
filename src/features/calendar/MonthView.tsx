@@ -1,10 +1,11 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import type { CalendarEvent, DateKey, Task } from '@/types';
 import { usePlannerStore } from '@/store/usePlannerStore';
-import { addDays, addMonths, fromKey, monthGrid, monthRows, todayKey, weekdayMon } from '@/lib/date';
+import { addDays, addMonths, fromKey, monthGrid, monthRows, weekdayMon } from '@/lib/date';
 import { occurrencesBetween } from '@/lib/recurrence';
 import { EVENT_COLORS } from '@/lib/meta';
 import { useWide } from '@/hooks/useWide';
+import { useToday } from '@/hooks/useToday';
 
 const ROW_H = 92;
 /** Mac / desktop: taller days with room for more of the schedule. */
@@ -40,7 +41,7 @@ export function MonthView({ initial, todaySignal, onVisibleMonth, onOpenDay }: M
   const events = usePlannerStore((s) => s.events);
   const tasks = usePlannerStore((s) => s.tasks);
   const scroller = useRef<HTMLDivElement>(null);
-  const today = todayKey();
+  const today = useToday();
   const wide = useWide();
 
   const months = useMemo(() => {

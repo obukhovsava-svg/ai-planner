@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { DateKey } from '@/types';
-import { addDays, fromKey, todayKey, weekDays } from '@/lib/date';
+import { addDays, fromKey, weekDays } from '@/lib/date';
+import { useToday } from '@/hooks/useToday';
 import { useBusyDates } from '@/store/usePlannerStore';
 import { useSwipe } from '@/hooks/useSwipe';
 import { haptic } from '@/lib/telegram';
@@ -9,7 +10,7 @@ const LETTERS = ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'];
 
 /** Week row of the iOS Calendar day screen; swipe to page weeks. */
 export function WeekStrip({ selected, onSelect }: { selected: DateKey; onSelect(d: DateKey): void }) {
-  const today = todayKey();
+  const today = useToday();
   const days = weekDays(selected);
   const busy = useBusyDates(days[0], days[6]);
   const [direction, setDirection] = useState<'left' | 'right' | null>(null);

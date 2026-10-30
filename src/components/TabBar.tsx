@@ -2,10 +2,11 @@ import { ListChecks } from 'lucide-react';
 import type { TabId } from '@/types';
 import { useUIStore } from '@/store/useUIStore';
 import { haptic } from '@/lib/telegram';
+import { useToday } from '@/hooks/useToday';
 
 /** Calendar glyph that shows today's day number, like the iOS Calendar icon. */
 function CalendarDayIcon({ active }: { active: boolean }) {
-  const day = new Date().getDate();
+  const day = Number(useToday().slice(8));
   const w = active ? 2 : 1.8;
   return (
     <svg viewBox="0 0 24 24" className="size-[26px]" aria-hidden>

@@ -7,6 +7,7 @@ import { monthTitle, todayKey } from '@/lib/date';
 import { MonthView } from './MonthView';
 import { DayView } from './DayView';
 import { EventSheet, type EventDraft } from './EventSheet';
+import { useToday } from '@/hooks/useToday';
 
 const POP_MS = 450;
 
@@ -42,7 +43,8 @@ export function CalendarTab() {
 
   const create = (date: DateKey, start = '09:00', end = '10:00') => setDraft({ title: '', date, start, end, color: 'blue' });
 
-  const showingCurrent = visibleMonth.slice(0, 7) === todayKey().slice(0, 7);
+  const today = useToday();
+  const showingCurrent = visibleMonth.slice(0, 7) === today.slice(0, 7);
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-[var(--cal-bg)]">
@@ -61,7 +63,7 @@ export function CalendarTab() {
               onClick={() => setTodaySignal((n) => n + 1)}
               className={`transition-opacity active:opacity-50 ${showingCurrent ? 'text-muted' : 'text-today-text'}`}
             >
-              {showingCurrent ? monthTitle(todayKey()) : 'Сегодня'}
+              {showingCurrent ? monthTitle(today) : 'Сегодня'}
             </button>
           }
           actions={

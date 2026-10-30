@@ -7,6 +7,7 @@ import { fromKey, todayKey } from '@/lib/date';
 import { haptic, showTelegramBackButton } from '@/lib/telegram';
 import { WeekStrip } from './WeekStrip';
 import { DayTimeline } from './DayTimeline';
+import { useToday } from '@/hooks/useToday';
 
 const MONTHS_SHORT = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const EDGE = 28;
@@ -29,7 +30,8 @@ export function DayView({ open, onBack, onCreate, onOpenEvent }: DayViewProps) {
   const setSelected = useUIStore((s) => s.setSelectedDate);
   const root = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; t: number; dx: number } | null>(null);
-  const isToday = selected === todayKey();
+  const today = useToday();
+  const isToday = selected === today;
 
   useEffect(() => (open ? showTelegramBackButton(onBack) : undefined), [open, onBack]);
 

@@ -47,10 +47,20 @@ export default function App() {
   useEffect(() => {
     if (!built.includes(tab)) setBuilt((b) => [...b, tab]);
   }, [tab, built]);
+  // One screen at a time, when the page is idle: building them all at once froze the first taps
+  // after start (a tap landing in that freeze was lost or came through seconds later).
   useEffect(() => {
-    const t = window.setTimeout(() => setBuilt([...TAB_ORDER]), 1200);
-    return () => window.clearTimeout(t);
-  }, []);
+    if (built.length >= TAB_ORDER.length) return;
+    const next = TAB_ORDER.find((t) => !built.includes(t));
+    if (!next) return;
+    const build = () => setBuilt((b) => (b.includes(next) ? b : [...b, next]));
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(build, { timeout: 4000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = setTimeout(build, 1500);
+    return () => clearTimeout(t);
+  }, [built]);
   // Data lives on the server too: two-way sync (reminders are computed there).
   useServerSync();
   useShortcutInbox();
