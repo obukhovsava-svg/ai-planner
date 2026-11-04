@@ -71,8 +71,8 @@ export interface CalendarEvent {
   createdAt: number;
   /** Last change (ms) — newer wins when syncing. */
   updatedAt?: number;
-  /** A meeting from a device's calendar (Outlook…), kept in step both ways. `readOnly`: only its organizer can change it; `sig`: the version both sides last agreed on; `owner`: the installation that added it. */
-  device?: { calendar: string; location?: string; allDay?: boolean; readOnly?: boolean; noteCut?: boolean; sig?: string; owner?: string };
+  /** A meeting from a device's calendar (Outlook…), kept in step both ways. `readOnly`: only its organizer can change it; `noteCut`: the note is a digest of the calendar's description, so it never goes back there; `noteSeen`: that digest as last read; `sig`: the version both sides last agreed on; `owner`: the installation that added it. */
+  device?: { calendar: string; location?: string; allDay?: boolean; readOnly?: boolean; noteCut?: boolean; noteSeen?: string; sig?: string; owner?: string };
 }
 
 export type EventColor = 'blue' | 'red' | 'violet' | 'green' | 'amber';

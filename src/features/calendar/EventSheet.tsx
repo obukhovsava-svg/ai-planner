@@ -11,7 +11,8 @@ import { usePlannerStore } from '@/store/usePlannerStore';
 import { useUIStore } from '@/store/useUIStore';
 import { EVENT_COLORS } from '@/lib/meta';
 import { addDays, diffDays, humanDate, minutesToTime, timeToMinutes } from '@/lib/date';
-import { haptic } from '@/lib/telegram';
+import { haptic, openExternal } from '@/lib/telegram';
+import { joinLink } from '@/lib/meetingNote';
 
 export type EventDraft = Omit<CalendarEvent, 'id' | 'createdAt'> & {
   id?: string;
@@ -177,12 +178,18 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
 
         <textarea
           disabled={Boolean(form.device?.readOnly)}
-          rows={form.device && form.note ? 5 : 2}
+          rows={form.device && form.note ? 4 : 2}
           className={`${fieldClass} resize-none`}
           placeholder="Заметка"
           value={form.note ?? ''}
           onChange={(e) => set('note', e.target.value || undefined)}
         />
+
+        {form.device && joinLink(form.note) && (
+          <button type="button" onClick={() => openExternal(joinLink(form.note)!)} className="h-[44px] rounded-[14px] bg-surface text-[17px] text-blue transition-colors active:bg-surface-2">
+            Подключиться
+          </button>
+        )}
 
         {form.device && (
           <p className="px-1 text-[13px] leading-snug text-muted">

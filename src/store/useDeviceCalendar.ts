@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { isNative, postNative } from '@/lib/native';
 import { storage, uid } from '@/lib/storage';
+import { cleanMeetingNote } from '@/lib/meetingNote';
 import { usePlannerStore, type DeviceItem } from './usePlannerStore';
 import { useUIStore } from './useUIStore';
 
@@ -33,6 +34,12 @@ export const useDeviceCalendar = create<DeviceCalendarState>()(
     storage,
   }),
 );
+
+/** The description comes down to the point of the meeting and the link to join. */
+function prepare({ url, ...item }: DeviceItem & { url?: string }): DeviceItem {
+  const note = cleanMeetingNote(item.note, [url, item.device?.location]);
+  return { ...item, note, device: { ...item.device!, noteCut: item.device?.noteCut || (item.note ?? '').trim() !== (note ?? '') } };
+}
 
 /** After switching a calendar on, meetings removed by switching it off come back. */
 let revive = false;
@@ -65,7 +72,7 @@ export function installDeviceCalendar() {
     if (!on) return;
     if (!e.granted) return useDeviceCalendar.setState({ denied: true, calendars: [] });
     useDeviceCalendar.setState({ denied: false, calendars: e.calendars });
-    const { ops, reverted, waiting } = usePlannerStore.getState().reconcileDevice(e.events as DeviceItem[], owner, revive);
+    const { ops, reverted, waiting } = usePlannerStore.getState().reconcileDevice((e.events as DeviceItem[]).map(prepare), owner, revive);
     revive = false;
     if (reverted) useUIStore.getState().showToast('Эту встречу изменить нельзя: её может менять только организатор');
     if (ops.length) ask(false, ops);

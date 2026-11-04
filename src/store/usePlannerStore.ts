@@ -125,8 +125,16 @@ export const usePlannerStore = create<PlannerState>()(
             const there = deviceSig(item, cut);
             const here = deviceSig(e, cut);
             const last = e.device.sig;
-            const device = { ...item.device!, owner: e.device.owner, sig: there };
-            if (there === here) {
+            const device = { ...item.device!, owner: e.device.owner, sig: there, noteSeen: item.note ?? '' };
+            // Brought in before descriptions were cleaned: the calendar's version replaces it, nothing goes back.
+            const legacy = e.device.noteSeen === undefined;
+            if (there === here && !legacy) {
+              // A digest stays out of the comparison: only a new description in the calendar replaces it.
+              if (cut && e.device.noteSeen !== device.noteSeen) {
+                events.push({ ...e, note: item.note, device, updatedAt: stamp });
+                changed = true;
+                continue;
+              }
               // In step. Only the bookkeeping may be behind (no new stamp: nothing the user sees changed).
               const same = (['calendar', 'location', 'allDay', 'readOnly', 'noteCut', 'sig'] as const).every((k) => e.device![k] === device[k]);
               if (same) events.push(e);
@@ -137,7 +145,7 @@ export const usePlannerStore = create<PlannerState>()(
               pushed.delete(e.id);
               continue;
             }
-            const editedHere = here !== last;
+            const editedHere = here !== last && !legacy;
             const newerHere = there === last || e.updatedAt! > item.modified!;
             // A write that didn't take (declined, or the server reformatted it) isn't retried forever.
             if (editedHere && newerHere && !item.device!.readOnly && pushed.get(e.id) !== here) {
@@ -168,7 +176,7 @@ export const usePlannerStore = create<PlannerState>()(
           delete deleted[item.id];
           const { ref: _ref, modified: _modified, ...data } = item;
           const cut = item.device!.noteCut;
-          events.push({ ...data, createdAt: stamp, updatedAt: stamp, device: { ...item.device!, owner, sig: deviceSig(item, cut) } });
+          events.push({ ...data, createdAt: stamp, updatedAt: stamp, device: { ...item.device!, owner, sig: deviceSig(item, cut), noteSeen: item.note ?? '' } });
           changed = true;
         }
         if (changed) set({ events, deleted });

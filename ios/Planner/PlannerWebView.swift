@@ -347,9 +347,11 @@ extension Bridge {
             "ref": ["eid": ev.eventIdentifier ?? "", "at": ev.startDate.timeIntervalSince1970],
             "modified": (ev.lastModifiedDate ?? .distantPast).timeIntervalSince1970 * 1000,
           ]
-          var device: [String: Any] = ["calendar": ev.calendar.title, "allDay": ev.isAllDay, "readOnly": readOnly, "noteCut": (ev.notes?.count ?? 0) > 1000]
+          var device: [String: Any] = ["calendar": ev.calendar.title, "allDay": ev.isAllDay, "readOnly": readOnly, "noteCut": (ev.notes?.count ?? 0) > 20000]
           if let place = ev.location, !place.isEmpty { device["location"] = place }
-          if let notes = ev.notes, !notes.isEmpty { item["note"] = String(notes.prefix(1000)) }
+          // whole: the page cuts it down, and the link to join is often at the very end
+          if let notes = ev.notes, !notes.isEmpty { item["note"] = String(notes.prefix(20000)) }
+          if let url = ev.url { item["url"] = url.absoluteString }
           item["device"] = device
           events.append(item)
           d = next
