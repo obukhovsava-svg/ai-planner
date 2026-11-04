@@ -261,8 +261,8 @@ extension WKWebView {
 
 // MARK: - Meetings from the device's calendars
 
-/// Outlook, iCloud, Google… whatever is connected to the device. Read-only, and it stays on the
-/// device: the page shows it next to the planner's events and never sends it to the server.
+/// Outlook, iCloud, Google… whatever is connected to the device. Read-only: the page turns the
+/// meetings into planner events (a month back, three ahead, or the synced document grows too big).
 private let eventStore = EKEventStore()
 private var watchingCalendars = false
 
@@ -290,21 +290,21 @@ extension Bridge {
     var events: [[String: Any]] = []
     let cal = Calendar.current
     let today = cal.startOfDay(for: Date())
-    if !shown.isEmpty, let from = cal.date(byAdding: .month, value: -2, to: today), let to = cal.date(byAdding: .month, value: 12, to: today) {
+    if !shown.isEmpty, let from = cal.date(byAdding: .month, value: -1, to: today), let to = cal.date(byAdding: .month, value: 3, to: today) {
       let day = DateFormatter(), time = DateFormatter()
       day.locale = Locale(identifier: "en_US_POSIX")
       time.locale = day.locale
       day.dateFormat = "yyyy-MM-dd"
       time.dateFormat = "HH:mm"
-      for ev in eventStore.events(matching: eventStore.predicateForEvents(withStart: from, end: to, calendars: shown)) {
+      for ev in eventStore.events(matching: eventStore.predicateForEvents(withStart: from, end: to, calendars: shown)).sorted(by: { $0.startDate < $1.startDate }) {
         if ev.status == .canceled || ev.attendees?.first(where: \.isCurrentUser)?.participantStatus == .declined { continue }
         // A meeting over several days becomes one piece per day.
         var d = cal.startOfDay(for: ev.startDate)
-        while d < ev.endDate || d == cal.startOfDay(for: ev.startDate), events.count < 3000 {
+        while d < ev.endDate || d == cal.startOfDay(for: ev.startDate), events.count < 400 {
           guard let next = cal.date(byAdding: .day, value: 1, to: d) else { break }
           let key = day.string(from: d)
           var item: [String: Any] = [
-            "id": "device:\(ev.eventIdentifier ?? UUID().uuidString):\(ev.startDate.timeIntervalSince1970):\(key)",
+            "id": "device:\(ev.calendarItemExternalIdentifier ?? ev.eventIdentifier ?? UUID().uuidString):\(ev.startDate.timeIntervalSince1970):\(key)",
             "title": ev.title?.isEmpty == false ? ev.title! : "Без названия",
             "date": key,
             "start": ev.startDate > d ? time.string(from: ev.startDate) : "00:00",
@@ -314,7 +314,7 @@ extension Bridge {
           ]
           var device: [String: Any] = ["calendar": ev.calendar.title, "allDay": ev.isAllDay]
           if let place = ev.location, !place.isEmpty { device["location"] = place }
-          if let notes = ev.notes, !notes.isEmpty { item["note"] = String(notes.prefix(500)) }
+          if let notes = ev.notes, !notes.isEmpty { item["note"] = String(notes.prefix(1000)) }
           item["device"] = device
           events.append(item)
           d = next

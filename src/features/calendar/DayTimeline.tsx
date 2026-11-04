@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, Check, Repeat } from 'lucide-react';
 import type { CalendarEvent, DateKey } from '@/types';
-import { useAllEvents, usePlannerStore } from '@/store/usePlannerStore';
+import { usePlannerStore } from '@/store/usePlannerStore';
 import { addDays, longDate, minutesToTime, nowMinutes, timeToMinutes, todayKey } from '@/lib/date';
 import { EVENT_COLORS } from '@/lib/meta';
 import { occursOn } from '@/lib/recurrence';
@@ -50,7 +50,7 @@ function layoutEvents(events: CalendarEvent[]) {
 
 export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelineProps) {
   const scroller = useRef<HTMLDivElement>(null);
-  const allEvents = useAllEvents();
+  const allEvents = usePlannerStore((s) => s.events);
   const allTasks = usePlannerStore((s) => s.tasks);
   const toggleTask = usePlannerStore((s) => s.toggleTask);
   const [now, setNow] = useState(nowMinutes);

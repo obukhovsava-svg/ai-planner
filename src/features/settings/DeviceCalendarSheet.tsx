@@ -13,7 +13,7 @@ export function DeviceCalendarSheet({ open, onClose }: { open: boolean; onClose(
           <Switch checked={on && !denied} onChange={(v) => (v ? enableDeviceCalendar() : disableDeviceCalendar())} />
         </div>
         <p className="px-1 text-[13px] leading-snug text-muted">
-          Встречи из Outlook и других календарей, подключённых на этом устройстве, появятся в планере сами. Они остаются только на устройстве и не отправляются на сервер.
+          Встречи из Outlook и других календарей этого устройства сами появятся в планере как обычные события: с описанием в заметке, в виджете и у ассистента. Как и всё в планере, они хранятся на сервере ПЛАН, а ассистент может передавать их нейросетям для ответа. Изменения идут в одну сторону: из календаря в планер.
         </p>
         {on && denied && (
           <div className="flex flex-col gap-2 px-1">

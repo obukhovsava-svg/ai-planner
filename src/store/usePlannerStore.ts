@@ -3,7 +3,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { CalendarEvent, DateKey, Task } from '@/types';
 import { STORAGE_KEYS, storage, uid } from '@/lib/storage';
-import { useDeviceCalendar } from './useDeviceCalendar';
 import { occurrencesBetween } from '@/lib/recurrence';
 import type { PlannerDoc } from '@/lib/merge';
 
@@ -29,6 +28,8 @@ interface PlannerState {
 
   /** Replace everything with the merged server copy (sync). */
   replaceAll(doc: PlannerDoc): void;
+  /** Brings the device calendar's meetings in; `revive` also returns ones deleted before. */
+  reconcileDevice(items: CalendarEvent[], owner: string, revive: boolean): void;
 }
 
 const now = () => Date.now();
@@ -90,6 +91,39 @@ export const usePlannerStore = create<PlannerState>()(
       replaceAll(doc) {
         set({ tasks: doc.tasks, events: doc.events, deleted: doc.deleted });
       },
+      reconcileDevice(items, owner, revive) {
+        // Nothing is written unless the calendar really changed: every write here goes to the server.
+        const signed = new Map(items.map((i) => [i.id, { ...i, device: { ...i.device!, owner, sig: JSON.stringify([i.title, i.date, i.start, i.end, i.note, i.device?.location, i.device?.allDay]) } }]));
+        set((s) => {
+          const stamp = now();
+          const deleted = { ...s.deleted };
+          const events: CalendarEvent[] = [];
+          let changed = false;
+          for (const e of s.events) {
+            const fresh = e.device && signed.get(e.id);
+            if (!e.device) events.push(e);
+            else if (fresh) {
+              signed.delete(e.id);
+              if (fresh.device.sig === e.device.sig) events.push(e);
+              else {
+                // the calendar changed: its fields win, the colour and reminder set here stay
+                events.push({ ...fresh, color: e.color, remind: e.remind, createdAt: e.createdAt, updatedAt: stamp, device: { ...fresh.device, owner: e.device.owner } });
+                changed = true;
+              }
+            } else if (e.device.owner === owner) {
+              deleted[e.id] = stamp;
+              changed = true;
+            } else events.push(e);
+          }
+          for (const fresh of signed.values()) {
+            if (deleted[fresh.id] && !revive) continue; // deleted in the planner: stays deleted
+            delete deleted[fresh.id];
+            events.push({ ...fresh, createdAt: stamp, updatedAt: stamp });
+            changed = true;
+          }
+          return changed ? { events, deleted } : s;
+        });
+      },
     }),
     {
       name: STORAGE_KEYS.planner,
@@ -102,16 +136,9 @@ export const usePlannerStore = create<PlannerState>()(
   ),
 );
 
-/** What the calendar shows: the planner's events and the meetings from the device's calendars. */
-export function useAllEvents(): CalendarEvent[] {
-  const own = usePlannerStore((s) => s.events);
-  const device = useDeviceCalendar((s) => s.events);
-  return useMemo(() => (device.length ? [...own, ...device] : own), [own, device]);
-}
-
 /** Dates in [from, to] with at least one event (repeats expanded) or open task — drives calendar dots. */
 export function useBusyDates(from: DateKey, to: DateKey): { events: Set<DateKey>; tasks: Set<DateKey> } {
-  const events = useAllEvents();
+  const events = usePlannerStore((s) => s.events);
   const tasks = usePlannerStore((s) => s.tasks);
   return useMemo(
     () => ({

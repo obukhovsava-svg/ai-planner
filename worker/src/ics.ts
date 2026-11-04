@@ -86,6 +86,7 @@ export function buildIcs(doc: PlannerDoc, opts: { today: string; appUrl: string;
   const link = (open: string) => `${opts.appUrl}?open=${encodeURIComponent(open)}`;
 
   for (const e of doc.events) {
+    if (e.device) continue; // came from the phone's calendar: it's already there
     const updated = e.updatedAt ?? e.createdAt;
     const timed = !allDay(e);
     const url = link(`e:${e.id}:${e.date}`);

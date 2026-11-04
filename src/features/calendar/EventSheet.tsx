@@ -173,12 +173,19 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
         </div>
 
         <textarea
-          rows={2}
+          rows={form.device && form.note ? 5 : 2}
           className={`${fieldClass} resize-none`}
           placeholder="Заметка"
           value={form.note ?? ''}
           onChange={(e) => set('note', e.target.value || undefined)}
         />
+
+        {form.device && (
+          <p className="px-1 text-[13px] leading-snug text-muted">
+            {form.device.location && <span className="block">{form.device.location}</span>}
+            Из календаря «{form.device.calendar}». Изменения во встрече там заменят то, что поправлено здесь.
+          </p>
+        )}
 
         {confirmDelete ? (
           <div className="animate-fade-up flex flex-col gap-2 pt-1">
