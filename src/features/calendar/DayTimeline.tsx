@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, Check, Repeat } from 'lucide-react';
 import type { CalendarEvent, DateKey } from '@/types';
-import { usePlannerStore } from '@/store/usePlannerStore';
+import { useAllEvents, usePlannerStore } from '@/store/usePlannerStore';
 import { addDays, longDate, minutesToTime, nowMinutes, timeToMinutes, todayKey } from '@/lib/date';
 import { EVENT_COLORS } from '@/lib/meta';
 import { occursOn } from '@/lib/recurrence';
@@ -50,13 +50,16 @@ function layoutEvents(events: CalendarEvent[]) {
 
 export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelineProps) {
   const scroller = useRef<HTMLDivElement>(null);
-  const allEvents = usePlannerStore((s) => s.events);
+  const allEvents = useAllEvents();
   const allTasks = usePlannerStore((s) => s.tasks);
   const toggleTask = usePlannerStore((s) => s.toggleTask);
   const [now, setNow] = useState(nowMinutes);
   const isToday = date === todayKey();
 
-  const events = useMemo(() => layoutEvents(allEvents.filter((e) => occursOn(e, date))), [allEvents, date]);
+  const dayEvents = useMemo(() => allEvents.filter((e) => occursOn(e, date)), [allEvents, date]);
+  // A meeting for the whole day from the device's calendar goes above the hours, not across them.
+  const allDay = useMemo(() => dayEvents.filter((e) => e.device?.allDay), [dayEvents]);
+  const events = useMemo(() => layoutEvents(dayEvents.filter((e) => !e.device?.allDay)), [dayEvents]);
   const dayTasks = useMemo(() => allTasks.filter((t) => t.date === date), [allTasks, date]);
 
   useEffect(() => {
@@ -83,10 +86,28 @@ export function DayTimeline({ date, onDateChange, onCreate, onOpen }: DayTimelin
         <div className="flex items-baseline justify-between px-4 pb-2 pt-3">
           <h2 key={date} className="animate-fade-in text-[17px] font-semibold">{longDate(date)}</h2>
           <span className="text-[13px] text-muted">
-          {events.length ? `${events.length} событ${events.length === 1 ? 'ие' : events.length < 5 ? 'ия' : 'ий'}` : 'Свободный день'}
+          {dayEvents.length ? `${dayEvents.length} событ${dayEvents.length === 1 ? 'ие' : dayEvents.length < 5 ? 'ия' : 'ий'}` : 'Свободный день'}
           </span>
         </div>
       </div>
+
+      {allDay.length > 0 && (
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-2">
+          {allDay.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              onClick={() => {
+                haptic.impact('light');
+                onOpen(e);
+              }}
+              className={`max-w-[80%] shrink-0 truncate rounded-[6px] px-2.5 py-1 text-[13px] font-semibold active:opacity-60 ${EVENT_COLORS[e.color].bg} ${EVENT_COLORS[e.color].text}`}
+            >
+              {e.title}
+            </button>
+          ))}
+        </div>
+      )}
 
       {dayTasks.length > 0 && (
         <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3">

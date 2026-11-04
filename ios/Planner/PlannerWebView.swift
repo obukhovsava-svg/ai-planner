@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import PhotosUI
+import EventKit
 import WebKit
 
 /// The connection between the interface and iOS: messages from the page
@@ -60,6 +61,8 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
         if let last = defaults?.string(forKey: "icon"), last != icon { setAppIcon(accent: accent, dark: tone == "dark") }
         defaults?.set(icon, forKey: "icon")
       }
+    case "calendar":
+      readCalendars(prompt: body["prompt"] as? Bool ?? false, hidden: Set(body["hidden"] as? [String] ?? []))
     case "aiConsent":
       WidgetStore.saveAiConsent(body["on"] as? Bool ?? false)
     case "theme":
@@ -147,6 +150,14 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
     loaded = false
     webView.reload()
+  }
+
+  fileprivate func sendCalendars(_ json: String) {
+    call("window.__plannerCalendar && window.__plannerCalendar(\(json))")
+  }
+
+  fileprivate func calendarsChanged() {
+    call("window.__plannerCalendarChanged && window.__plannerCalendarChanged()")
   }
 
   private func call(_ js: String) {
@@ -244,6 +255,77 @@ extension WKWebView {
       subclass = made
     }
     if let subclass { object_setClass(content, subclass) }
+  }
+}
+
+
+// MARK: - Meetings from the device's calendars
+
+/// Outlook, iCloud, Google… whatever is connected to the device. Read-only, and it stays on the
+/// device: the page shows it next to the planner's events and never sends it to the server.
+private let eventStore = EKEventStore()
+private var watchingCalendars = false
+
+extension Bridge {
+  func readCalendars(prompt: Bool, hidden: Set<String>) {
+    Task { @MainActor in
+      var granted = EKEventStore.authorizationStatus(for: .event) == .fullAccess
+      if !granted && prompt { granted = (try? await eventStore.requestFullAccessToEvents()) ?? false }
+      if granted && !watchingCalendars {
+        watchingCalendars = true
+        NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: eventStore, queue: .main) { [weak self] _ in
+          MainActor.assumeIsolated { self?.calendarsChanged() }
+        }
+      }
+      let payload = granted ? await Task.detached { Self.calendarPayload(hidden: hidden) }.value : ["granted": false, "calendars": [], "events": []]
+      guard let data = try? JSONSerialization.data(withJSONObject: payload), let json = String(data: data, encoding: .utf8) else { return }
+      sendCalendars(json)
+    }
+  }
+
+  private nonisolated static func calendarPayload(hidden: Set<String>) -> [String: Any] {
+    // Not the planner's own subscription (its events are already here) and not birthdays.
+    let calendars = eventStore.calendars(for: .event).filter { $0.type != .birthday && !($0.type == .subscription && $0.title == "Планер") }
+    let shown = calendars.filter { !hidden.contains($0.calendarIdentifier) }
+    var events: [[String: Any]] = []
+    let cal = Calendar.current
+    let today = cal.startOfDay(for: Date())
+    if !shown.isEmpty, let from = cal.date(byAdding: .month, value: -2, to: today), let to = cal.date(byAdding: .month, value: 12, to: today) {
+      let day = DateFormatter(), time = DateFormatter()
+      day.locale = Locale(identifier: "en_US_POSIX")
+      time.locale = day.locale
+      day.dateFormat = "yyyy-MM-dd"
+      time.dateFormat = "HH:mm"
+      for ev in eventStore.events(matching: eventStore.predicateForEvents(withStart: from, end: to, calendars: shown)) {
+        if ev.status == .canceled || ev.attendees?.first(where: \.isCurrentUser)?.participantStatus == .declined { continue }
+        // A meeting over several days becomes one piece per day.
+        var d = cal.startOfDay(for: ev.startDate)
+        while d < ev.endDate || d == cal.startOfDay(for: ev.startDate), events.count < 3000 {
+          guard let next = cal.date(byAdding: .day, value: 1, to: d) else { break }
+          let key = day.string(from: d)
+          var item: [String: Any] = [
+            "id": "device:\(ev.eventIdentifier ?? UUID().uuidString):\(ev.startDate.timeIntervalSince1970):\(key)",
+            "title": ev.title?.isEmpty == false ? ev.title! : "Без названия",
+            "date": key,
+            "start": ev.startDate > d ? time.string(from: ev.startDate) : "00:00",
+            "end": ev.endDate < next ? time.string(from: ev.endDate) : "23:59",
+            "color": "violet",
+            "createdAt": 0,
+          ]
+          var device: [String: Any] = ["calendar": ev.calendar.title, "allDay": ev.isAllDay]
+          if let place = ev.location, !place.isEmpty { device["location"] = place }
+          if let notes = ev.notes, !notes.isEmpty { item["note"] = String(notes.prefix(500)) }
+          item["device"] = device
+          events.append(item)
+          d = next
+        }
+      }
+    }
+    return [
+      "granted": true,
+      "calendars": calendars.map { ["id": $0.calendarIdentifier, "title": $0.title, "source": $0.source?.title ?? ""] },
+      "events": events,
+    ]
   }
 }
 

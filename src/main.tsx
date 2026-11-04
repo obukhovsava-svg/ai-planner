@@ -5,6 +5,7 @@ import { installKeyboardWatcher } from '@/lib/keyboard';
 import { handleDeepLink } from '@/lib/deeplink';
 import { installFastTap } from '@/lib/fastTap';
 import { ThemeProvider } from '@/providers/ThemeProvider';
+import { installDeviceCalendar } from '@/store/useDeviceCalendar';
 import App from './App';
 import './index.css';
 
@@ -12,6 +13,7 @@ initTelegram();
 installKeyboardWatcher();
 installFastTap();
 handleDeepLink();
+installDeviceCalendar();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -6,6 +6,7 @@
  */
 import { useEffect } from 'react';
 import { usePlannerStore } from '@/store/usePlannerStore';
+import { useDeviceCalendar } from '@/store/useDeviceCalendar';
 import { reminderInstances } from './reminderCore';
 import { addDays, todayKey } from './date';
 import { occursOn } from './recurrence';
@@ -27,7 +28,8 @@ function push() {
 
 /** The next 7 days for the home-screen widget: events in time order, then that day's tasks. */
 function widgetSnapshot(): WidgetSnapshot {
-  const { events, tasks } = usePlannerStore.getState();
+  const { events: own, tasks } = usePlannerStore.getState();
+  const events = [...own, ...useDeviceCalendar.getState().events];
   const today = todayKey();
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(today, i);
@@ -59,10 +61,12 @@ export function useNativeReminders() {
   useEffect(() => {
     if (!isNative()) return;
     push();
-    const unsub = usePlannerStore.subscribe(() => {
+    const later = () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(push, 800);
-    });
+    };
+    const unsub = usePlannerStore.subscribe(later);
+    const unsubDevice = useDeviceCalendar.subscribe(later);
     // Recurring items roll forward: refresh when the app comes back to the foreground.
     // Coming back: recurring items roll forward. Leaving: send what's pending right away.
     const onVisible = () => {
@@ -72,6 +76,7 @@ export function useNativeReminders() {
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       unsub();
+      unsubDevice();
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);

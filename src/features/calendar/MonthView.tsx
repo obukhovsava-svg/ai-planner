@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import type { CalendarEvent, DateKey, Task } from '@/types';
-import { usePlannerStore } from '@/store/usePlannerStore';
+import { useAllEvents, usePlannerStore } from '@/store/usePlannerStore';
 import { addDays, addMonths, fromKey, monthGrid, monthRows, weekdayMon } from '@/lib/date';
 import { occurrencesBetween } from '@/lib/recurrence';
 import { EVENT_COLORS } from '@/lib/meta';
@@ -38,7 +38,7 @@ interface MonthViewProps {
  * each day a square cell with a mini schedule (coloured event chips, then tasks).
  */
 export function MonthView({ initial, todaySignal, onVisibleMonth, onOpenDay }: MonthViewProps) {
-  const events = usePlannerStore((s) => s.events);
+  const events = useAllEvents();
   const tasks = usePlannerStore((s) => s.tasks);
   const scroller = useRef<HTMLDivElement>(null);
   const today = useToday();

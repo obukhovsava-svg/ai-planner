@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { CalendarEvent, DateKey, Task } from '@/types';
 import { STORAGE_KEYS, storage, uid } from '@/lib/storage';
+import { useDeviceCalendar } from './useDeviceCalendar';
 import { occurrencesBetween } from '@/lib/recurrence';
 import type { PlannerDoc } from '@/lib/merge';
 
@@ -101,9 +102,16 @@ export const usePlannerStore = create<PlannerState>()(
   ),
 );
 
+/** What the calendar shows: the planner's events and the meetings from the device's calendars. */
+export function useAllEvents(): CalendarEvent[] {
+  const own = usePlannerStore((s) => s.events);
+  const device = useDeviceCalendar((s) => s.events);
+  return useMemo(() => (device.length ? [...own, ...device] : own), [own, device]);
+}
+
 /** Dates in [from, to] with at least one event (repeats expanded) or open task — drives calendar dots. */
 export function useBusyDates(from: DateKey, to: DateKey): { events: Set<DateKey>; tasks: Set<DateKey> } {
-  const events = usePlannerStore((s) => s.events);
+  const events = useAllEvents();
   const tasks = usePlannerStore((s) => s.tasks);
   return useMemo(
     () => ({

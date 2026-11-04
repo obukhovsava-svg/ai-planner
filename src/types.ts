@@ -71,6 +71,8 @@ export interface CalendarEvent {
   createdAt: number;
   /** Last change (ms) — newer wins when syncing. */
   updatedAt?: number;
+  /** From the device's calendar (Outlook…): read-only, never stored in the planner or synced. */
+  device?: { calendar: string; location?: string; allDay?: boolean };
 }
 
 export type EventColor = 'blue' | 'red' | 'violet' | 'green' | 'amber';

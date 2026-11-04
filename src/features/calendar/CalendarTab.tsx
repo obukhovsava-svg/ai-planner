@@ -7,6 +7,8 @@ import { monthTitle, todayKey } from '@/lib/date';
 import { MonthView } from './MonthView';
 import { DayView } from './DayView';
 import { EventSheet, type EventDraft } from './EventSheet';
+import { DeviceEventSheet } from './DeviceEventSheet';
+import type { CalendarEvent } from '@/types';
 import { useToday } from '@/hooks/useToday';
 
 const POP_MS = 450;
@@ -21,6 +23,7 @@ export function CalendarTab() {
   const [visibleMonth, setVisibleMonth] = useState<DateKey>(selected);
   const [todaySignal, setTodaySignal] = useState(0);
   const [draft, setDraft] = useState<EventDraft | null>(null);
+  const [meeting, setMeeting] = useState<CalendarEvent | null>(null);
 
   // Keep the day screen mounted until its pop animation has finished.
   useEffect(() => {
@@ -75,9 +78,10 @@ export function CalendarTab() {
         <MonthView initial={selected} todaySignal={todaySignal + calendarHome} onVisibleMonth={setVisibleMonth} onOpenDay={openDay} />
       </div>
 
-      {dayMounted && <DayView open={dayOpen} onBack={closeDay} onCreate={create} onOpenEvent={(e, day) => setDraft(e.repeat ? { ...e, date: day, occurrence: day, seriesDate: e.date } : e)} />}
+      {dayMounted && <DayView open={dayOpen} onBack={closeDay} onCreate={create} onOpenEvent={(e, day) => (e.device ? setMeeting(e) : setDraft(e.repeat ? { ...e, date: day, occurrence: day, seriesDate: e.date } : e))} />}
 
       <EventSheet draft={draft} onClose={() => setDraft(null)} />
+      <DeviceEventSheet event={meeting} onClose={() => setMeeting(null)} />
     </div>
   );
 }

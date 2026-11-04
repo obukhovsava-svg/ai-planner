@@ -25,6 +25,8 @@ type NativeMessage =
   | { type: 'widget'; snapshot: WidgetSnapshot }
   /** Consent to AI processing, for Siri / Shortcuts «Добавить в ПЛАН» (they run without the page). */
   | { type: 'aiConsent'; on: boolean }
+  /** Read the device's calendars (`prompt`: may ask for access); answers via __plannerCalendar. */
+  | { type: 'calendar'; prompt: boolean; hidden: string[] }
   /** The accent colour, so the widgets match the app. */
   | { type: 'accent'; accent: string; tone: 'pastel' | 'dark' };
 
@@ -52,6 +54,10 @@ declare global {
     __plannerOpen?: (target: string) => void;
     /** Called by the app with the wallpaper state (after pick / reset / state). */
     __plannerWallpaper?: (e: { hasPhoto: boolean; preview?: string }) => void;
+    /** Called by the app with the device's calendars and their meetings. */
+    __plannerCalendar?: (e: { granted: boolean; calendars: { id: string; title: string; source: string }[]; events: unknown[] }) => void;
+    /** Called by the app when something changed in the device's calendars. */
+    __plannerCalendarChanged?: () => void;
     /** Called by the app with speech-recognition updates. */
     __plannerSpeech?: (e: NativeSpeechEvent) => void;
   }

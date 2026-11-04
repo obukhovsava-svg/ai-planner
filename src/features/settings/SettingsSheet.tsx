@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { TimeField } from '@/components/TimeField';
-import { ArrowLeftRight, CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, PaintBucket, Palette, Shield, Smartphone, Sparkles, Sun, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, CalendarDays, CheckCheck, ChevronRight, Clock, ImagePlus, LayoutGrid, MessageCircle, Moon, PaintBucket, Palette, Shield, Smartphone, Sparkles, Sun, Trash2 } from 'lucide-react';
 import { ACCENTS } from '@/lib/accent';
 import { Sheet } from '@/components/Sheet';
 import { Switch } from '@/components/Switch';
@@ -13,6 +13,7 @@ import { isNative } from '@/lib/native';
 import { TelegramWallpaperSettings, WallpaperSettings } from './WallpaperSettings';
 import { AI_DISCLOSURE, DeleteDataSheet, PRIVACY_URL } from './Privacy';
 import { TransferCodeSheet, TransferImportSheet } from './Transfer';
+import { DeviceCalendarSheet } from './DeviceCalendarSheet';
 import { WALLPAPER_IN_TELEGRAM } from '@/lib/wallpaper';
 import { useAiConsent } from '@/lib/aiConsent';
 import { hasServerAuth } from '@/lib/auth';
@@ -64,6 +65,7 @@ export function SettingsSheet() {
   const setAiConsent = useAiConsent((st) => st.set);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const open = useUIStore((s) => s.settingsOpen);
   const setOpen = useUIStore((s) => s.setSettingsOpen);
   const setShortcutOpen = useUIStore((s) => s.setShortcutOpen);
@@ -204,6 +206,11 @@ export function SettingsSheet() {
           </Group>
 
           <Group title="Ещё">
+            {isNative() && (
+              <Row icon={<CalendarDays className="size-[18px]" />} iconBg="bg-red" label="Встречи из календаря" onClick={() => setCalendarOpen(true)}>
+                <ChevronRight className="size-5 text-faint" />
+              </Row>
+            )}
             <Row
               icon={<Smartphone className="size-[18px]" />}
               iconBg="bg-blue"
@@ -351,6 +358,7 @@ export function SettingsSheet() {
         </div>
       </Sheet>
       <DeleteDataSheet open={deleteOpen} onClose={() => setDeleteOpen(false)} />
+      {isNative() && <DeviceCalendarSheet open={calendarOpen} onClose={() => setCalendarOpen(false)} />}
       {isNative() ? <TransferImportSheet open={transferOpen} onClose={() => setTransferOpen(false)} /> : <TransferCodeSheet open={transferOpen} onClose={() => setTransferOpen(false)} />}
       {wallpaperAvailable && (
         <Sheet
