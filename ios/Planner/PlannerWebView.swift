@@ -405,7 +405,7 @@ extension Bridge: PHPickerViewControllerDelegate {
 
 
 /// The home-screen icon in the widget's colours: the accent, pastel or dark (Настройки → Фон
-/// виджета). Pastel blue (the default theme) is the main icon, the rest are alternates «AppIcon-<accent>[-dark]».
+/// виджета). The main icon is light blue («Голубой»), and every colour is an alternate «AppIcon-<accent>[-dark]».
 /// iOS shows its own "icon changed" note — so this runs only on a real change.
 @MainActor
 func setAppIcon(accent: String, dark: Bool) {
@@ -413,7 +413,7 @@ func setAppIcon(accent: String, dark: Bool) {
   guard app.supportsAlternateIcons else { return }
   let known = ["blue", "sage", "lime", "mist", "pink", "red", "yellow", "milk"]
   guard known.contains(accent) else { return }
-  let wanted: String? = accent == "blue" && !dark ? nil : "AppIcon-\(accent)\(dark ? "-dark" : "")"
+  let wanted = "AppIcon-\(accent)\(dark ? "-dark" : "")"
   guard app.alternateIconName != wanted else { return }
   app.setAlternateIconName(wanted) { error in
     if let error { print("app icon:", error.localizedDescription) }
