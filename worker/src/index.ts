@@ -1082,13 +1082,13 @@ const randomToken = () => hex(crypto.getRandomValues(new Uint8Array(24)).buffer)
 
 const MAX_DOC = 900_000;
 
-async function loadDoc(env: Env, user: string): Promise<{ doc: PlannerDoc; tz: number | null }> {
-  const { results } = await env.DB.prepare('SELECT doc, tz FROM state WHERE user_id = ?1').bind(user).all<{ doc: string; tz: number | null }>();
+async function loadDoc(env: Env, user: string): Promise<{ doc: PlannerDoc; tz: number | null; version?: number | null }> {
+  const { results } = await env.DB.prepare('SELECT doc, tz, updated_at FROM state WHERE user_id = ?1').bind(user).all<{ doc: string; tz: number | null; updated_at: number | null }>();
   if (!results[0]) return { doc: emptyDoc(), tz: null };
   try {
-    return { doc: JSON.parse(results[0].doc) as PlannerDoc, tz: results[0].tz };
+    return { doc: JSON.parse(results[0].doc) as PlannerDoc, tz: results[0].tz, version: results[0].updated_at };
   } catch {
-    return { doc: emptyDoc(), tz: results[0].tz };
+    return { doc: emptyDoc(), tz: results[0].tz, version: results[0].updated_at };
   }
 }
 
@@ -1098,6 +1098,28 @@ async function saveDoc(env: Env, user: string, doc: PlannerDoc, tz: number) {
   )
     .bind(user, JSON.stringify(doc), tz, Date.now())
     .run();
+  await afterSave(env, user, doc, tz);
+}
+
+/**
+ * Saves only if nobody else saved since `version` (the row's updated_at when it was read; undefined =
+ * no row yet). Two devices syncing at the same moment would otherwise overwrite each other, and a
+ * deleted item came back for a while. False → read and merge again.
+ */
+async function saveDocIf(env: Env, user: string, doc: PlannerDoc, tz: number, version: number | null | undefined): Promise<boolean> {
+  const body = JSON.stringify(doc);
+  const res =
+    version === undefined
+      ? await env.DB.prepare('INSERT INTO state (user_id, doc, tz, updated_at) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id) DO NOTHING').bind(user, body, tz, Date.now()).run()
+      : await env.DB.prepare('UPDATE state SET doc = ?2, tz = ?3, updated_at = ?4 WHERE user_id = ?1 AND updated_at IS ?5')
+          .bind(user, body, tz, Math.max(Date.now(), (version ?? 0) + 1), version)
+          .run();
+  if (!res.meta.changes) return false;
+  await afterSave(env, user, doc, tz);
+  return true;
+}
+
+async function afterSave(env: Env, user: string, doc: PlannerDoc, tz: number) {
   await scheduleReminders(env, user, doc, tz);
   // a Telegram user who only ever wrote to the bot still gets the summaries (no write if known)
   if (!isDeviceUser(user)) {
@@ -1396,11 +1418,16 @@ export default {
         incoming.tasks = incoming.tasks.filter((t) => t.createdAt >= wipedAt);
         incoming.events = incoming.events.filter((e) => e.createdAt >= wipedAt);
       }
-      const stored = await loadDoc(env, user);
+      let stored = await loadDoc(env, user);
       const tz = Number.isFinite(body?.tz) ? Math.round(body!.tz!) : (stored.tz ?? 0);
-      const merged = mergeDocs(stored.doc, incoming);
+      let merged = mergeDocs(stored.doc, incoming);
       if (JSON.stringify(merged).length > MAX_DOC) return json({ error: 'too_large' }, 413, headers);
-      await saveDoc(env, user, merged, tz);
+      // Another device saved in between → merge with what it wrote (it retries on the next tick if this keeps failing).
+      for (let attempt = 0; !(await saveDocIf(env, user, merged, tz, stored.version)); attempt++) {
+        if (attempt === 2) return json({ error: 'busy' }, 409, headers);
+        stored = await loadDoc(env, user);
+        merged = mergeDocs(stored.doc, incoming);
+      }
       await env.DB.prepare('UPDATE users SET tz = ?2 WHERE user_id = ?1').bind(user, tz).run();
       // a new Telegram user or a new timezone: the summary time is worked out again
       if (!isDeviceUser(user) && (stored.tz === null || stored.tz !== tz)) ctx.waitUntil(recheckDigest(env, user).catch(() => null));

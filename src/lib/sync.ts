@@ -15,6 +15,8 @@ let inFlight = false;
 let again = false;
 let applying = false;
 let lastSynced = '';
+/** A stalled request (throttled network, VPN) gives up, or nothing newer could be sent meanwhile. */
+const SYNC_TIMEOUT = 20_000;
 
 const localDoc = (): PlannerDoc => {
   const { tasks, events, deleted } = usePlannerStore.getState();
@@ -28,6 +30,8 @@ export async function syncNow(leaving = false) {
     return;
   }
   inFlight = true;
+  const abort = new AbortController();
+  const limit = window.setTimeout(() => abort.abort(), SYNC_TIMEOUT);
   try {
     const doc = localDoc();
     const res = await fetch(`${AI_URL.replace(/\/$/, '')}/state/sync`, {
@@ -36,6 +40,7 @@ export async function syncNow(leaving = false) {
       body: JSON.stringify({ doc, tz: new Date().getTimezoneOffset() }),
       // leaving the app: let the request finish even if the page gets suspended
       keepalive: leaving,
+      signal: abort.signal,
     });
     if (!res.ok) return;
     const merged = (await res.json()).doc as PlannerDoc;
@@ -50,6 +55,7 @@ export async function syncNow(leaving = false) {
   } catch {
     /* offline — retried on the next change / tick */
   } finally {
+    window.clearTimeout(limit);
     inFlight = false;
     if (again) {
       again = false;
