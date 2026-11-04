@@ -2,6 +2,7 @@ import { Check } from 'lucide-react';
 import { Sheet } from '@/components/Sheet';
 import { disableDeviceCalendar, enableDeviceCalendar, toggleDeviceCalendar, useDeviceCalendar } from '@/store/useDeviceCalendar';
 import { postNative } from '@/lib/native';
+import { usePlannerStore } from '@/store/usePlannerStore';
 import { haptic } from '@/lib/telegram';
 
 function CheckRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange(v: boolean): void }) {
@@ -26,12 +27,14 @@ function CheckRow({ label, hint, checked, onChange }: { label: string; hint?: st
 }
 
 export function DeviceCalendarSheet({ open, onClose }: { open: boolean; onClose(): void }) {
-  const { on, denied, calendars, hidden } = useDeviceCalendar();
+  const { on, denied, calendars, hidden, owner } = useDeviceCalendar();
+  // Meetings another device brought in reach this one through the account, tick or no tick.
+  const elsewhere = usePlannerStore((s) => !on && s.events.some((e) => e.device && e.device.owner !== owner));
   return (
     <Sheet open={open} title="Интеграция" onClose={onClose}>
       <div className="flex flex-col gap-4 pb-2">
         <div className="overflow-hidden rounded-[14px] bg-surface">
-          <CheckRow label="Календарь" checked={on && !denied} onChange={(v) => (v ? enableDeviceCalendar() : disableDeviceCalendar())} />
+          <CheckRow label="Календарь" hint={elsewhere ? 'Подключён на другом устройстве, встречи уже здесь' : undefined} checked={on && !denied} onChange={(v) => (v ? enableDeviceCalendar() : disableDeviceCalendar())} />
         </div>
         <p className="px-1 text-[13px] leading-snug text-muted">
           События календаря появятся в планере, а изменения будут идти в обе стороны. Как и всё в планере, они хранятся на сервере ПЛАН, а ассистент может передавать их нейросетям для ответа.
