@@ -62,7 +62,7 @@ final class Bridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUI
         defaults?.set(icon, forKey: "icon")
       }
     case "calendar":
-      readCalendars(prompt: body["prompt"] as? Bool ?? false, hidden: Set(body["hidden"] as? [String] ?? []))
+      readCalendars(prompt: body["prompt"] as? Bool ?? false, hidden: Set(body["hidden"] as? [String] ?? []), ops: body["ops"] as? [[String: Any]] ?? [])
     case "aiConsent":
       WidgetStore.saveAiConsent(body["on"] as? Bool ?? false)
     case "theme":
@@ -261,13 +261,14 @@ extension WKWebView {
 
 // MARK: - Meetings from the device's calendars
 
-/// Outlook, iCloud, Google… whatever is connected to the device. Read-only: the page turns the
-/// meetings into planner events (a month back, three ahead, or the synced document grows too big).
+/// Outlook, iCloud, Google… whatever is connected to the device. The page turns the meetings into
+/// planner events (a month back, three ahead, or the synced document grows too big) and sends back
+/// what was moved, edited or deleted there.
 private let eventStore = EKEventStore()
 private var watchingCalendars = false
 
 extension Bridge {
-  func readCalendars(prompt: Bool, hidden: Set<String>) {
+  func readCalendars(prompt: Bool, hidden: Set<String>, ops: [[String: Any]] = []) {
     Task { @MainActor in
       var granted = EKEventStore.authorizationStatus(for: .event) == .fullAccess
       if !granted && prompt { granted = (try? await eventStore.requestFullAccessToEvents()) ?? false }
@@ -277,10 +278,36 @@ extension Bridge {
           MainActor.assumeIsolated { self?.calendarsChanged() }
         }
       }
+      if granted && !ops.isEmpty { Self.apply(ops) }
       let payload = granted ? await Task.detached { Self.calendarPayload(hidden: hidden) }.value : ["granted": false, "calendars": [], "events": []]
       guard let data = try? JSONSerialization.data(withJSONObject: payload), let json = String(data: data, encoding: .utf8) else { return }
       sendCalendars(json)
     }
+  }
+
+  /// Moves, edits and deletes from the planner. One occurrence only, never the whole series.
+  private static func apply(_ ops: [[String: Any]]) {
+    let parse = DateFormatter()
+    parse.locale = Locale(identifier: "en_US_POSIX")
+    parse.dateFormat = "yyyy-MM-dd HH:mm"
+    for op in ops {
+      guard let ref = op["ref"] as? [String: Any], let eid = ref["eid"] as? String, let stamp = ref["at"] as? Double else { continue }
+      let at = Date(timeIntervalSince1970: stamp)
+      let near = eventStore.predicateForEvents(withStart: at.addingTimeInterval(-1), end: at.addingTimeInterval(1), calendars: nil)
+      guard let ev = eventStore.events(matching: near).first(where: { $0.eventIdentifier == eid && $0.startDate == at }) else { continue }
+      if op["op"] as? String == "remove" {
+        try? eventStore.remove(ev, span: .thisEvent, commit: false)
+        continue
+      }
+      guard let date = op["date"] as? String, let start = op["start"] as? String, let end = op["end"] as? String,
+            let from = parse.date(from: "\(date) \(start)"), let to = parse.date(from: "\(date) \(end)") else { continue }
+      ev.title = op["title"] as? String ?? ev.title
+      ev.startDate = from
+      ev.endDate = to
+      if let note = op["note"] as? String { ev.notes = note.isEmpty ? nil : note }
+      try? eventStore.save(ev, span: .thisEvent, commit: false)
+    }
+    try? eventStore.commit()
   }
 
   private nonisolated static func calendarPayload(hidden: Set<String>) -> [String: Any] {
@@ -299,20 +326,28 @@ extension Bridge {
       for ev in eventStore.events(matching: eventStore.predicateForEvents(withStart: from, end: to, calendars: shown)).sorted(by: { $0.startDate < $1.startDate }) {
         if ev.status == .canceled || ev.attendees?.first(where: \.isCurrentUser)?.participantStatus == .declined { continue }
         // A meeting over several days becomes one piece per day.
+        // Stays the same when the meeting is moved, so a move isn't a delete and a new meeting.
+        let base = "device:\(ev.calendarItemExternalIdentifier ?? ev.eventIdentifier ?? UUID().uuidString)"
+        let id = ev.hasRecurrenceRules || ev.isDetached ? "\(base):\(ev.occurrenceDate.timeIntervalSince1970)" : base
+        let multiDay = cal.startOfDay(for: ev.startDate) != cal.startOfDay(for: ev.endDate.addingTimeInterval(-1))
+        // Invitations belong to the organizer; whole-day and multi-day ones don't fit the planner's fields.
+        let invited = ev.hasAttendees && ev.organizer?.isCurrentUser != true
+        let readOnly = !ev.calendar.allowsContentModifications || invited || ev.isAllDay || multiDay
         var d = cal.startOfDay(for: ev.startDate)
         while d < ev.endDate || d == cal.startOfDay(for: ev.startDate), events.count < 400 {
           guard let next = cal.date(byAdding: .day, value: 1, to: d) else { break }
           let key = day.string(from: d)
           var item: [String: Any] = [
-            "id": "device:\(ev.calendarItemExternalIdentifier ?? ev.eventIdentifier ?? UUID().uuidString):\(ev.startDate.timeIntervalSince1970):\(key)",
+            "id": id + (multiDay ? ":\(key)" : ""),
             "title": ev.title?.isEmpty == false ? ev.title! : "Без названия",
             "date": key,
             "start": ev.startDate > d ? time.string(from: ev.startDate) : "00:00",
             "end": ev.endDate < next ? time.string(from: ev.endDate) : "23:59",
             "color": "violet",
-            "createdAt": 0,
+            "ref": ["eid": ev.eventIdentifier ?? "", "at": ev.startDate.timeIntervalSince1970],
+            "modified": (ev.lastModifiedDate ?? .distantPast).timeIntervalSince1970 * 1000,
           ]
-          var device: [String: Any] = ["calendar": ev.calendar.title, "allDay": ev.isAllDay]
+          var device: [String: Any] = ["calendar": ev.calendar.title, "allDay": ev.isAllDay, "readOnly": readOnly, "noteCut": (ev.notes?.count ?? 0) > 1000]
           if let place = ev.location, !place.isEmpty { device["location"] = place }
           if let notes = ev.notes, !notes.isEmpty { item["note"] = String(notes.prefix(1000)) }
           item["device"] = device

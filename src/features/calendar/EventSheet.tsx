@@ -102,6 +102,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
           save();
         }}
       >
+        <fieldset disabled={Boolean(form.device?.readOnly)} className="contents">
         <input
           autoFocus={!form.id}
           className={`${fieldClass} font-medium`}
@@ -137,7 +138,9 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
           <p className="-mt-2 px-4 text-[13px] text-muted">Конец раньше начала — сохраню на час позже начала</p>
         )}
 
-        <div className="overflow-hidden rounded-[16px] bg-surface">
+        </fieldset>
+
+        <div className={`overflow-hidden rounded-[16px] bg-surface ${form.device ? 'hidden' : ''}`}>
           <Row icon={<RepeatIcon className="size-[17px]" />} label="Повтор" value={repeatLabel(form.repeat)} onClick={() => setRepeatOpen(true)} />
           {form.repeat && (
             <div className="animate-fade-in border-t-[0.5px] border-line">
@@ -173,6 +176,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
         </div>
 
         <textarea
+          disabled={Boolean(form.device?.readOnly)}
           rows={form.device && form.note ? 5 : 2}
           className={`${fieldClass} resize-none`}
           placeholder="Заметка"
@@ -183,7 +187,8 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
         {form.device && (
           <p className="px-1 text-[13px] leading-snug text-muted">
             {form.device.location && <span className="block">{form.device.location}</span>}
-            Из календаря «{form.device.calendar}». Изменения во встрече там заменят то, что поправлено здесь.
+            Из календаря «{form.device.calendar}».{' '}
+            {form.device.readOnly ? 'Менять встречу может только организатор, здесь её можно только убрать из планера.' : 'Изменения и удаление здесь применятся и в календаре.'}
           </p>
         )}
 
@@ -214,7 +219,7 @@ export function EventSheet({ draft, onClose }: EventSheetProps) {
               className="mt-1 flex h-[50px] items-center justify-center gap-2 rounded-[14px] bg-surface text-[17px] text-red transition-colors active:bg-surface-2"
             >
               <Trash2 className="size-[18px]" />
-              Удалить событие
+              {form.device?.readOnly ? 'Убрать из планера' : 'Удалить событие'}
             </button>
           )
         )}

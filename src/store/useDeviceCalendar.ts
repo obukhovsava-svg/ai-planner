@@ -1,15 +1,15 @@
 /**
- * Meetings from the device's own calendars (Outlook, iCloud, Google added to the iPhone or Mac).
- * The app reads them with EventKit and they become ordinary planner events: on the server, in the
- * widget, known to the assistant, with the calendar's description as the note. One way only: a change
- * in the calendar overwrites the copy here; what's edited here stays until the meeting changes there.
+ * Meetings from the device's own calendars (Outlook, iCloud, Google added to the iPhone or Mac), kept
+ * in step both ways: the app reads them with EventKit and they become ordinary planner events (on the
+ * server, in the widget, known to the assistant, the description as the note); a move, edit or delete
+ * in the planner, from any device, is written back by the device that has the calendar.
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { CalendarEvent } from '@/types';
 import { isNative, postNative } from '@/lib/native';
 import { storage, uid } from '@/lib/storage';
-import { usePlannerStore } from './usePlannerStore';
+import { usePlannerStore, type DeviceItem } from './usePlannerStore';
+import { useUIStore } from './useUIStore';
 
 export interface DeviceCalendarInfo {
   id: string;
@@ -37,7 +37,7 @@ export const useDeviceCalendar = create<DeviceCalendarState>()(
 /** After switching a calendar on, meetings removed by switching it off come back. */
 let revive = false;
 
-const ask = (prompt: boolean) => postNative({ type: 'calendar', prompt, hidden: useDeviceCalendar.getState().hidden });
+const ask = (prompt: boolean, ops?: unknown[]) => postNative({ type: 'calendar', prompt, hidden: useDeviceCalendar.getState().hidden, ops });
 
 export function enableDeviceCalendar() {
   useDeviceCalendar.setState({ on: true, denied: false });
@@ -65,13 +65,23 @@ export function installDeviceCalendar() {
     if (!on) return;
     if (!e.granted) return useDeviceCalendar.setState({ denied: true, calendars: [] });
     useDeviceCalendar.setState({ denied: false, calendars: e.calendars });
-    usePlannerStore.getState().reconcileDevice(e.events as CalendarEvent[], owner, revive);
+    const { ops, reverted, waiting } = usePlannerStore.getState().reconcileDevice(e.events as DeviceItem[], owner, revive);
     revive = false;
+    if (reverted) useUIStore.getState().showToast('Эту встречу изменить нельзя: её может менять только организатор');
+    if (ops.length) ask(false, ops);
+    if (waiting) window.setTimeout(refresh, 9000);
   };
   const refresh = () => {
     if (useDeviceCalendar.getState().on && document.visibilityState === 'visible') ask(false);
   };
   window.__plannerCalendarChanged = refresh;
+  // Something changed in the planner (here or on another device) → carry it to the calendar.
+  let timer = 0;
+  usePlannerStore.subscribe((now, before) => {
+    if (now.events === before.events && now.deleted === before.deleted) return;
+    window.clearTimeout(timer);
+    timer = window.setTimeout(refresh, 1500);
+  });
   document.addEventListener('visibilitychange', refresh);
   refresh();
 }

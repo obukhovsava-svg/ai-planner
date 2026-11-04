@@ -287,7 +287,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Планер";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Календарь нужен, чтобы показать в планере встречи из Outlook и других календарей. Они остаются на устройстве.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Календарь нужен, чтобы показывать в планере встречи из Outlook и других календарей и вносить в них изменения, сделанные в планере.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Микрофон нужен, чтобы надиктовать дело ассистенту.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Распознавание речи превращает вашу фразу в событие или задачу.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -328,7 +328,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Планер";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Календарь нужен, чтобы показать в планере встречи из Outlook и других календарей. Они остаются на устройстве.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Календарь нужен, чтобы показывать в планере встречи из Outlook и других календарей и вносить в них изменения, сделанные в планере.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Микрофон нужен, чтобы надиктовать дело ассистенту.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Распознавание речи превращает вашу фразу в событие или задачу.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

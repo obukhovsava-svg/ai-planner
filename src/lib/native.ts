@@ -25,8 +25,8 @@ type NativeMessage =
   | { type: 'widget'; snapshot: WidgetSnapshot }
   /** Consent to AI processing, for Siri / Shortcuts «Добавить в ПЛАН» (they run without the page). */
   | { type: 'aiConsent'; on: boolean }
-  /** Read the device's calendars (`prompt`: may ask for access); answers via __plannerCalendar. */
-  | { type: 'calendar'; prompt: boolean; hidden: string[] }
+  /** Apply `ops` to the device's calendars and read them (`prompt`: may ask for access); answers via __plannerCalendar. */
+  | { type: 'calendar'; prompt: boolean; hidden: string[]; ops?: unknown[] }
   /** The accent colour, so the widgets match the app. */
   | { type: 'accent'; accent: string; tone: 'pastel' | 'dark' };
 

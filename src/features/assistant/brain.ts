@@ -256,6 +256,7 @@ function doDelete(c: Candidate, all: boolean): AssistantReply {
   }
   const removed = p.deleteEvent(ev.id);
   if (removed) chat().pushUndo({ op: 'deleted-event', event: removed });
+  if (ev.device?.readOnly) return { text: `Убрал ${candLabel(c)} из планера. В календаре встреча осталась: удалить её может только организатор.`, attachment: { type: 'undo' } };
   return { text: ev.repeat ? `Удалил все повторы «${c.title}».` : `Удалил ${candLabel(c)}.`, attachment: { type: 'undo' } };
 }
 
@@ -283,6 +284,7 @@ function doMove(c: Candidate, to: MoveTarget): AssistantReply {
     return { text: `Перенёс задачу «${c.title}» на ${when(to.date ?? before.date)}${to.start ? `, ${to.start}` : ''}.`, attachment: { type: 'undo' } };
   }
   const ev = p.events.find((e) => e.id === c.id)!;
+  if (ev.device?.readOnly) return { text: `«${c.title}» перенести может только организатор встречи.` };
   const len = timeToMinutes(ev.end) - timeToMinutes(ev.start);
   if (to.shift) {
     const s = shifted(c.date ?? ev.date, ev.start, to.shift);

@@ -71,8 +71,8 @@ export interface CalendarEvent {
   createdAt: number;
   /** Last change (ms) — newer wins when syncing. */
   updatedAt?: number;
-  /** Brought in from a device's calendar (Outlook…). `sig` = the calendar's version, `owner` = the installation that added it. */
-  device?: { calendar: string; location?: string; allDay?: boolean; sig?: string; owner?: string };
+  /** A meeting from a device's calendar (Outlook…), kept in step both ways. `readOnly`: only its organizer can change it; `sig`: the version both sides last agreed on; `owner`: the installation that added it. */
+  device?: { calendar: string; location?: string; allDay?: boolean; readOnly?: boolean; noteCut?: boolean; sig?: string; owner?: string };
 }
 
 export type EventColor = 'blue' | 'red' | 'violet' | 'green' | 'amber';

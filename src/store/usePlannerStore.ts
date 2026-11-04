@@ -28,11 +28,24 @@ interface PlannerState {
 
   /** Replace everything with the merged server copy (sync). */
   replaceAll(doc: PlannerDoc): void;
-  /** Brings the device calendar's meetings in; `revive` also returns ones deleted before. */
-  reconcileDevice(items: CalendarEvent[], owner: string, revive: boolean): void;
+  /** Two-way step with the device's calendar; `revive` also returns meetings removed from the planner. */
+  reconcileDevice(items: DeviceItem[], owner: string, revive: boolean): { ops: DeviceOp[]; reverted: number; waiting: boolean };
 }
 
 const now = () => Date.now();
+
+/** A meeting as the app reads it from the calendar; `ref` finds it there again. */
+export type DeviceItem = CalendarEvent & { ref?: { eid: string; at: number }; modified?: number };
+export type DeviceOp =
+  | { op: 'update'; ref: { eid: string; at: number }; title: string; date: string; start: string; end: string; note?: string }
+  | { op: 'remove'; ref: { eid: string; at: number } };
+
+const DELETE_GRACE = 8000;
+/** Marks a delete made by the user (synced with the tombstones, so any device's copy can act on it). */
+const calendarDeleteKey = (id: string) => `calendar-delete:${id}`;
+const deviceSig = (e: CalendarEvent, cut?: boolean) => JSON.stringify([e.title, e.date, e.start, e.end, cut ? null : (e.note ?? null)]);
+/** What was last sent to the calendar for a meeting. */
+const pushed = new Map<string, string>();
 const without = (deleted: Record<string, number>, id: string) => {
   const { [id]: _gone, ...rest } = deleted;
   return rest;
@@ -80,7 +93,9 @@ export const usePlannerStore = create<PlannerState>()(
       },
       deleteEvent(id) {
         const event = get().events.find((e) => e.id === id);
-        set((s) => ({ events: s.events.filter((e) => e.id !== id), deleted: { ...s.deleted, [id]: now() } }));
+        const at = now();
+        const mark = event?.device && !event.device.readOnly ? { [calendarDeleteKey(id)]: at } : {};
+        set((s) => ({ events: s.events.filter((e) => e.id !== id), deleted: { ...s.deleted, [id]: at, ...mark } }));
         return event;
       },
       restoreEvent(event) {
@@ -92,37 +107,72 @@ export const usePlannerStore = create<PlannerState>()(
         set({ tasks: doc.tasks, events: doc.events, deleted: doc.deleted });
       },
       reconcileDevice(items, owner, revive) {
-        // Nothing is written unless the calendar really changed: every write here goes to the server.
-        const signed = new Map(items.map((i) => [i.id, { ...i, device: { ...i.device!, owner, sig: JSON.stringify([i.title, i.date, i.start, i.end, i.note, i.device?.location, i.device?.allDay]) } }]));
-        set((s) => {
-          const stamp = now();
-          const deleted = { ...s.deleted };
-          const events: CalendarEvent[] = [];
-          let changed = false;
-          for (const e of s.events) {
-            const fresh = e.device && signed.get(e.id);
-            if (!e.device) events.push(e);
-            else if (fresh) {
-              signed.delete(e.id);
-              if (fresh.device.sig === e.device.sig) events.push(e);
+        const s = get();
+        const stamp = now();
+        const deleted = { ...s.deleted };
+        const events: CalendarEvent[] = [];
+        const ops: DeviceOp[] = [];
+        let reverted = 0;
+        let waiting = false;
+        let changed = false;
+        const fresh = new Map(items.map((i) => [i.id, i]));
+        for (const e of s.events) {
+          const item = e.device && fresh.get(e.id);
+          if (!e.device) events.push(e);
+          else if (item) {
+            fresh.delete(e.id);
+            const cut = item.device!.noteCut;
+            const there = deviceSig(item, cut);
+            const here = deviceSig(e, cut);
+            const last = e.device.sig;
+            const device = { ...item.device!, owner: e.device.owner, sig: there };
+            if (there === here) {
+              // In step. Only the bookkeeping may be behind (no new stamp: nothing the user sees changed).
+              const same = (['calendar', 'location', 'allDay', 'readOnly', 'noteCut', 'sig'] as const).every((k) => e.device![k] === device[k]);
+              if (same) events.push(e);
               else {
-                // the calendar changed: its fields win, the colour and reminder set here stay
-                events.push({ ...fresh, color: e.color, remind: e.remind, createdAt: e.createdAt, updatedAt: stamp, device: { ...fresh.device, owner: e.device.owner } });
+                events.push({ ...e, device });
                 changed = true;
               }
-            } else if (e.device.owner === owner) {
-              deleted[e.id] = stamp;
-              changed = true;
-            } else events.push(e);
-          }
-          for (const fresh of signed.values()) {
-            if (deleted[fresh.id] && !revive) continue; // deleted in the planner: stays deleted
-            delete deleted[fresh.id];
-            events.push({ ...fresh, createdAt: stamp, updatedAt: stamp });
+              pushed.delete(e.id);
+              continue;
+            }
+            const editedHere = here !== last;
+            const newerHere = there === last || e.updatedAt! > item.modified!;
+            // A write that didn't take (declined, or the server reformatted it) isn't retried forever.
+            if (editedHere && newerHere && !item.device!.readOnly && pushed.get(e.id) !== here) {
+              pushed.set(e.id, here);
+              ops.push({ op: 'update', ref: item.ref!, title: e.title, date: e.date, start: e.start, end: e.end, note: cut ? undefined : (e.note ?? '') });
+              events.push(e);
+              continue;
+            }
+            if (editedHere) reverted++;
+            pushed.delete(e.id);
+            const { ref: _ref, modified: _modified, ...data } = item;
+            events.push({ ...data, color: e.color, remind: e.remind, createdAt: e.createdAt, updatedAt: stamp, device });
             changed = true;
+          } else if (e.device.owner === owner) {
+            deleted[e.id] = stamp;
+            changed = true;
+          } else events.push(e);
+        }
+        for (const item of fresh.values()) {
+          // Deleted by the user (the mark and the tombstone agree) → from the calendar too, once «Отменить» has passed.
+          const mark = deleted[calendarDeleteKey(item.id)];
+          if (mark && mark === deleted[item.id] && !item.device!.readOnly) {
+            if (stamp - mark > DELETE_GRACE) ops.push({ op: 'remove', ref: item.ref! });
+            else waiting = true;
+            continue;
           }
-          return changed ? { events, deleted } : s;
-        });
+          if (deleted[item.id] && !revive) continue; // removed from the planner: stays removed
+          delete deleted[item.id];
+          const { ref: _ref, modified: _modified, ...data } = item;
+          const cut = item.device!.noteCut;
+          events.push({ ...data, createdAt: stamp, updatedAt: stamp, device: { ...item.device!, owner, sig: deviceSig(item, cut) } });
+          changed = true;
+        }
+        if (changed) set({ events, deleted });
+        return { ops, reverted, waiting };
       },
     }),
     {
