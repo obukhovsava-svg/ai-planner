@@ -1,19 +1,40 @@
+import { Check } from 'lucide-react';
 import { Sheet } from '@/components/Sheet';
-import { Switch } from '@/components/Switch';
 import { disableDeviceCalendar, enableDeviceCalendar, toggleDeviceCalendar, useDeviceCalendar } from '@/store/useDeviceCalendar';
 import { postNative } from '@/lib/native';
+import { haptic } from '@/lib/telegram';
+
+function CheckRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange(v: boolean): void }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={() => {
+        haptic.selection();
+        onChange(!checked);
+      }}
+      className="flex w-full items-center justify-between gap-3 border-b-[0.5px] border-line px-4 py-3 text-left transition-colors last:border-b-0 active:bg-surface-2"
+    >
+      <span className="min-w-0">
+        <span className="block truncate text-[17px]">{label}</span>
+        {hint && <span className="block truncate text-[12px] text-muted">{hint}</span>}
+      </span>
+      {checked && <Check className="size-5 shrink-0 text-blue" strokeWidth={2.6} />}
+    </button>
+  );
+}
 
 export function DeviceCalendarSheet({ open, onClose }: { open: boolean; onClose(): void }) {
   const { on, denied, calendars, hidden } = useDeviceCalendar();
   return (
-    <Sheet open={open} title="Встречи из календаря" onClose={onClose}>
+    <Sheet open={open} title="Интеграция" onClose={onClose}>
       <div className="flex flex-col gap-4 pb-2">
-        <div className="flex items-center justify-between gap-3 rounded-[14px] bg-surface px-4 py-3">
-          <span className="text-[17px]">Показывать в планере</span>
-          <Switch checked={on && !denied} onChange={(v) => (v ? enableDeviceCalendar() : disableDeviceCalendar())} />
+        <div className="overflow-hidden rounded-[14px] bg-surface">
+          <CheckRow label="Календарь" checked={on && !denied} onChange={(v) => (v ? enableDeviceCalendar() : disableDeviceCalendar())} />
         </div>
         <p className="px-1 text-[13px] leading-snug text-muted">
-          Встречи из Outlook и других календарей этого устройства сами появятся в планере как обычные события: с описанием в заметке, в виджете и у ассистента. Как и всё в планере, они хранятся на сервере ПЛАН, а ассистент может передавать их нейросетям для ответа. Изменения идут в обе стороны: перенос, правка или удаление в планере меняют встречу и в календаре. Встречи, куда вас пригласили, может менять только организатор.
+          События календаря появятся в планере, а изменения будут идти в обе стороны. Как и всё в планере, они хранятся на сервере ПЛАН, а ассистент может передавать их нейросетям для ответа.
         </p>
         {on && denied && (
           <div className="flex flex-col gap-2 px-1">
@@ -24,16 +45,13 @@ export function DeviceCalendarSheet({ open, onClose }: { open: boolean; onClose(
           </div>
         )}
         {on && !denied && calendars.length > 0 && (
-          <div className="overflow-hidden rounded-[14px] bg-surface">
-            {calendars.map((c) => (
-              <div key={c.id} className="flex items-center justify-between gap-3 border-b-[0.5px] border-line px-4 py-2.5 last:border-b-0">
-                <span className="min-w-0">
-                  <span className="block truncate text-[16px]">{c.title}</span>
-                  <span className="block truncate text-[12px] text-muted">{c.source}</span>
-                </span>
-                <Switch checked={!hidden.includes(c.id)} onChange={(v) => toggleDeviceCalendar(c.id, v)} />
-              </div>
-            ))}
+          <div className="flex flex-col gap-1.5">
+            <span className="px-4 text-[13px] uppercase text-muted">Какие календари</span>
+            <div className="overflow-hidden rounded-[14px] bg-surface">
+              {calendars.map((c) => (
+                <CheckRow key={c.id} label={c.title} hint={c.source} checked={!hidden.includes(c.id)} onChange={(v) => toggleDeviceCalendar(c.id, v)} />
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -23,7 +23,9 @@ export function NextStepSheet() {
     if (!hasServerAuth() && !isNative()) return;
     let t = 0;
     const unsub = usePlannerStore.subscribe((state, prev) => {
-      const now = state.tasks.length + state.events.length, before = prev.tasks.length + prev.events.length;
+      // meetings brought in from the calendar aren't the user's first record
+      const own = (x: typeof state) => x.tasks.length + x.events.filter((e) => !e.device).length;
+      const now = own(state), before = own(prev);
       if (before !== 0 || now === 0) return;
       try {
         if (localStorage.getItem(SHOWN_KEY)) return;

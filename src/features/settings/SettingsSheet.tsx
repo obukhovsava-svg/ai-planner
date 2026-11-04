@@ -207,7 +207,7 @@ export function SettingsSheet() {
 
           <Group title="Ещё">
             {isNative() && (
-              <Row icon={<CalendarDays className="size-[18px]" />} iconBg="bg-red" label="Встречи из календаря" onClick={() => setCalendarOpen(true)}>
+              <Row icon={<CalendarDays className="size-[18px]" />} iconBg="bg-red" label="Интеграция" onClick={() => setCalendarOpen(true)}>
                 <ChevronRight className="size-5 text-faint" />
               </Row>
             )}
