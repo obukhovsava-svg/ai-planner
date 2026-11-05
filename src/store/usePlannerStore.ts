@@ -44,6 +44,8 @@ const DELETE_GRACE = 8000;
 /** Marks a delete made by the user (synced with the tombstones, so any device's copy can act on it). */
 const calendarDeleteKey = (id: string) => `calendar-delete:${id}`;
 const deviceSig = (e: CalendarEvent, cut?: boolean) => JSON.stringify([e.title, e.date, e.start, e.end, cut ? null : (e.note ?? null)]);
+/** The same meeting seen from two devices: each calendar account may give it its own identifier. */
+const meetingKey = (e: CalendarEvent) => JSON.stringify([e.title, e.date, e.start, e.end]);
 /** What was last sent to the calendar for a meeting. */
 const pushed = new Map<string, string>();
 const without = (deleted: Record<string, number>, id: string) => {
@@ -116,9 +118,22 @@ export const usePlannerStore = create<PlannerState>()(
         let waiting = false;
         let changed = false;
         const fresh = new Map(items.map((i) => [i.id, i]));
+        // One copy per meeting, whichever devices brought it in: the same one survives on every device.
+        // Only the planner's copy goes (a tombstone, no calendar-delete mark): the calendars aren't touched.
+        const keeper = new Map<string, string>();
+        for (const e of s.events) {
+          if (!e.device) continue;
+          const k = meetingKey(e);
+          const o = e.device.owner ?? '';
+          if (!keeper.has(k) || o < keeper.get(k)!) keeper.set(k, o);
+        }
         for (const e of s.events) {
           const item = e.device && fresh.get(e.id);
-          if (!e.device) events.push(e);
+          if (e.device && (e.device.owner ?? '') !== keeper.get(meetingKey(e))) {
+            if (item) fresh.delete(e.id);
+            deleted[e.id] = stamp;
+            changed = true;
+          } else if (!e.device) events.push(e);
           else if (item) {
             fresh.delete(e.id);
             const cut = item.device!.noteCut;
@@ -173,6 +188,7 @@ export const usePlannerStore = create<PlannerState>()(
             continue;
           }
           if (deleted[item.id] && !revive) continue; // removed from the planner: stays removed
+          if (keeper.has(meetingKey(item))) continue; // another device has already brought it in
           delete deleted[item.id];
           const { ref: _ref, modified: _modified, ...data } = item;
           const cut = item.device!.noteCut;
