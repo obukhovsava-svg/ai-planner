@@ -627,6 +627,21 @@ const DELETE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:удали|удали
 const RENAME_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:переименуй(?:те)?|переименовать)\\s+(.+)\\s+(?:в|на)\\s+(.+?)\\s*$`);
 const RENAME_WORD_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:измени|изменить|поменяй|поменять|смени|сменить|исправь|исправить|замени|заменить)\\s+(?:название|имя|заголовок)\\s+(.+)\\s+на\\s+(.+?)\\s*$`);
 
+// Changing what already exists, however it's put. Each form is read as «перенеси …», so a change never
+// turns into a new event called «Измени время созвона». The verbs that also start ordinary tasks («замени
+// лампочку завтра в 10», «поменяй масло на синтетику») count only next to «время» / «дату» or a real moment.
+const EDIT_STRICT = '(?:измени(?:те)?|изменить|поменяй(?:те)?|поменять|смени(?:те)?|сменить)';
+const EDIT_LOOSE = '(?:исправь(?:те)?|исправить|обнови(?:те)?|обновить|замени(?:те)?|заменить|поправь(?:те)?|поправить|скорректируй(?:те)?|скорректировать)';
+const PLEASE = '^\\s*(?:пожалуйста\\s+)?';
+const WHENISH = '(?:\\d|завтра|послезавтра|сегодня|понедельник|вторник|сред|четверг|пятниц|суббот|воскрес|час|полчаса|утр|вечер|обед)';
+const EDIT_WHEN_RE = rx(`${PLEASE}(?:${EDIT_STRICT}|${EDIT_LOOSE})\\s+((?:в|во|на)\\s+\\S+\\s+)?(?:время|дату|день|начало|срок)\\s+(.+)$`);
+const EDIT_TO_RE = rx(`${PLEASE}${EDIT_STRICT}\\s+(?!заметк|напоминан|тем[уы]|цвет)(.+\\sна\\s+${WHENISH}.*)$`);
+const EDIT_NOW_RE = rx(`^\\s*(.+?)\\s+(?:теперь|перенес\\p{L}*|перенёс\\p{L}*|сдвинул\\p{L}*|передвинул\\p{L}*|сместил\\p{L}*)\\s+((?:на|в|во)\\s+${WHENISH}.*)$`);
+const EDIT_NOT_RE = rx(`^\\s*(?:((?:в|во)\\s+\\S+)\\s+)?(.+?)\\s+(?:будет\\s+)?не\\s+(?:в|во|на)\\s+(.+?)\\s*,?\\s+а\\s+((?:в|во|на)\\s+.+)$`);
+const EDIT_BUTNOT_RE = rx(`^\\s*(?:время|дата)\\s+(.+?)\\s+(\\S+)\\s*,?\\s+а\\s+не\\s+.+$`);
+const EDIT_INSTEAD_RE = rx(`${PLEASE}(?:поставь|сделай)\\s+(.+?)\\s+((?:на|в|во)\\s+\\S+)\\s+вместо\\s+.+$`);
+const EDIT_SHIFT_RE = rx(`${PLEASE}(?:(?:сделай|поставь)\\s+)?(.+?)\\s+(на\\s+.*(?:позже|раньше|пораньше|попозже))\\s*$`);
+
 const MOVE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:перенеси|перенести|передвинь|сдвинь|перемести|переставь)${E}(?:\\s+|\\s*$)`);
 const COMPLETE_RE = rx(
   `^\\s*(?:(?:отметь|отметить)\\s+(.+?)\\s+(?:как\\s+)?(?:выполненн\\p{L}*|сделанн\\p{L}*|готов\\p{L}*)|(?:я\\s+)?(?:сделал|сделала|выполнил|выполнила|закончил|закончила|купил|купила)\\s+(.+)|(.+?)\\s+(?:готово|сделано|выполнено)|(?:готово|сделано|выполнено)\\s*[:,—-]?\\s+(.+))\\s*$`,
@@ -812,6 +827,23 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
     return { ...baseAnalysis('rename', cleanTitle(old.text)), newTitle: name.charAt(0).toUpperCase() + name.slice(1), date, targetKind: !kind ? undefined : /^задач/iu.test(kind[1]) ? 'task' : 'event' };
   }
 
+  if (!MOVE_RE.test(t)) {
+    const not = t.match(EDIT_NOT_RE);
+    if (not) {
+      const sub: Ctx = { text: ` ${not[1] ?? ''} в ${not[3]} `, now };
+      const moved = analyze(`перенеси ${not[2]} ${not[4]}`, now);
+      return { ...moved, sourceDate: parseDate(sub) };
+    }
+    const w = t.match(EDIT_WHEN_RE);
+    if (w) return analyze(`перенеси ${w[2]} ${w[1] ?? ''}`.trim(), now);
+    const to = t.match(EDIT_TO_RE);
+    if (to) return analyze(`перенеси ${to[1]}`, now);
+    const n = t.match(EDIT_NOW_RE) ?? t.match(EDIT_INSTEAD_RE) ?? t.match(EDIT_SHIFT_RE);
+    if (n) return analyze(`перенеси ${n[1]} ${n[2]}`, now);
+    const b = t.match(EDIT_BUTNOT_RE);
+    if (b) return analyze(`перенеси ${b[1]} на ${b[2]}`, now);
+  }
+
   const done = t.match(COMPLETE_RE);
   if (done) return baseAnalysis('complete', cleanTitle(done[1] ?? done[2] ?? done[3] ?? done[4] ?? ''));
 
@@ -985,6 +1017,12 @@ export function guardRename<T extends { intent: string; title?: string }>(action
   const add = actions.find((a) => a.intent === 'create');
   if (!del || !add?.title) return actions;
   return [{ ...del, intent: 'rename', newTitle: add.title }, ...actions.filter((a) => a !== del && a !== add)];
+}
+
+/** A model's "new event" in answer to a request to change one: it's a move («Не нашёл», at worst). */
+export function guardEdit<T extends { intent: string }>(actions: T[], text: string): T[] {
+  const change = rx(`${PLEASE}(?:${EDIT_STRICT}|${EDIT_LOOSE}|перенеси|передвинь|сдвинь)\\s`).test(text) && rx(`${B}(?:время|дат[уы]|перенес\\p{L}*|позже|раньше)${E}`).test(text);
+  return change || rx(`\\sтеперь\\s+(?:на|в|во)\\s+${WHENISH}`).test(text) ? actions.map((a) => (a.intent === 'create' ? { ...a, intent: 'move' } : a)) : actions;
 }
 
 export function guardNoteMode<T extends { intent: string; noteMode?: string }>(a: T, text: string): T {
