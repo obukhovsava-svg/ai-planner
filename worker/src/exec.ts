@@ -247,6 +247,22 @@ export function execute(input: PlannerDoc, actions: any[], ctx: { today: string;
         }
         break;
       }
+      case 'rename': {
+        const hit = title && typeof a.newTitle === 'string' && a.newTitle.trim() ? findOne(doc, title, date, today, kinds) : null;
+        if (!hit) {
+          unresolved.push(a);
+          break;
+        }
+        const newTitle = a.newTitle.trim().slice(0, 120);
+        if (hit.kind === 'event' && hit.item.device?.readOnly) {
+          lines.push(`«${hit.item.title}» переименовать может только организатор встречи`);
+          break;
+        }
+        if (hit.kind === 'event') touchEvent(hit.item.id, { title: newTitle });
+        else touchTask(hit.item.id, { title: newTitle });
+        lines.push(`переименовал «${hit.item.title}» в «${newTitle}»`);
+        break;
+      }
       case 'delete': {
         if (a.bulk || !title) {
           unresolved.push(a); // needs confirmation / a choice

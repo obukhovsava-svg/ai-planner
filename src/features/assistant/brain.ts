@@ -260,6 +260,20 @@ function doDelete(c: Candidate, all: boolean): AssistantReply {
   return { text: ev.repeat ? `Удалил все повторы «${c.title}».` : `Удалил ${candLabel(c)}.`, attachment: { type: 'undo' } };
 }
 
+function doRename(c: Candidate, title: string): AssistantReply {
+  const p = planner();
+  if (c.kind === 'task') {
+    chat().pushUndo({ op: 'updated-task', before: p.tasks.find((t) => t.id === c.id)! });
+    p.updateTask(c.id, { title });
+  } else {
+    const ev = p.events.find((e) => e.id === c.id)!;
+    if (ev.device?.readOnly) return { text: `«${c.title}» переименовать может только организатор встречи.` };
+    chat().pushUndo({ op: 'updated-event', before: ev });
+    p.updateEvent(c.id, { title });
+  }
+  return { text: `Переименовал «${c.title}» в «${title}».`, attachment: { type: 'undo' } };
+}
+
 /** `shift`: minutes later (+) / earlier (−) — "на час позже". */
 type MoveTarget = { date?: DateKey; start?: string; end?: string; duration?: number; shift?: number };
 
@@ -786,6 +800,14 @@ function act(a: Analysis, text: string, aiReply?: string): AssistantReply {
       if (!found.length) return { text: `Не нашёл открытую задачу «${a.title}».` };
       if (found.length === 1) return doComplete(found[0]);
       return { text: 'Какую задачу отметить?', attachment: { type: 'choose', action: 'complete', candidates: found } };
+    }
+    case 'rename': {
+      const kinds: ('event' | 'task')[] = a.targetKind === 'task' ? ['task'] : a.targetKind === 'event' ? ['event'] : ['event', 'task'];
+      if (!a.title || !a.newTitle) return { text: 'Что и как переименовать? Например: «переименуй созвон в планёрку».' };
+      const found = findCandidates(a.title, a.date, kinds);
+      if (!found.length) return { text: `Не нашёл «${a.title}»${a.date ? ` ${when(a.date)}` : ''}.` };
+      if (found.length > 1) return { text: `Нашёл несколько «${a.title}». Назовите день, например: «переименуй ${a.title} в пятницу в ${a.newTitle}».` };
+      return doRename(found[0], a.newTitle);
     }
     case 'delete':
     case 'move': {

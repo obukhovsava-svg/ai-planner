@@ -5,7 +5,7 @@ import { execute } from './exec';
 import { buildDigest, DEFAULT_DIGEST, minutesOf, type DigestSettings } from './digest';
 import { buildIcs } from './ics';
 import { timeToMinutes } from '../../src/lib/date';
-import { analyze, guardNoteMode, isConfident, splitRequests } from '../../src/lib/parser';
+import { analyze, guardNoteMode, guardRename, isConfident, splitRequests } from '../../src/lib/parser';
 /**
  * AI brain for the planner Mini App (Cloudflare Worker).
  *
@@ -115,13 +115,14 @@ const ACTION_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'intent', 'title', 'date', 'start', 'end', 'duration', 'repeat', 'needsStart', 'kindWord',
+    'intent', 'title', 'newTitle', 'date', 'start', 'end', 'duration', 'repeat', 'needsStart', 'kindWord',
     'eventHint', 'taskHint', 'priority', 'category', 'range', 'sourceDate', 'shift', 'all', 'targetKind', 'bulk',
     'remind', 'remindOffset', 'remindCancel', 'remindAt', 'note', 'noteMode',
   ],
   properties: {
-    intent: { type: 'string', enum: ['create', 'agenda', 'delete', 'move', 'complete', 'remind', 'note', 'undo', 'help', 'smalltalk'] },
+    intent: { type: 'string', enum: ['create', 'agenda', 'delete', 'move', 'rename', 'complete', 'remind', 'note', 'undo', 'help', 'smalltalk'] },
     title: { type: 'string', description: 'create: short title in nominative case. delete/move/complete: what to look for.' },
+    newTitle: nullable('string', { description: 'rename only: the new name.' }),
     date: nullable('string', { description: 'YYYY-MM-DD. For move: the NEW date.' }),
     start: nullable('string', { description: 'HH:MM, 24h' }),
     end: nullable('string', { description: 'HH:MM, 24h' }),
@@ -218,6 +219,7 @@ function systemPrompt(today: string, weekday: string, time: string): string {
 - Графики смен: «2/2», «2 через 2», «график 2 на 2» → freq day, interval 1, cycle {on:2, off:2}; «сутки через трое» → cycle {on:1, off:3}, start 08:00, end 23:59; «5/2» → week, byWeekday [0..4]. Если не сказано, с какого дня начинается график — date null и needsStart true.
 - title: коротко, с заглавной буквы, в именительном падеже («встречу с Анной» → «Встреча с Анной»), без дат, времени и слов «поставь/добавь/напомни».
 - move («перенеси X на …»): title = что ищем, date/start/end = новое время, sourceDate = откуда («со среды», «завтрашнюю» → завтра). «с 10 вечера на 8 вечера до 10» → start 20:00, end 22:00. «на час позже» → shift 60, «на 30 минут раньше» → shift -30, date/start null.
+- rename («переименуй X в Y», «измени название X на Y»): title = что ищем, newTitle = новое название, date — если указан день. Одно действие rename: НИКОГДА не заменяй его на delete + create, это удалит событие.
 - delete («удали/отмени X»), complete («я сделал X», «отметь X выполненной»): title = что ищем, date — если указан день.
 - Массовое удаление («удали все события на понедельник», «удали все задачи», «очисти всё на завтра», «удали все дела на неделе»): intent delete, bulk true, title "", targetKind event/task/any, date или range.
 - Если не названо, что именно удалить/перенести («удали», «перенеси задачу», «удали событие»): title "", targetKind по слову — приложение само покажет список на выбор.
@@ -987,6 +989,7 @@ async function llm(env: Env, text: string, today: string, weekday: string, time:
  * sometimes counts it wrong (or drops it, and the item lands on today) — the rules' date wins. */
 function keepNamedDates(r: LlmResult, text: string, today: string, time: string): LlmResult {
   if (!r.ok || !Array.isArray(r.data.actions)) return r;
+  r.data.actions = guardRename(r.data.actions, text);
   const [y, m, d] = today.split('-').map(Number);
   const [hh, mm] = time.split(':').map(Number);
   if (![y, m, d].every(Number.isFinite)) return r;

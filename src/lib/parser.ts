@@ -16,12 +16,14 @@ import type { Category, DateKey, Priority, Repeat, TimeStr } from '@/types';
 import { addDays, minutesToTime, startOfWeek, timeToMinutes, toKey, weekdayMon } from './date';
 import { nthOfMonth } from './recurrence';
 
-export type Intent = 'create' | 'agenda' | 'delete' | 'move' | 'complete' | 'remind' | 'note' | 'digest' | 'undo' | 'help' | 'smalltalk';
+export type Intent = 'create' | 'agenda' | 'delete' | 'move' | 'rename' | 'complete' | 'remind' | 'note' | 'digest' | 'undo' | 'help' | 'smalltalk';
 
 export interface Analysis {
   intent: Intent;
-  /** create: cleaned title. delete/move/complete: what to look for. */
+  /** create: cleaned title. delete/move/rename/complete: what to look for. */
   title: string;
+  /** rename: the new name. */
+  newTitle?: string;
   date?: DateKey;
   start?: TimeStr;
   end?: TimeStr;
@@ -621,6 +623,10 @@ const SMALLTALK_RE = rx(
 );
 const UNDO_RE = rx(`^\\s*(?:отмени|отменить|верни|вернуть|откати)(?:\\s+(?:последн\\p{L}*(?:\\s+действие)?|это|что\\s+сделал|как\\s+было|назад))?\\s*$`);
 const DELETE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:удали|удалить|убери|убрать|отмени|отменить|сотри|вычеркни|очисти|очистить)${E}(?:\\s+|\\s*$)`);
+// "переименуй X в Y", "измени название события в пятницу X на Y"
+const RENAME_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:переименуй(?:те)?|переименовать)\\s+(.+)\\s+(?:в|на)\\s+(.+?)\\s*$`);
+const RENAME_WORD_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:измени|изменить|поменяй|поменять|смени|сменить|исправь|исправить|замени|заменить)\\s+(?:название|имя|заголовок)\\s+(.+)\\s+на\\s+(.+?)\\s*$`);
+
 const MOVE_RE = rx(`^\\s*(?:пожалуйста\\s+)?(?:перенеси|перенести|передвинь|сдвинь|перемести|переставь)${E}(?:\\s+|\\s*$)`);
 const COMPLETE_RE = rx(
   `^\\s*(?:(?:отметь|отметить)\\s+(.+?)\\s+(?:как\\s+)?(?:выполненн\\p{L}*|сделанн\\p{L}*|готов\\p{L}*)|(?:я\\s+)?(?:сделал|сделала|выполнил|выполнила|закончил|закончила|купил|купила)\\s+(.+)|(.+?)\\s+(?:готово|сделано|выполнено)|(?:готово|сделано|выполнено)\\s*[:,—-]?\\s+(.+))\\s*$`,
@@ -796,6 +802,16 @@ export function analyze(input: string, now: Date = new Date()): Analysis {
     return { ...inner, title, remind: true, remindOffset: offset, taskHint: inner.eventHint ? inner.taskHint : true };
   }
 
+  const ren = t.match(RENAME_RE) ?? t.match(RENAME_WORD_RE);
+  if (ren) {
+    const old: Ctx = { text: ` ${ren[1]} `, now };
+    const date = parseDate(old);
+    const kind = old.text.match(rx(`^\\s*(событи\\p{L}*|встреч\\p{L}*|задач\\p{L}*)\\s+(?=\\S)`));
+    if (kind) old.text = old.text.slice(kind[0].length);
+    const name = ren[2].replace(/^[«"'\s]+|[»"'.\s]+$/g, '');
+    return { ...baseAnalysis('rename', cleanTitle(old.text)), newTitle: name.charAt(0).toUpperCase() + name.slice(1), date, targetKind: !kind ? undefined : /^задач/iu.test(kind[1]) ? 'task' : 'event' };
+  }
+
   const done = t.match(COMPLETE_RE);
   if (done) return baseAnalysis('complete', cleanTitle(done[1] ?? done[2] ?? done[3] ?? done[4] ?? ''));
 
@@ -959,6 +975,18 @@ const LEFTOVER =
  * The model sometimes says "replace"/"clear" for "добавь в заметку …" — only the user's own words
  * may wipe a note. Applied to model answers in the app and on the server.
  */
+/**
+ * A model without a better idea turns "измени название X на Y" into "delete X" + "create Y", and the
+ * event is gone. Asked to rename, it's a rename.
+ */
+export function guardRename<T extends { intent: string; title?: string }>(actions: T[], text: string): (T | (T & { newTitle?: string }))[] {
+  if (!/переимен|назван|заголов/iu.test(text)) return actions;
+  const del = actions.find((a) => a.intent === 'delete');
+  const add = actions.find((a) => a.intent === 'create');
+  if (!del || !add?.title) return actions;
+  return [{ ...del, intent: 'rename', newTitle: add.title }, ...actions.filter((a) => a !== del && a !== add)];
+}
+
 export function guardNoteMode<T extends { intent: string; noteMode?: string }>(a: T, text: string): T {
   if (a.intent !== 'note') return a;
   if (a.noteMode === 'replace' && !/замени|перепиши|поменяй|измени|исправь/iu.test(text)) return { ...a, noteMode: 'append' };
@@ -983,6 +1011,8 @@ export function isConfident(a: Analysis, text: string): boolean {
       return true;
     case 'move':
       return Boolean(a.title || a.targetKind) && !LEFTOVER.test(a.title);
+    case 'rename':
+      return Boolean(a.title && a.newTitle);
     case 'digest':
       return true;
     case 'note':
